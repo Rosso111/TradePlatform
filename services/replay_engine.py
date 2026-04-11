@@ -91,8 +91,23 @@ def run_historical_replay(app, run_id: int) -> SimulationRun:
                     p.stock_id for p in SimulationPosition.query.filter_by(run_id=run.id).all()
                 }
 
+                signal_counts = {'BUY': 0, 'SELL': 0, 'HOLD': 0, 'SKIP': 0}
+
                 for signal in signals:
-                    if signal['action'] == 'BUY':
+                    action = signal.get('action', 'HOLD')
+                    signal_counts[action] = signal_counts.get(action, 0) + 1
+
+                    if action == 'HOLD':
+                        _log_decision(
+                            run,
+                            signal,
+                            sim_date,
+                            executed=False,
+                            execution_note='Kein Trade-Signal',
+                        )
+                        continue
+
+                    if action == 'BUY':
                         should_execute = True
                         skip_reason = None
 
@@ -129,6 +144,7 @@ def run_historical_replay(app, run_id: int) -> SimulationRun:
                         )
 
                         if not should_execute:
+                            signal_counts['SKIP'] += 1
                             continue
 
                         shares = budget_eur / latest_price_eur
@@ -181,22 +197,39 @@ def run_historical_replay(app, run_id: int) -> SimulationRun:
                         )
                         db.session.add(trade)
                         decision_log.executed = True
-                        decision_log.execution_note = 'Trade ausgefuehrt'
                         cash_eur -= total_cost
                         open_position_stock_ids.add(signal['stock_id'])
                         db.session.commit()
+                        continue
 
-                    elif signal['action'] == 'SELL' and signal['stock_id'] in open_position_stock_ids:
+                    if action == 'SELL':
                         position = SimulationPosition.query.filter_by(
                             run_id=run.id,
                             stock_id=signal['stock_id']
                         ).first()
-                        decision_log = _log_decision(run, signal, sim_date, executed=bool(position))
+                        decision_log = _log_decision(
+                            run,
+                            signal,
+                            sim_date,
+                            executed=bool(position),
+                            execution_note=None if position else 'Keine offene Position zum Verkaufen',
+                        )
                         if position:
                             cash_eur += _close_position(
                                 run, position, sim_date, signal['reason'], decision_log_id=decision_log.id
                             )
                             open_position_stock_ids.discard(signal['stock_id'])
+                        else:
+                            signal_counts['SKIP'] += 1
+
+                log.info(
+                    'Replay %s %s: signals=%s open_positions=%s cash=%.2f',
+                    run.id,
+                    sim_date.isoformat(),
+                    signal_counts,
+                    len(open_position_stock_ids),
+                    cash_eur,
+                )
 
                 positions_value = _get_positions_value(run, sim_date)
                 equity = cash_eur + positions_value

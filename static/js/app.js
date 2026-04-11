@@ -231,7 +231,10 @@ function renderCandleChart(data) {
   if (!container) return;
 
   const prices = data.prices || [];
-  if (prices.length === 0) return;
+  if (prices.length === 0) {
+    renderChartPlaceholder('Keine Preisdaten für diesen Zeitraum vorhanden.');
+    return;
+  }
 
   const last = prices[prices.length - 1];
   const prev = prices[prices.length - 2];
@@ -244,15 +247,42 @@ function renderCandleChart(data) {
     chEl.className = `chart-change ${change >= 0 ? 'positive' : 'negative'}`;
   }
 
+  const chartData = prices
+    .map((p) => {
+      const [year, month, day] = String(p.date || '').split('-').map(Number);
+      const open = Number(p.open);
+      const high = Number(p.high);
+      const low = Number(p.low);
+      const close = Number(p.close);
+
+      if (!year || !month || !day) return null;
+      if ([open, high, low, close].some((value) => Number.isNaN(value))) return null;
+
+      return {
+        time: { year, month, day },
+        open,
+        high,
+        low,
+        close,
+      };
+    })
+    .filter(Boolean);
+
+  if (chartData.length === 0) {
+    renderChartPlaceholder('Chartdaten konnten nicht aufbereitet werden.');
+    return;
+  }
+
   if (!candleChart) {
+    container.innerHTML = '';
     candleChart = LightweightCharts.createChart(container, {
       layout: { background: { type: 'solid', color: '#1c2128' }, textColor: '#8b949e' },
       grid: { vertLines: { color: '#21262d' }, horzLines: { color: '#21262d' } },
       crosshair: { mode: LightweightCharts.CrosshairMode.Normal },
       rightPriceScale: { borderColor: '#30363d' },
       timeScale: { borderColor: '#30363d', timeVisible: true },
-      width: container.clientWidth,
-      height: container.clientHeight,
+      width: container.clientWidth || 600,
+      height: container.clientHeight || 340,
     });
 
     candleSeries = candleChart.addCandlestickSeries({
@@ -262,14 +292,25 @@ function renderCandleChart(data) {
     });
 
     window.addEventListener('resize', () => {
-      if (candleChart) candleChart.resize(container.clientWidth, container.clientHeight);
+      if (candleChart) candleChart.resize(container.clientWidth || 600, container.clientHeight || 340);
     });
   }
 
-  candleSeries.setData(prices.map((p) => ({
-    time: p.date, open: p.open, high: p.high, low: p.low, close: p.close,
-  })));
-  candleChart.timeScale().fitContent();
+  try {
+    candleSeries.setData(chartData);
+    candleChart.timeScale().fitContent();
+  } catch (error) {
+    console.error('Candle chart render failed:', error, chartData.slice(0, 3));
+    renderChartPlaceholder(`Chartfehler: ${error.message}`);
+  }
+}
+
+function renderChartPlaceholder(message) {
+  const container = document.getElementById('chart-container');
+  if (!container) return;
+  container.innerHTML = `<div class="empty-state" style="height:100%;display:flex;align-items:center;justify-content:center;color:var(--text-muted)">${message}</div>`;
+  candleChart = null;
+  candleSeries = null;
 }
 
 function renderPositionsTable() {

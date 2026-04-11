@@ -294,9 +294,12 @@ def create_simulation():
 
     try:
         run = create_simulation_run(payload)
+        run_id = run.id
         auto_start = str(payload.get('auto_start', True)).lower() in ('1', 'true', 'yes', 'on')
         if auto_start:
-            run = run_historical_replay(current_app._get_current_object(), run.id)
+            run = run_historical_replay(current_app._get_current_object(), run_id)
+        else:
+            run = SimulationRun.query.get(run_id)
         return jsonify({
             'success': True,
             'auto_started': auto_start,
@@ -382,6 +385,17 @@ def get_simulation_metrics(run_id):
     if run.total_return_pct is not None and run.benchmark_return_pct is not None:
         outperformance_pct = round(run.total_return_pct - run.benchmark_return_pct, 2)
 
+    decision_counts = {}
+    for action, count in (
+        db.session.query(DecisionLog.action, db.func.count(DecisionLog.id))
+        .filter(DecisionLog.run_id == run_id)
+        .group_by(DecisionLog.action)
+        .all()
+    ):
+        decision_counts[action] = count
+
+    executed_decisions = DecisionLog.query.filter_by(run_id=run_id, executed=True).count()
+
     return jsonify({
         'run_id': run.id,
         'status': run.status,
@@ -397,6 +411,8 @@ def get_simulation_metrics(run_id):
         'total_trades': run.total_trades or 0,
         'winning_trades': run.winning_trades or 0,
         'losing_trades': run.losing_trades or 0,
+        'decision_counts': decision_counts,
+        'executed_decisions': executed_decisions,
     })
 
 

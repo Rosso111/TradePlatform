@@ -192,6 +192,17 @@ body {
 .stat-sub { font-size: .72rem; color: var(--text-secondary); margin-top: 2px; }
 
 /* ── Chart ───────────────────────────────────────────────────────────────── */
+.chart-view {
+  padding: 12px;
+}
+
+.chart-card {
+  display: flex;
+  flex-direction: column;
+  min-height: calc(100vh - 96px);
+  padding: 12px 12px 10px;
+}
+
 .chart-header {
   display: flex; align-items: center; gap: 12px; margin-bottom: 8px; flex-wrap: wrap;
 }
@@ -207,7 +218,11 @@ body {
 .period-btn:hover { border-color: var(--accent); color: var(--accent); }
 .period-btn.active { background: var(--accent); border-color: var(--accent); color: #fff; }
 
-#chart-container { height: 340px; width: 100%; }
+#chart-container {
+  flex: 1;
+  min-height: 70vh;
+  width: 100%;
+}
 
 /* ── Positionen-Tabelle ──────────────────────────────────────────────────── */
 .positions-table, .trades-table { width: 100%; border-collapse: collapse; font-size: .82rem; }
@@ -444,6 +459,7 @@ body {
   }
   .right-panel { display: none; }
   .simulation-layout { grid-template-columns: 1fr; }
+  .chart-card { min-height: calc(100vh - 120px); }
 }
 @media (max-width: 700px) {
   .app-layout {
@@ -452,6 +468,9 @@ body {
     grid-template-areas: "header" "sidebar" "main";
   }
   .sidebar { max-height: 180px; overflow-x: auto; }
+  .chart-view { padding: 8px; }
+  .chart-card { min-height: 60vh; padding: 10px; }
+  #chart-container { min-height: 55vh; }
 }
 
 /* ── Notification Toast ──────────────────────────────────────────────────── */
