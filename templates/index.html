@@ -1,0 +1,359 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>TradeBot — Autonomer Algorithmus-Trader</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap">
+  <link rel="stylesheet" href="/static/css/style.css">
+
+  <!-- TradingView Lightweight Charts -->
+  <script src="https://unpkg.com/lightweight-charts@4.1.3/dist/lightweight-charts.standalone.production.js"></script>
+  <!-- Socket.IO -->
+  <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
+</head>
+<body>
+
+<!-- Loading Overlay -->
+<div id="loading-overlay">
+  <div class="loading-spinner"></div>
+  <div class="loading-text">TradeBot wird initialisiert...</div>
+  <div id="loading-msg" style="color:var(--text-muted);font-size:.8rem;margin-top:4px">Lade historische Kursdaten...</div>
+</div>
+
+<!-- Toast Container -->
+<div id="toast-container" class="toast-container"></div>
+
+<div class="app-layout">
+
+  <!-- ── Header ─────────────────────────────────────────────────────────── -->
+  <header class="header">
+    <div class="header-logo">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <polyline points="22 7 13.5 15.5 8.5 10.5 2 17"/>
+        <polyline points="16 7 22 7 22 13"/>
+      </svg>
+      TradeBot
+    </div>
+
+    <nav class="header-nav">
+      <button class="nav-btn active" data-tab="dashboard">Dashboard</button>
+      <button class="nav-btn" data-tab="chart">Chart</button>
+      <button class="nav-btn" data-tab="positions">Positionen</button>
+      <button class="nav-btn" data-tab="trades">Trades</button>
+      <button class="nav-btn" data-tab="algorithm">Algorithmus</button>
+    </nav>
+
+    <div class="header-status">
+      <div class="status-dot loading"></div>
+      <span>Autonom aktiv</span>
+    </div>
+
+    <div class="header-equity">
+      <div class="equity-label">Portfolio</div>
+      <div class="equity-value" id="header-equity-val">–</div>
+      <div><span id="header-return" class="neutral" style="font-size:.75rem">–</span></div>
+    </div>
+  </header>
+
+  <!-- ── Sidebar: Watchlist ─────────────────────────────────────────────── -->
+  <aside class="sidebar">
+    <div class="sidebar-section">
+      <div class="sidebar-title">Watchlist</div>
+      <div id="watchlist-items"></div>
+    </div>
+  </aside>
+
+  <!-- ── Main Content ───────────────────────────────────────────────────── -->
+  <main class="main">
+    <div class="view-tabs">
+      <button class="tab-btn active" data-tab="dashboard">Dashboard</button>
+      <button class="tab-btn" data-tab="chart">Chart</button>
+      <button class="tab-btn" data-tab="positions">Positionen</button>
+      <button class="tab-btn" data-tab="trades">Trades</button>
+      <button class="tab-btn" data-tab="algorithm">Algorithmus</button>
+    </div>
+
+    <!-- Dashboard -->
+    <div class="view-panel active" data-tab="dashboard">
+      <div class="stats-bar">
+        <div class="stat-card">
+          <div class="stat-label">Gesamtwert</div>
+          <div class="stat-value" id="stat-equity">–</div>
+          <div class="stat-sub">Startkapital: 10.000 €</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">Gewinn / Verlust</div>
+          <div class="stat-value" id="stat-pnl">–</div>
+          <div class="stat-sub">gegenüber Start</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">Verfügbares Cash</div>
+          <div class="stat-value" id="stat-cash">–</div>
+          <div class="stat-sub">in EUR</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">Offene Positionen</div>
+          <div class="stat-value" id="stat-positions">–</div>
+          <div class="stat-sub">max. 10</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">Win-Rate</div>
+          <div class="stat-value" id="stat-winrate">–</div>
+          <div class="stat-sub" id="stat-trades">0 Trades gesamt</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">Gesamtgebühren</div>
+          <div class="stat-value" id="stat-commission">–</div>
+          <div class="stat-sub">Provisionen + Spread</div>
+        </div>
+      </div>
+
+      <!-- Equity-Kurve -->
+      <div class="card">
+        <div class="card-title">Portfolio-Entwicklung</div>
+        <div id="equity-chart"></div>
+      </div>
+
+      <!-- Offene Positionen Mini -->
+      <div class="card">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
+          <div class="card-title" style="margin:0">Aktuelle Positionen</div>
+          <button class="btn btn-ghost" style="font-size:.75rem;padding:4px 10px" onclick="switchTab('positions')">Alle →</button>
+        </div>
+        <div style="overflow-x:auto">
+          <table class="positions-table" style="font-size:.8rem">
+            <thead>
+              <tr>
+                <th>Symbol</th><th>Name</th><th>Sektor</th>
+                <th>Stk.</th><th>Einstieg</th><th>Aktuell</th>
+                <th>Stop-Loss</th><th>P&L EUR</th><th>P&L %</th>
+              </tr>
+            </thead>
+            <tbody id="positions-tbody">
+              <tr><td colspan="9" style="text-align:center;color:var(--text-muted);padding:20px">Lädt...</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- Aktions-Log -->
+      <div class="card">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
+          <div class="card-title" style="margin:0">Aktionslog</div>
+          <button class="btn btn-primary" id="btn-run-cycle" onclick="triggerCycle()">▶ Zyklus ausführen</button>
+        </div>
+        <div class="action-log" id="action-log">
+          <div class="log-entry"><span class="log-time">–</span><span class="log-info">System wird initialisiert...</span></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Chart -->
+    <div class="view-panel" data-tab="chart">
+      <div class="card" style="flex:1">
+        <div class="chart-header">
+          <span class="chart-symbol" id="chart-symbol-text">–</span>
+          <span class="chart-price"  id="chart-price-text">–</span>
+          <span class="chart-change" id="chart-change-text">–</span>
+          <div class="chart-period-btns">
+            <button class="period-btn" data-days="14">2W</button>
+            <button class="period-btn active" data-days="90">3M</button>
+            <button class="period-btn" data-days="180">6M</button>
+            <button class="period-btn" data-days="365">1J</button>
+          </div>
+        </div>
+        <div id="chart-container"></div>
+      </div>
+    </div>
+
+    <!-- Positionen -->
+    <div class="view-panel" data-tab="positions">
+      <div class="card">
+        <div class="card-title">Offene Positionen</div>
+        <div style="overflow-x:auto">
+          <table class="positions-table">
+            <thead>
+              <tr>
+                <th>Symbol</th><th>Name</th><th>Sektor</th>
+                <th>Stk.</th><th>Einstieg €</th><th>Aktuell €</th>
+                <th>Stop-Loss</th><th>P&L EUR</th><th>P&L %</th>
+              </tr>
+            </thead>
+            <tbody id="positions-tbody-full">
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-title">Sektor-Verteilung</div>
+        <div id="sector-bars"></div>
+      </div>
+    </div>
+
+    <!-- Trades -->
+    <div class="view-panel" data-tab="trades">
+      <div class="card">
+        <div class="card-title">Trade-Historie</div>
+        <div style="overflow-x:auto">
+          <table class="trades-table">
+            <thead>
+              <tr>
+                <th>Zeitpunkt</th><th>Aktion</th><th>Symbol</th><th>Name</th>
+                <th>Stk.</th><th>Kurs €</th><th>Gesamt €</th><th>P&L €</th>
+              </tr>
+            </thead>
+            <tbody id="trades-tbody">
+              <tr><td colspan="8" style="text-align:center;color:var(--text-muted);padding:20px">Noch keine Trades</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- Algorithmus -->
+    <div class="view-panel" data-tab="algorithm">
+      <div class="card">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
+          <div class="card-title" style="margin:0">Optimierte Parameter (Backtesting)</div>
+          <button class="btn btn-ghost" id="btn-optimize" onclick="triggerOptimize()">⚙ Neu optimieren</button>
+        </div>
+        <p style="color:var(--text-secondary);font-size:.8rem;margin-bottom:14px">
+          Parameter wurden durch Grid-Search auf historischen Daten optimiert (Sharpe-Ratio-Maximierung).
+          Zeithorizont: 400 Tage Backtest.
+        </p>
+        <div class="algo-grid" id="algo-grid">
+          <div style="color:var(--text-muted)">Lade Parameter...</div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-title">Algorithmus-Logik</div>
+        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:16px;font-size:.82rem">
+          <div>
+            <div style="font-weight:600;margin-bottom:6px;color:var(--accent)">Signal-Score (0–100)</div>
+            <ul style="color:var(--text-secondary);list-style:none;display:flex;flex-direction:column;gap:4px">
+              <li>📊 RSI-Score (25%) — Überverkauft/Überkauft</li>
+              <li>📈 MACD-Score (20%) — Trendrichtung</li>
+              <li>〰️ EMA-Crossover (20%) — 20 vs. 50 Periode</li>
+              <li>🎯 Bollinger Bands (15%) — Bandposition</li>
+              <li>⭐ Analysten-Rating (10%)</li>
+              <li>🏭 Sektor-Momentum (10%)</li>
+            </ul>
+          </div>
+          <div>
+            <div style="font-weight:600;margin-bottom:6px;color:var(--green-bright)">Kaufbedingungen</div>
+            <ul style="color:var(--text-secondary);list-style:none;display:flex;flex-direction:column;gap:4px">
+              <li>✅ Score ≥ 65</li>
+              <li>✅ Max. 10 Positionen gesamt</li>
+              <li>✅ Max. 3 pro Sektor</li>
+              <li>✅ Genügend Kapital</li>
+              <li>✅ Nicht bereits im Portfolio</li>
+            </ul>
+          </div>
+          <div>
+            <div style="font-weight:600;margin-bottom:6px;color:var(--red-bright)">Risiko-Management</div>
+            <ul style="color:var(--text-secondary);list-style:none;display:flex;flex-direction:column;gap:4px">
+              <li>🛑 Stop-Loss: ATR × 2,0 (mind. –5%)</li>
+              <li>🎯 Take-Profit: Risk/Reward 2,5:1</li>
+              <li>📉 Trailing-Stop: 3% unter Höchstkurs</li>
+              <li>💰 Positionsgröße: 2% Kapitalrisiko</li>
+              <li>💸 Kosten: 0,1% + 0,05% Spread</li>
+            </ul>
+          </div>
+          <div>
+            <div style="font-weight:600;margin-bottom:6px;color:var(--yellow)">Automatisierung</div>
+            <ul style="color:var(--text-secondary);list-style:none;display:flex;flex-direction:column;gap:4px">
+              <li>⏱ Handelszyklus: alle 15 Min</li>
+              <li>🔄 Wechselkurse: stündlich</li>
+              <li>🌍 Märkte: DE, AT, CH, EU, US, JP, CN, KR, AU, UK</li>
+              <li>📅 Optimierung: wöchentlich</li>
+              <li>💱 Basiswährung: EUR</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </main>
+
+  <!-- ── Rechtes Panel ───────────────────────────────────────────────────── -->
+  <aside class="right-panel">
+    <div class="panel-section">
+      <div class="panel-section-title">Offene Positionen</div>
+      <div id="positions-mini"></div>
+    </div>
+
+    <div class="panel-section">
+      <div class="panel-section-title">Letzte Trades</div>
+      <div id="trade-feed"></div>
+    </div>
+
+    <div class="panel-section">
+      <div class="panel-section-title">Sektor-Allokation</div>
+      <div id="sector-bars-panel" style="font-size:.78rem">
+        <div style="color:var(--text-muted)">Keine offenen Positionen</div>
+      </div>
+    </div>
+
+    <div class="panel-section" style="flex:1">
+      <div class="panel-section-title">System-Info</div>
+      <div style="display:flex;flex-direction:column;gap:6px;font-size:.75rem;color:var(--text-secondary)">
+        <div style="display:flex;justify-content:space-between">
+          <span>Startkapital</span><span style="color:var(--text-primary)">10.000 €</span>
+        </div>
+        <div style="display:flex;justify-content:space-between">
+          <span>Max. Positionen</span><span style="color:var(--text-primary)">10</span>
+        </div>
+        <div style="display:flex;justify-content:space-between">
+          <span>Max. pro Sektor</span><span style="color:var(--text-primary)">3</span>
+        </div>
+        <div style="display:flex;justify-content:space-between">
+          <span>Provision</span><span style="color:var(--text-primary)">0,10%</span>
+        </div>
+        <div style="display:flex;justify-content:space-between">
+          <span>Spread</span><span style="color:var(--text-primary)">0,05%</span>
+        </div>
+        <div style="display:flex;justify-content:space-between">
+          <span>Stop-Loss</span><span style="color:var(--text-primary)">2× ATR</span>
+        </div>
+        <div style="display:flex;justify-content:space-between">
+          <span>Trailing-Stop</span><span style="color:var(--text-primary)">–3%</span>
+        </div>
+        <div style="display:flex;justify-content:space-between">
+          <span>Handelszyklus</span><span style="color:var(--text-primary)">15 Min</span>
+        </div>
+        <div style="display:flex;justify-content:space-between">
+          <span>Universum</span><span style="color:var(--text-primary)">56 Aktien</span>
+        </div>
+      </div>
+    </div>
+  </aside>
+
+</div>
+
+<script src="/static/js/app.js"></script>
+<script>
+  // Positions-Tabelle in Positions-Tab synchronisieren
+  const origRenderPositions = renderPositionsTable;
+  function renderPositionsTable() {
+    origRenderPositions();
+    // Auch in voller Positions-View rendern
+    const tbody = document.getElementById('positions-tbody-full');
+    const srcTbody = document.getElementById('positions-tbody');
+    if (tbody && srcTbody) tbody.innerHTML = srcTbody.innerHTML;
+  }
+
+  // Sektor-Bars im rechten Panel synchronisieren
+  const origSector = renderSectorChart;
+  function renderSectorChart() {
+    origSector();
+    const panel = document.getElementById('sector-bars-panel');
+    const src = document.getElementById('sector-bars');
+    if (panel && src) panel.innerHTML = src.innerHTML;
+  }
+</script>
+</body>
+</html>
