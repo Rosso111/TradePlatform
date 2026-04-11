@@ -39,6 +39,7 @@
 
     <nav class="header-nav">
       <button class="nav-btn active" data-tab="dashboard">Dashboard</button>
+      <button class="nav-btn" data-tab="simulations">Simulations</button>
       <button class="nav-btn" data-tab="chart">Chart</button>
       <button class="nav-btn" data-tab="positions">Positionen</button>
       <button class="nav-btn" data-tab="trades">Trades</button>
@@ -69,6 +70,7 @@
   <main class="main">
     <div class="view-tabs">
       <button class="tab-btn active" data-tab="dashboard">Dashboard</button>
+      <button class="tab-btn" data-tab="simulations">Simulations</button>
       <button class="tab-btn" data-tab="chart">Chart</button>
       <button class="tab-btn" data-tab="positions">Positionen</button>
       <button class="tab-btn" data-tab="trades">Trades</button>
@@ -146,6 +148,42 @@
         </div>
         <div class="action-log" id="action-log">
           <div class="log-entry"><span class="log-time">–</span><span class="log-info">System wird initialisiert...</span></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Simulations -->
+    <div class="view-panel" data-tab="simulations">
+      <div class="card">
+        <div style="display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap;margin-bottom:12px">
+          <div>
+            <div class="card-title" style="margin-bottom:6px">Historical Replay</div>
+            <p style="color:var(--text-secondary);font-size:.82rem">
+              Starte historische Replay-Läufe ohne Zukunftswissen und vergleiche Strategie vs. Benchmark.
+            </p>
+          </div>
+          <form id="simulation-form" class="simulation-form">
+            <input type="text" name="name" placeholder="Run-Name (optional)">
+            <input type="date" name="start_date" value="2024-01-01" required>
+            <input type="date" name="end_date" value="2024-12-31" required>
+            <input type="number" name="initial_capital_eur" value="10000" min="100" step="100">
+            <button class="btn btn-primary" type="submit">Replay starten</button>
+          </form>
+        </div>
+      </div>
+
+      <div class="simulation-layout">
+        <div class="card">
+          <div class="card-title">Simulationsläufe</div>
+          <div id="simulation-runs"></div>
+        </div>
+
+        <div style="display:flex;flex-direction:column;gap:16px">
+          <div id="simulation-summary"></div>
+          <div class="card">
+            <div class="card-title">Equity vs. Benchmark</div>
+            <div id="simulation-chart"></div>
+          </div>
         </div>
       </div>
     </div>
@@ -334,26 +372,6 @@
 
 </div>
 
-<script src="/static/js/app.js"></script>
-<script>
-  // Positions-Tabelle in Positions-Tab synchronisieren
-  const origRenderPositions = renderPositionsTable;
-  function renderPositionsTable() {
-    origRenderPositions();
-    // Auch in voller Positions-View rendern
-    const tbody = document.getElementById('positions-tbody-full');
-    const srcTbody = document.getElementById('positions-tbody');
-    if (tbody && srcTbody) tbody.innerHTML = srcTbody.innerHTML;
-  }
-
-  // Sektor-Bars im rechten Panel synchronisieren
-  const origSector = renderSectorChart;
-  function renderSectorChart() {
-    origSector();
-    const panel = document.getElementById('sector-bars-panel');
-    const src = document.getElementById('sector-bars');
-    if (panel && src) panel.innerHTML = src.innerHTML;
-  }
-</script>
+<script type="module" src="/static/js/app.js"></script>
 </body>
 </html>

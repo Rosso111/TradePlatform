@@ -281,6 +281,82 @@ body {
 
 /* ── Equity Chart ────────────────────────────────────────────────────────── */
 #equity-chart { height: 200px; width: 100%; }
+#simulation-chart { height: 280px; width: 100%; }
+
+.simulation-layout {
+  display: grid;
+  grid-template-columns: minmax(260px, 320px) 1fr;
+  gap: 16px;
+}
+
+.simulation-form {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.simulation-form input {
+  background: var(--bg-secondary);
+  border: 1px solid var(--border);
+  color: var(--text-primary);
+  border-radius: var(--radius);
+  padding: 8px 10px;
+  font-family: var(--font);
+  min-width: 140px;
+}
+
+.simulation-run-item {
+  width: 100%;
+  text-align: left;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border);
+  color: var(--text-primary);
+  border-radius: var(--radius);
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  cursor: pointer;
+  transition: all .15s;
+  margin-bottom: 10px;
+}
+
+.simulation-run-item:hover,
+.simulation-run-item.active {
+  border-color: var(--accent);
+  background: var(--bg-hover);
+}
+
+.simulation-run-head,
+.simulation-run-metrics,
+.simulation-decision-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.simulation-run-meta {
+  color: var(--text-secondary);
+  font-size: .78rem;
+}
+
+.simulation-status {
+  font-size: .72rem;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+.simulation-status.completed { color: var(--green-bright); }
+.simulation-status.running { color: var(--yellow); }
+.simulation-status.failed { color: var(--red-bright); }
+
+.simulation-decision-row {
+  font-size: .78rem;
+  padding: 6px 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.simulation-decision-row:last-child { border-bottom: none; }
 
 /* ── Sektor-Verteilung ───────────────────────────────────────────────────── */
 .sector-bar-item { margin-bottom: 8px; }
@@ -367,6 +443,7 @@ body {
     grid-template-areas: "header header" "sidebar main";
   }
   .right-panel { display: none; }
+  .simulation-layout { grid-template-columns: 1fr; }
 }
 @media (max-width: 700px) {
   .app-layout {

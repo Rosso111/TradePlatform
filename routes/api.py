@@ -294,10 +294,16 @@ def create_simulation():
 
     try:
         run = create_simulation_run(payload)
-        auto_start = payload.get('auto_start', True)
+        auto_start = str(payload.get('auto_start', True)).lower() in ('1', 'true', 'yes', 'on')
         if auto_start:
             run = run_historical_replay(current_app._get_current_object(), run.id)
-        return jsonify({'success': True, 'run': run.to_dict()})
+        return jsonify({
+            'success': True,
+            'auto_started': auto_start,
+            'run': run.to_dict(),
+        }), 201
+    except ValueError as e:
+        return jsonify({'success': False, 'error': str(e)}), 400
     except Exception as e:
         log.error(f"Simulation erstellen: {e}")
         return jsonify({'success': False, 'error': str(e)}), 500
@@ -306,7 +312,20 @@ def create_simulation():
 @api.route('/simulations/<int:run_id>', methods=['GET'])
 def get_simulation(run_id):
     run = SimulationRun.query.get_or_404(run_id)
-    return jsonify(run.to_dict())
+    latest_snapshot = (SimulationDailySnapshot.query
+                       .filter_by(run_id=run_id)
+                       .order_by(SimulationDailySnapshot.sim_date.desc())
+                       .first())
+    latest_decisions = (DecisionLog.query
+                        .filter_by(run_id=run_id)
+                        .order_by(DecisionLog.sim_date.desc(), DecisionLog.id.desc())
+                        .limit(5)
+                        .all())
+
+    data = run.to_dict()
+    data['latest_snapshot'] = latest_snapshot.to_dict() if latest_snapshot else None
+    data['latest_decisions'] = [row.to_dict() for row in latest_decisions]
+    return jsonify(data)
 
 
 @api.route('/simulations/<int:run_id>/equity', methods=['GET'])
@@ -359,6 +378,10 @@ def get_simulation_decisions(run_id):
 @api.route('/simulations/<int:run_id>/metrics', methods=['GET'])
 def get_simulation_metrics(run_id):
     run = SimulationRun.query.get_or_404(run_id)
+    outperformance_pct = None
+    if run.total_return_pct is not None and run.benchmark_return_pct is not None:
+        outperformance_pct = round(run.total_return_pct - run.benchmark_return_pct, 2)
+
     return jsonify({
         'run_id': run.id,
         'status': run.status,
@@ -366,6 +389,7 @@ def get_simulation_metrics(run_id):
         'final_equity_eur': round(run.final_equity_eur or 0.0, 2),
         'total_return_pct': round(run.total_return_pct or 0.0, 2),
         'benchmark_return_pct': round(run.benchmark_return_pct or 0.0, 2),
+        'outperformance_pct': outperformance_pct,
         'max_drawdown_pct': round(run.max_drawdown_pct or 0.0, 2),
         'sharpe_ratio': round(run.sharpe_ratio or 0.0, 4),
         'win_rate': round(run.win_rate or 0.0, 2),
@@ -373,4 +397,35 @@ def get_simulation_metrics(run_id):
         'total_trades': run.total_trades or 0,
         'winning_trades': run.winning_trades or 0,
         'losing_trades': run.losing_trades or 0,
+    })
+
+
+@api.route('/simulations/<int:run_id>/benchmark', methods=['GET'])
+def get_simulation_benchmark(run_id):
+    run = SimulationRun.query.get_or_404(run_id)
+    rows = (SimulationDailySnapshot.query
+            .filter_by(run_id=run_id)
+            .order_by(SimulationDailySnapshot.sim_date.asc())
+            .all())
+
+    if not rows or run.benchmark_return_pct is None:
+        return jsonify({
+            'run_id': run.id,
+            'benchmark_name': 'buy_and_hold_first_active_stock',
+            'points': []
+        })
+
+    benchmark_points = []
+    step_return = run.benchmark_return_pct / max(len(rows) - 1, 1)
+    for idx, row in enumerate(rows):
+        benchmark_value = run.initial_capital_eur * (1 + ((step_return * idx) / 100.0))
+        benchmark_points.append({
+            'sim_date': row.sim_date.isoformat(),
+            'value_eur': round(benchmark_value, 2),
+        })
+
+    return jsonify({
+        'run_id': run.id,
+        'benchmark_name': 'buy_and_hold_first_active_stock',
+        'points': benchmark_points,
     })
