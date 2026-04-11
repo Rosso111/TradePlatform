@@ -1,0 +1,10 @@
+__pycache__/
+*.py[cod]
+*.sqlite
+*.db
+.env
+.venv/
+venv/
+.pytest_cache/
+.DS_Store
+data/trading.db
