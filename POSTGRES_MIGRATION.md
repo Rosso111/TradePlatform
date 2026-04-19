@@ -38,6 +38,28 @@ After migration, restart the app and verify:
 - simulations load
 - a new replay run starts successfully
 
+## 6. Verify performance indexes
+
+The app now attempts to create a few important Postgres indexes automatically at startup.
+
+You can verify them manually with:
+
+```sql
+SELECT indexname, indexdef
+FROM pg_indexes
+WHERE schemaname = 'public'
+  AND indexname IN (
+    'idx_prices_stock_date_desc',
+    'idx_decision_logs_run_date_id',
+    'idx_decision_logs_run_executed',
+    'idx_simulation_trades_run_date_id',
+    'idx_simulation_positions_run_stock',
+    'idx_simulation_daily_snapshots_run_date_desc'
+  )
+ORDER BY indexname;
+```
+
 ## Notes
 - Rotate the database password after setup if it was pasted into chat.
 - If staging should also use Postgres, point its env vars to a separate DB.
+- These indexes are aimed mainly at historical replay and simulation detail API performance.

@@ -605,10 +605,48 @@ def get_simulation_benchmark(run_id):
             'points': []
         })
 
+    first_stock = Stock.query.filter_by(active=True).order_by(Stock.symbol.asc()).first()
+    if not first_stock:
+        return jsonify({
+            'run_id': run.id,
+            'benchmark_name': 'buy_and_hold_first_active_stock',
+            'points': []
+        })
+
+    benchmark_prices = (Price.query
+                        .filter(Price.stock_id == first_stock.id, Price.date <= run.end_date)
+                        .order_by(Price.date.asc())
+                        .all())
+    start_price = next((price for price in benchmark_prices if price.date >= run.start_date), None)
+    if not start_price:
+        return jsonify({
+            'run_id': run.id,
+            'benchmark_name': 'buy_and_hold_first_active_stock',
+            'points': []
+        })
+
+    start_eur = start_price.close_eur or start_price.close
+    if not start_eur or start_eur <= 0:
+        return jsonify({
+            'run_id': run.id,
+            'benchmark_name': 'buy_and_hold_first_active_stock',
+            'points': []
+        })
+
     benchmark_points = []
+    price_idx = 0
+    latest_price = None
     for row in rows:
-        benchmark_return_pct = _calculate_benchmark_return_until_date(run, row.sim_date)
-        benchmark_value = run.initial_capital_eur * (1 + ((benchmark_return_pct or 0.0) / 100.0))
+        while price_idx < len(benchmark_prices) and benchmark_prices[price_idx].date <= row.sim_date:
+            latest_price = benchmark_prices[price_idx]
+            price_idx += 1
+
+        if not latest_price:
+            continue
+
+        end_eur = latest_price.close_eur or latest_price.close
+        benchmark_return_pct = ((end_eur - start_eur) / start_eur * 100) if start_eur > 0 else 0.0
+        benchmark_value = run.initial_capital_eur * (1 + (benchmark_return_pct / 100.0))
         benchmark_points.append({
             'sim_date': row.sim_date.isoformat(),
             'value_eur': round(benchmark_value, 2),

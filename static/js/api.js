@@ -61,9 +61,9 @@ export const api = {
   deleteSimulation: (runId) => request(`/simulations/${runId}`, { method: 'DELETE' }),
   cancelSimulation: (runId) => request(`/simulations/${runId}/cancel`, { method: 'POST' }),
   getSimulationEquity: (runId) => request(`/simulations/${runId}/equity`),
-  getSimulationTrades: (runId) => request(`/simulations/${runId}/trades`),
+  getSimulationTrades: (runId, limit = 300) => request(`/simulations/${runId}/trades?limit=${limit}`),
   getSimulationPositions: (runId) => request(`/simulations/${runId}/positions`),
-  getSimulationDecisions: (runId) => request(`/simulations/${runId}/decisions`),
+  getSimulationDecisions: (runId, limit = 400) => request(`/simulations/${runId}/decisions?limit=${limit}`),
   getSimulationMetrics: (runId) => request(`/simulations/${runId}/metrics`),
   getSimulationBenchmark: (runId) => request(`/simulations/${runId}/benchmark`),
 };

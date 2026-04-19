@@ -9,7 +9,7 @@ let simulationChartPointer = { x: 0, y: 0, clientX: 0, clientY: 0 };
 let currentSimulationChartEvents = [];
 let currentSimulationRuns = [];
 let currentSimulationRunId = null;
-const SIMULATION_REFRESH_MS = 3000;
+const SIMULATION_REFRESH_MS = 7000;
 
 export async function loadSimulations() {
   try {
@@ -95,8 +95,8 @@ async function loadSimulationDetail(runId) {
       api.getSimulationMetrics(runId),
       api.getSimulationEquity(runId),
       api.getSimulationBenchmark(runId),
-      api.getSimulationTrades(runId),
-      api.getSimulationDecisions(runId),
+      api.getSimulationTrades(runId, 200),
+      api.getSimulationDecisions(runId, 250),
     ]);
 
     const chartEvents = buildSimulationChartEvents(trades || [], decisions || []);
