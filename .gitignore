@@ -24,3 +24,4 @@ USER.md
 # Local runtime data
 instance/
 data/*.db
+data/*.bak
