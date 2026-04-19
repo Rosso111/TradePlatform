@@ -40,6 +40,7 @@
     <nav class="header-nav">
       <button class="nav-btn active" data-tab="dashboard">Dashboard</button>
       <button class="nav-btn" data-tab="simulations">Simulations</button>
+      <button class="nav-btn" data-tab="strategies">Strategien</button>
       <button class="nav-btn" data-tab="chart">Chart</button>
       <button class="nav-btn" data-tab="positions">Positionen</button>
       <button class="nav-btn" data-tab="trades">Trades</button>
@@ -71,6 +72,7 @@
     <div class="view-tabs">
       <button class="tab-btn active" data-tab="dashboard">Dashboard</button>
       <button class="tab-btn" data-tab="simulations">Simulations</button>
+      <button class="tab-btn" data-tab="strategies">Strategien</button>
       <button class="tab-btn" data-tab="chart">Chart</button>
       <button class="tab-btn" data-tab="positions">Positionen</button>
       <button class="tab-btn" data-tab="trades">Trades</button>
@@ -164,9 +166,10 @@
           </div>
           <form id="simulation-form" class="simulation-form">
             <input type="text" name="name" placeholder="Run-Name (optional)">
-            <input type="date" name="start_date" value="2024-01-01" required>
-            <input type="date" name="end_date" value="2024-12-31" required>
+            <input type="date" name="start_date" value="2025-06-01" required>
+            <input type="date" name="end_date" value="2025-06-02" required>
             <input type="number" name="initial_capital_eur" value="10000" min="100" step="100">
+            <select name="strategy_id" id="simulation-strategy-select"></select>
             <button class="btn btn-primary" type="submit">Replay starten</button>
           </form>
         </div>
@@ -183,8 +186,40 @@
           <div class="card">
             <div class="card-title">Equity vs. Benchmark</div>
             <div id="simulation-chart"></div>
+            <div id="simulation-chart-tooltip" class="simulation-chart-tooltip"></div>
+            <div id="simulation-chart-events" class="simulation-chart-events"></div>
+            <div id="simulation-chart-inspector" class="simulation-chart-inspector"></div>
           </div>
         </div>
+      </div>
+    </div>
+
+    <!-- Strategien -->
+    <div class="view-panel" data-tab="strategies">
+      <div class="card">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;gap:12px;flex-wrap:wrap">
+          <div>
+            <div class="card-title" style="margin:0">Strategie-Labor</div>
+          </div>
+          <div style="display:flex;gap:8px;flex-wrap:wrap">
+            <button class="btn btn-ghost" id="btn-strategy-save">Strategie speichern</button>
+          </div>
+        </div>
+        <div class="strategy-editor">
+          <div class="strategy-editor-head">
+            <label for="strategy-lab-select">Teststrategie</label>
+            <select id="strategy-lab-select"></select>
+          </div>
+          <input type="text" id="strategy-name" placeholder="Strategie-Name">
+          <textarea id="strategy-description" rows="2" placeholder="Beschreibung"></textarea>
+          <textarea id="strategy-json" rows="18" spellcheck="false" placeholder='{"mode":"trend_quality","params":{...}}'></textarea>
+          <div class="strategy-editor-help">Hier bearbeitest du Teststrategien für Simulationen. Erst nach Freigabe erscheinen sie im Algorithmus-Tab.</div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-title">Freigegebene Live-Strategien</div>
+        <div id="approved-strategies-list" class="strategy-approved-list"></div>
       </div>
     </div>
 
@@ -254,11 +289,22 @@
     <!-- Algorithmus -->
     <div class="view-panel" data-tab="algorithm">
       <div class="card">
-        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
-          <div class="card-title" style="margin:0">Optimierte Parameter (Backtesting)</div>
-          <button class="btn btn-ghost" id="btn-optimize" onclick="triggerOptimize()">⚙ Neu optimieren</button>
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;gap:12px;flex-wrap:wrap">
+          <div>
+            <div class="card-title" style="margin:0">Freigegebene Live-Strategien & Optimierte Parameter</div>
+          </div>
+          <div style="display:flex;gap:8px;flex-wrap:wrap">
+            <button class="btn btn-ghost" id="btn-optimize" onclick="triggerOptimize()">⚙ Neu optimieren</button>
+          </div>
         </div>
-        <p style="color:var(--text-secondary);font-size:.8rem;margin-bottom:14px">
+        <div class="strategy-editor">
+          <div class="strategy-editor-head">
+            <label for="strategy-select">Aktive Live-Strategie</label>
+            <select id="strategy-select"></select>
+          </div>
+          <div class="strategy-editor-help">Hier erscheinen nur Strategien, die aus der Simulation für den Live-Algorithmus freigegeben wurden.</div>
+        </div>
+        <p style="color:var(--text-secondary);font-size:.8rem;margin:14px 0 14px">
           Parameter wurden durch Grid-Search auf historischen Daten optimiert (Sharpe-Ratio-Maximierung).
           Zeithorizont: 400 Tage Backtest.
         </p>

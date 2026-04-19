@@ -37,6 +37,18 @@ export const api = {
   getEquity: (days = 60) => request(`/equity?days=${days}`),
   getPrices: (symbol, days = 90) => request(`/prices/${symbol}?days=${days}`),
   getAlgoParams: () => request('/algo/params'),
+  getStrategies: () => request('/strategies'),
+  setActiveStrategy: (strategyId) => request('/strategies/active', {
+    method: 'POST',
+    body: JSON.stringify({ strategy_id: strategyId }),
+  }),
+  updateStrategy: (strategyId, payload) => request(`/strategies/${strategyId}`, {
+    method: 'PUT',
+    body: JSON.stringify(payload),
+  }),
+  approveStrategyForLive: (strategyId) => request(`/strategies/${strategyId}/approve-live`, {
+    method: 'POST',
+  }),
   runTradingCycle: () => request('/trading/run', { method: 'POST' }),
   runOptimization: () => request('/trading/optimize', { method: 'POST' }),
 
@@ -46,6 +58,8 @@ export const api = {
     body: JSON.stringify(payload),
   }),
   getSimulation: (runId) => request(`/simulations/${runId}`),
+  deleteSimulation: (runId) => request(`/simulations/${runId}`, { method: 'DELETE' }),
+  cancelSimulation: (runId) => request(`/simulations/${runId}/cancel`, { method: 'POST' }),
   getSimulationEquity: (runId) => request(`/simulations/${runId}/equity`),
   getSimulationTrades: (runId) => request(`/simulations/${runId}/trades`),
   getSimulationPositions: (runId) => request(`/simulations/${runId}/positions`),

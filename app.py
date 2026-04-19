@@ -6,11 +6,13 @@ import logging
 import os
 from datetime import datetime, timezone
 
+from dotenv import load_dotenv
 from flask import Flask, render_template
 from flask_socketio import SocketIO
 from flask_cors import CORS
 from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.triggers.interval import IntervalTrigger
+from sqlalchemy import text
 
 import config
 from models import db, Account
@@ -26,10 +28,26 @@ scheduler = BackgroundScheduler(timezone='Europe/Vienna')
 
 
 def create_app():
+    load_dotenv(os.path.join(os.path.dirname(os.path.abspath(__file__)), '.env'))
     app = Flask(__name__)
     app.config['SECRET_KEY'] = config.SECRET_KEY
     app.config['SQLALCHEMY_DATABASE_URI'] = config.SQLALCHEMY_DATABASE_URI
     app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+    engine_connect_args = {}
+    if str(config.DB_BACKEND).lower() == 'sqlite':
+        engine_connect_args = {
+            'timeout': 60,
+            'check_same_thread': False,
+        }
+    else:
+        engine_connect_args = {
+            'connect_timeout': 10,
+        }
+
+    app.config['SQLALCHEMY_ENGINE_OPTIONS'] = {
+        'connect_args': engine_connect_args,
+        'pool_pre_ping': True,
+    }
 
     os.makedirs(os.path.dirname(config.DATABASE_PATH), exist_ok=True)
 
@@ -50,6 +68,13 @@ def create_app():
     # Datenbank & Startdaten initialisieren
     with app.app_context():
         db.create_all()
+        try:
+            db.session.execute(text('PRAGMA journal_mode=WAL'))
+            db.session.execute(text('PRAGMA busy_timeout=30000'))
+            db.session.commit()
+        except Exception as e:
+            db.session.rollback()
+            log.warning(f"SQLite PRAGMA konnte nicht gesetzt werden: {e}")
         _init_account()
         log.info("Datenbank initialisiert.")
 

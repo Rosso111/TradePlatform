@@ -1,11 +1,33 @@
 import os
+from urllib.parse import quote_plus
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 
-# Datenbank
-DATABASE_PATH = os.path.join(BASE_DIR, 'data', 'trading.db')
-SQLALCHEMY_DATABASE_URI = f'sqlite:///{DATABASE_PATH}'
+# Datenbank / Staging
+APP_ENV = os.environ.get('APP_ENV', 'live').lower()
+DATABASE_FILENAME = 'trading-staging.db' if APP_ENV == 'staging' else 'trading.db'
+DATABASE_PATH = os.path.join(BASE_DIR, 'data', DATABASE_FILENAME)
+
+DB_BACKEND = os.environ.get('DB_BACKEND', 'sqlite').lower()
+POSTGRES_HOST = os.environ.get('POSTGRES_HOST', '')
+POSTGRES_PORT = int(os.environ.get('POSTGRES_PORT', '5432'))
+POSTGRES_DB = os.environ.get('POSTGRES_DB', '')
+POSTGRES_USER = os.environ.get('POSTGRES_USER', '')
+POSTGRES_PASSWORD = os.environ.get('POSTGRES_PASSWORD', '')
+POSTGRES_SSLMODE = os.environ.get('POSTGRES_SSLMODE', 'prefer')
+
+if DB_BACKEND == 'postgres':
+    SQLALCHEMY_DATABASE_URI = (
+        f"postgresql+psycopg://{quote_plus(POSTGRES_USER)}:{quote_plus(POSTGRES_PASSWORD)}"
+        f"@{POSTGRES_HOST}:{POSTGRES_PORT}/{POSTGRES_DB}?sslmode={quote_plus(POSTGRES_SSLMODE)}"
+    )
+else:
+    SQLALCHEMY_DATABASE_URI = f'sqlite:///{DATABASE_PATH}'
+
 SQLALCHEMY_TRACK_MODIFICATIONS = False
+
+# Runtime
+PORT = int(os.environ.get('PORT', '5001' if APP_ENV == 'staging' else '5000'))
 
 # Trading-Parameter
 STARTING_CAPITAL = 10000.0          # EUR
