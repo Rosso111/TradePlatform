@@ -24,6 +24,7 @@ from models import (
 import pandas as pd
 from services.algorithm import add_indicators, compute_score, _build_reason, _default_params
 from services.strategy_store import get_strategy
+from services.universe_store import get_universe
 from services.trading_engine import (
     calc_commission,
     calc_spread_cost,
@@ -772,7 +773,18 @@ def _build_replay_data_cache(run: SimulationRun) -> dict:
     strategy_params = strategy.get('params', {}) or {}
     strategy_mode = strategy.get('mode') or 'score'
 
-    stocks = Stock.query.filter_by(active=True).all()
+    universe = get_universe(run.universe_name) or {'id': DEFAULT_UNIVERSE_NAME, 'symbols': []}
+    universe_symbols = [symbol for symbol in (universe.get('symbols') or []) if symbol]
+
+    if universe_symbols:
+        stocks = (Stock.query
+                  .filter(Stock.active.is_(True), Stock.symbol.in_(universe_symbols))
+                  .all())
+        order_map = {symbol: idx for idx, symbol in enumerate(universe_symbols)}
+        stocks = sorted(stocks, key=lambda stock: order_map.get(stock.symbol, 999999))
+    else:
+        stocks = Stock.query.filter_by(active=True).all()
+
     stock_ids = [stock.id for stock in stocks]
     prices = (Price.query
               .filter(Price.stock_id.in_(stock_ids), Price.date <= run.end_date)
@@ -848,6 +860,8 @@ def _build_replay_data_cache(run: SimulationRun) -> dict:
 
     return {
         'stocks': stocks,
+        'universe': universe,
+        'universe_symbols': universe_symbols,
         'stock_meta': stock_meta,
         'prices_by_stock': prices_by_stock,
         'frames_by_stock': frames_by_stock,

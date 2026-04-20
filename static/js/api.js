@@ -38,6 +38,7 @@ export const api = {
   getPrices: (symbol, days = 90) => request(`/prices/${symbol}?days=${days}`),
   getAlgoParams: () => request('/algo/params'),
   getStrategies: () => request('/strategies'),
+  getUniverses: () => request('/universes'),
   setActiveStrategy: (strategyId) => request('/strategies/active', {
     method: 'POST',
     body: JSON.stringify({ strategy_id: strategyId }),

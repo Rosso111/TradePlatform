@@ -8,7 +8,7 @@ APP_ENV = os.environ.get('APP_ENV', 'live').lower()
 DATABASE_FILENAME = 'trading-staging.db' if APP_ENV == 'staging' else 'trading.db'
 DATABASE_PATH = os.path.join(BASE_DIR, 'data', DATABASE_FILENAME)
 
-DB_BACKEND = os.environ.get('DB_BACKEND', 'sqlite').lower()
+DB_BACKEND = os.environ.get('DB_BACKEND', 'postgres').lower()
 POSTGRES_HOST = os.environ.get('POSTGRES_HOST', '')
 POSTGRES_PORT = int(os.environ.get('POSTGRES_PORT', '5432'))
 POSTGRES_DB = os.environ.get('POSTGRES_DB', '')
@@ -16,13 +16,28 @@ POSTGRES_USER = os.environ.get('POSTGRES_USER', '')
 POSTGRES_PASSWORD = os.environ.get('POSTGRES_PASSWORD', '')
 POSTGRES_SSLMODE = os.environ.get('POSTGRES_SSLMODE', 'prefer')
 
-if DB_BACKEND == 'postgres':
-    SQLALCHEMY_DATABASE_URI = (
-        f"postgresql+psycopg://{quote_plus(POSTGRES_USER)}:{quote_plus(POSTGRES_PASSWORD)}"
-        f"@{POSTGRES_HOST}:{POSTGRES_PORT}/{POSTGRES_DB}?sslmode={quote_plus(POSTGRES_SSLMODE)}"
+if DB_BACKEND != 'postgres':
+    raise RuntimeError(
+        f"Unsupported DB_BACKEND='{DB_BACKEND}'. This application is now PostgreSQL-only."
     )
-else:
-    SQLALCHEMY_DATABASE_URI = f'sqlite:///{DATABASE_PATH}'
+
+missing_postgres_env = [
+    name for name, value in {
+        'POSTGRES_HOST': POSTGRES_HOST,
+        'POSTGRES_DB': POSTGRES_DB,
+        'POSTGRES_USER': POSTGRES_USER,
+        'POSTGRES_PASSWORD': POSTGRES_PASSWORD,
+    }.items() if not value
+]
+if missing_postgres_env:
+    raise RuntimeError(
+        'Missing required PostgreSQL configuration: ' + ', '.join(missing_postgres_env)
+    )
+
+SQLALCHEMY_DATABASE_URI = (
+    f"postgresql+psycopg://{quote_plus(POSTGRES_USER)}:{quote_plus(POSTGRES_PASSWORD)}"
+    f"@{POSTGRES_HOST}:{POSTGRES_PORT}/{POSTGRES_DB}?sslmode={quote_plus(POSTGRES_SSLMODE)}"
+)
 
 SQLALCHEMY_TRACK_MODIFICATIONS = False
 

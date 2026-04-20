@@ -1,8 +1,10 @@
-# Postgres Migration
+# PostgreSQL-only Betrieb
+
+Die Anwendung ist jetzt bewusst **PostgreSQL-only**. Ein SQLite-Fallback existiert nicht mehr.
 
 ## 1. Environment
 
-Set these variables before starting the app:
+Setze diese Variablen vor dem Start der App:
 
 ```bash
 export DB_BACKEND=postgres
@@ -31,9 +33,9 @@ export SQLITE_PATH=data/trading.db
 python scripts/migrate_sqlite_to_postgres.py
 ```
 
-## 5. Restart app
+## 5. App neu starten
 
-After migration, restart the app and verify:
+Nach der Migration App/Worker neu starten und prüfen:
 - dashboard loads
 - simulations load
 - a new replay run starts successfully
@@ -59,7 +61,9 @@ WHERE schemaname = 'public'
 ORDER BY indexname;
 ```
 
-## Notes
-- Rotate the database password after setup if it was pasted into chat.
-- If staging should also use Postgres, point its env vars to a separate DB.
-- These indexes are aimed mainly at historical replay and simulation detail API performance.
+## Wichtige Hinweise
+- Wenn irgendwo noch `DB_BACKEND=sqlite` gesetzt ist, startet die App jetzt absichtlich **nicht mehr**.
+- Wenn ein Prozess weiterhin `data/trading.db` benutzt, läuft dort noch alter Code oder ein alter Prozess.
+- Datenbank-Passwort rotieren, falls es in Chat/Logs aufgetaucht ist.
+- Falls Staging ebenfalls genutzt wird, eigene PostgreSQL-Datenbank/Schema dafür verwenden.
+- Die zusätzlichen Indizes zielen vor allem auf Replay- und Simulations-Detailabfragen.

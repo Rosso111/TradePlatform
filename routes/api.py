@@ -13,6 +13,7 @@ from models import (
 )
 from services.replay_engine import _calculate_benchmark_return_until_date
 from services.strategy_store import list_strategies, get_strategy, upsert_strategy, set_active_strategy, approve_strategy_for_live
+from services.universe_store import list_universes
 
 log = logging.getLogger(__name__)
 api = Blueprint('api', __name__, url_prefix='/api')
@@ -266,6 +267,11 @@ def approve_strategy_live(strategy_id):
         return jsonify({'success': True, **data})
     except ValueError as e:
         return jsonify({'success': False, 'error': str(e)}), 400
+
+
+@api.route('/universes', methods=['GET'])
+def get_universes():
+    return jsonify(list_universes())
 
 
 # ─── Manueller Trigger ───────────────────────────────────────────────────────

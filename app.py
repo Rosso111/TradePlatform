@@ -34,23 +34,12 @@ def create_app():
     app.config['SECRET_KEY'] = config.SECRET_KEY
     app.config['SQLALCHEMY_DATABASE_URI'] = config.SQLALCHEMY_DATABASE_URI
     app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
-    engine_connect_args = {}
-    if str(config.DB_BACKEND).lower() == 'sqlite':
-        engine_connect_args = {
-            'timeout': 60,
-            'check_same_thread': False,
-        }
-    else:
-        engine_connect_args = {
-            'connect_timeout': 10,
-        }
-
     app.config['SQLALCHEMY_ENGINE_OPTIONS'] = {
-        'connect_args': engine_connect_args,
+        'connect_args': {
+            'connect_timeout': 10,
+        },
         'pool_pre_ping': True,
     }
-
-    os.makedirs(os.path.dirname(config.DATABASE_PATH), exist_ok=True)
 
     # Extensions
     db.init_app(app)
@@ -69,14 +58,6 @@ def create_app():
     # Datenbank & Startdaten initialisieren
     with app.app_context():
         db.create_all()
-        if str(config.DB_BACKEND).lower() == 'sqlite':
-            try:
-                db.session.execute(text('PRAGMA journal_mode=WAL'))
-                db.session.execute(text('PRAGMA busy_timeout=30000'))
-                db.session.commit()
-            except Exception as e:
-                db.session.rollback()
-                log.warning(f"SQLite PRAGMA konnte nicht gesetzt werden: {e}")
         _init_account()
         _init_performance_indexes(app)
         log.info("Datenbank initialisiert.")
@@ -91,9 +72,7 @@ def create_app():
 
 
 def _init_performance_indexes(app):
-    """Legt wichtige Performance-Indizes an, vor allem fuer Postgres-Replay/API-Last."""
-    if str(config.DB_BACKEND).lower() != 'postgres':
-        return
+    """Legt wichtige Performance-Indizes fuer Replay/API-Last an."""
 
     index_statements = [
         'CREATE INDEX IF NOT EXISTS idx_prices_stock_date_desc ON prices (stock_id, date DESC)',

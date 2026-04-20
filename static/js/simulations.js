@@ -11,6 +11,24 @@ let currentSimulationRuns = [];
 let currentSimulationRunId = null;
 const SIMULATION_REFRESH_MS = 7000;
 
+async function loadSimulationUniverseOptions() {
+  const select = document.getElementById('simulation-universe-select');
+  if (!select) return;
+
+  try {
+    const data = await api.getUniverses();
+    const universes = Array.isArray(data?.universes) ? data.universes : [];
+    const activeUniverse = data?.active_universe;
+
+    select.innerHTML = universes.map((universe) => {
+      const selected = universe.id === activeUniverse ? 'selected' : '';
+      return `<option value="${String(universe.id)}" ${selected}>${String(universe.name || universe.id)}</option>`;
+    }).join('');
+  } catch (error) {
+    console.warn('Universe options:', error);
+  }
+}
+
 export async function loadSimulations() {
   try {
     const runs = await api.getSimulations();
@@ -33,6 +51,7 @@ export async function loadSimulations() {
 }
 
 export function initSimulationControls() {
+  loadSimulationUniverseOptions();
   const form = document.getElementById('simulation-form');
   if (!form) return;
 
@@ -67,6 +86,7 @@ export function initSimulationControls() {
         end_date: formData.get('end_date'),
         initial_capital_eur: Number(formData.get('initial_capital_eur') || 10000),
         strategy_id: formData.get('strategy_id') || undefined,
+        universe_name: formData.get('universe_name') || undefined,
         auto_start: true,
       };
       const result = await api.createSimulation(payload);
@@ -291,6 +311,7 @@ function renderSimulationSummary(run, metrics) {
           <div class="card-title" style="margin-bottom:6px">Laufstatus</div>
           <div class="simulation-progress-meta">${isCancelRequested ? 'Abbruch angefordert – Simulation stoppt beim nächsten sicheren Schritt.' : isRunning ? 'Simulation läuft.' : 'Simulation ist nicht aktiv.'}</div>
           <div class="simulation-progress-meta" style="margin-top:6px">Strategie: ${escapeHtml(run.strategy_name || run.strategy_id || 'default_v1')}</div>
+          <div class="simulation-progress-meta" style="margin-top:4px">Universum: ${escapeHtml(run.universe_name || 'global_core')}</div>
         </div>
         <div style="display:flex;gap:8px;flex-wrap:wrap">
           ${(!isRunning && !isCancelRequested && (run.strategy_name || run.strategy_id)) ? `<button class="btn btn-ghost" id="simulation-approve-strategy-btn">Strategie für Live freigeben</button>` : ''}

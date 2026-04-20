@@ -121,12 +121,23 @@ def fetch_analyst_recommendation(symbol: str) -> float:
 
 # ─── Bulk-Operationen ────────────────────────────────────────────────────────
 
+def _normalize_price_df(df: pd.DataFrame) -> pd.DataFrame:
+    if df is None or df.empty:
+        return pd.DataFrame()
+    df = df[['Open', 'High', 'Low', 'Close', 'Volume']].copy()
+    df.index = pd.to_datetime(df.index).date
+    df = df[~df.index.duplicated(keep='last')].sort_index()
+    df.dropna(subset=['Close'], inplace=True)
+    return df
+
+
 def fetch_multiple_prices(symbols: list[str], days: int = 400) -> dict[str, pd.DataFrame]:
     """
     Lädt Kursdaten für mehrere Symbole auf einmal (effizienter als Einzelabrufe).
+    Fällt pro Symbol auf Einzelabruf zurück, wenn Batch-Daten fehlen oder nicht parsebar sind.
     """
     result = {}
-    # yfinance download für Batch-Abruf
+    missing_symbols = []
     try:
         end = datetime.now()
         start = end - timedelta(days=days)
@@ -138,26 +149,39 @@ def fetch_multiple_prices(symbols: list[str], days: int = 400) -> dict[str, pd.D
         if raw.empty:
             raise ValueError("Leerer Datensatz")
 
+        single_symbol_mode = len(symbols) == 1 or not isinstance(raw.columns, pd.MultiIndex)
+
         for symbol in symbols:
             try:
-                if len(symbols) == 1:
-                    df = raw[['Open', 'High', 'Low', 'Close', 'Volume']].copy()
+                if single_symbol_mode:
+                    df = _normalize_price_df(raw)
                 else:
-                    df = raw[symbol][['Open', 'High', 'Low', 'Close', 'Volume']].copy()
-                df.index = pd.to_datetime(df.index).date
-                df = df[~df.index.duplicated(keep='last')].sort_index()
-                df.dropna(subset=['Close'], inplace=True)
+                    if symbol not in raw.columns.get_level_values(0):
+                        missing_symbols.append(symbol)
+                        log.warning(f"Batch-Daten für {symbol} fehlen; versuche Einzelabruf")
+                        continue
+                    df = _normalize_price_df(raw[symbol])
                 if not df.empty:
                     result[symbol] = df
+                else:
+                    missing_symbols.append(symbol)
+                    log.warning(f"Batch-Daten für {symbol} leer; versuche Einzelabruf")
             except Exception as e:
-                log.warning(f"Batch-Parse für {symbol} fehlgeschlagen: {e}")
+                missing_symbols.append(symbol)
+                log.warning(f"Batch-Parse für {symbol} fehlgeschlagen: {e}; versuche Einzelabruf")
 
     except Exception as e:
-        log.warning(f"Batch-Download fehlgeschlagen ({e}), versuche Einzelabruf")
-        for symbol in symbols:
-            df = fetch_historical_prices(symbol, days)
-            if not df.empty:
-                result[symbol] = df
+        log.warning(f"Batch-Download fehlgeschlagen ({e}), versuche Einzelabruf für alle Symbole")
+        missing_symbols = list(symbols)
+
+    for symbol in missing_symbols:
+        if symbol in result:
+            continue
+        df = fetch_historical_prices(symbol, days)
+        if not df.empty:
+            result[symbol] = df
+        else:
+            log.warning(f"Einzelabruf für {symbol} lieferte ebenfalls keine Daten")
 
     return result
 
