@@ -25,3 +25,5 @@ USER.md
 instance/
 data/*.db
 data/*.bak
+
+tmp/

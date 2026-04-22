@@ -68,6 +68,8 @@ def create_simulation_run(payload: dict) -> SimulationRun:
 
 DECISION_LOG_SAMPLE_INTERVAL_DAYS = 5
 REPLAY_COMMIT_INTERVAL_DAYS = 5
+REPLAY_PERSIST_INTERVAL_DAYS = 30
+REPLAY_PROGRESS_CHUNK_DAYS = 100
 
 
 def _safe_float(value):
@@ -169,29 +171,35 @@ def run_historical_replay(app, run_id: int) -> SimulationRun:
             replay_data = _build_replay_data_cache(run)
             benchmark_return_pct = _calculate_benchmark_return_until_date(run, run.end_date, replay_data)
 
+            open_positions = {}
+            decision_log_buffer = []
+            trade_buffer = []
+            snapshot_buffer = []
+            processed_days_since_flush = 0
+
             sim_date = run.start_date
-            days_since_commit = 0
             while sim_date <= run.end_date:
-                db.session.refresh(run)
-                if str(run.status).lower() == 'cancel_requested':
-                    db.session.flush()
-                    run.status = 'cancelled'
-                    run.finished_at = datetime.now(timezone.utc)
-                    db.session.commit()
-                    return run
+                should_check_run_status = processed_days_since_flush == 0 or sim_date == run.start_date
+                if should_check_run_status:
+                    db.session.refresh(run)
+                    if str(run.status).lower() == 'cancel_requested':
+                        _persist_replay_buffers(decision_log_buffer, trade_buffer, snapshot_buffer)
+                        _replace_open_positions(run.id, open_positions)
+                        run.status = 'cancelled'
+                        run.finished_at = datetime.now(timezone.utc)
+                        db.session.commit()
+                        return run
 
                 run.current_date = sim_date
-
-                positions = SimulationPosition.query.filter_by(run_id=run.id).all()
-                positions_by_stock_id = {p.stock_id: p for p in positions if p.id is not None and p.shares > 0}
-                cash_delta = _update_open_positions(run, sim_date, replay_data, positions)
-                cash_eur += cash_delta
-                positions_by_stock_id = {p.stock_id: p for p in positions if p.id is not None and p.shares > 0}
+                cash_eur += _update_open_positions_in_memory(run, sim_date, replay_data, open_positions, trade_buffer)
 
                 signals = _generate_signals_from_cache(run, sim_date, replay_data, include_details=True)
-                open_position_stock_ids = set(positions_by_stock_id.keys())
-
+                open_position_stock_ids = set(open_positions.keys())
                 signal_counts = {'BUY': 0, 'SELL': 0, 'HOLD': 0, 'SKIP': 0}
+                strategy_params = replay_data.get('strategy_params', {}) if replay_data else {}
+                max_positions = strategy_params.get('max_positions', config.MAX_POSITIONS)
+                max_position_size = strategy_params.get('max_position_size', 0.1)
+                min_position_size = strategy_params.get('min_position_size', 0.03)
 
                 for signal in signals:
                     action = signal.get('action', 'HOLD')
@@ -199,26 +207,24 @@ def run_historical_replay(app, run_id: int) -> SimulationRun:
 
                     if action == 'SKIP':
                         if _should_persist_decision(signal, sim_date):
-                            _log_decision(
-                                run,
+                            decision_log_buffer.append(_build_decision_log_mapping(
+                                run.id,
                                 signal,
                                 sim_date,
                                 executed=False,
                                 execution_note=signal.get('skip_reason') or 'Gefiltert',
-                                flush=False,
-                            )
+                            ))
                         continue
 
                     if action == 'HOLD':
                         if _should_persist_decision(signal, sim_date):
-                            _log_decision(
-                                run,
+                            decision_log_buffer.append(_build_decision_log_mapping(
+                                run.id,
                                 signal,
                                 sim_date,
                                 executed=False,
                                 execution_note='Kein Trade-Signal',
-                                flush=False,
-                            )
+                            ))
                         continue
 
                     if action == 'BUY':
@@ -228,7 +234,6 @@ def run_historical_replay(app, run_id: int) -> SimulationRun:
                         if signal['stock_id'] in open_position_stock_ids:
                             should_execute = False
                             skip_reason = 'Position bereits offen'
-                        max_positions = replay_data.get('strategy_params', {}).get('max_positions', config.MAX_POSITIONS)
                         if len(open_position_stock_ids) >= max_positions:
                             should_execute = False
                             skip_reason = 'Maximale Anzahl Positionen erreicht'
@@ -238,8 +243,6 @@ def run_historical_replay(app, run_id: int) -> SimulationRun:
                             should_execute = False
                             skip_reason = 'Ungueltiger Preis'
 
-                        max_position_size = replay_data.get('strategy_params', {}).get('max_position_size', 0.1)
-                        min_position_size = replay_data.get('strategy_params', {}).get('min_position_size', 0.03)
                         budget_eur = min(cash_eur * max_position_size, cash_eur)
                         budget_eur = max(budget_eur, run.initial_capital_eur * min_position_size)
                         budget_eur = min(budget_eur, cash_eur)
@@ -256,25 +259,15 @@ def run_historical_replay(app, run_id: int) -> SimulationRun:
 
                         if not should_execute:
                             if _should_persist_decision(signal, sim_date):
-                                _log_decision(
-                                    run,
+                                decision_log_buffer.append(_build_decision_log_mapping(
+                                    run.id,
                                     signal,
                                     sim_date,
                                     executed=False,
                                     execution_note=skip_reason,
-                                    flush=False,
-                                )
+                                ))
                             signal_counts['SKIP'] += 1
                             continue
-
-                        decision_log = _log_decision(
-                            run,
-                            signal,
-                            sim_date,
-                            executed=False,
-                            execution_note=skip_reason,
-                            flush=True,
-                        )
 
                         shares = budget_eur / latest_price_eur
                         stop_loss = calc_stop_loss(signal['current_price'], signal.get('atr'))
@@ -287,81 +280,68 @@ def run_historical_replay(app, run_id: int) -> SimulationRun:
                             'risk_distance': round(risk_distance, 4),
                         }
 
-                        position = SimulationPosition(
-                            run_id=run.id,
-                            stock_id=signal['stock_id'],
-                            shares=shares,
-                            entry_price=signal['current_price'],
-                            entry_price_eur=signal['current_price_eur'],
-                            current_price=signal['current_price'],
-                            current_price_eur=signal['current_price_eur'],
-                            stop_loss=stop_loss,
-                            take_profit=take_profit,
-                            trailing_stop=stop_loss,
-                            highest_price=signal['current_price'],
-                            cost_eur=total_cost,
-                            commission_eur=commission,
-                            opened_at_sim_date=sim_date,
-                            reason=signal.get('reason', ''),
-                        )
-                        db.session.add(position)
-                        db.session.flush()
+                        decision_log_buffer.append(_build_decision_log_mapping(
+                            run.id,
+                            signal,
+                            sim_date,
+                            executed=True,
+                            execution_note=skip_reason,
+                        ))
 
-                        trade = SimulationTrade(
-                            run_id=run.id,
-                            stock_id=signal['stock_id'],
-                            action='BUY',
-                            sim_date=sim_date,
-                            shares=shares,
-                            price=signal['current_price'],
-                            price_eur=signal['current_price_eur'],
-                            fx_rate=1.0,
-                            commission_eur=commission,
-                            spread_eur=spread,
-                            total_eur=total_cost,
-                            pnl_eur=0.0,
-                            pnl_pct=0.0,
-                            reason=signal.get('reason', ''),
-                            decision_log_id=decision_log.id,
-                        )
-                        db.session.add(trade)
-                        decision_log.executed = True
+                        open_positions[signal['stock_id']] = {
+                            'run_id': run.id,
+                            'stock_id': signal['stock_id'],
+                            'shares': shares,
+                            'entry_price': signal['current_price'],
+                            'entry_price_eur': signal['current_price_eur'],
+                            'current_price': signal['current_price'],
+                            'current_price_eur': signal['current_price_eur'],
+                            'stop_loss': stop_loss,
+                            'take_profit': take_profit,
+                            'trailing_stop': stop_loss,
+                            'highest_price': signal['current_price'],
+                            'cost_eur': total_cost,
+                            'commission_eur': commission,
+                            'opened_at_sim_date': sim_date,
+                            'closed_at_sim_date': None,
+                            'reason': signal.get('reason', ''),
+                        }
+                        trade_buffer.append(_build_trade_mapping(
+                            run.id, signal['stock_id'], 'BUY', sim_date, shares,
+                            signal['current_price'], signal['current_price_eur'],
+                            commission, spread, total_cost, 0.0, 0.0, signal.get('reason', '')
+                        ))
                         cash_eur -= total_cost
                         open_position_stock_ids.add(signal['stock_id'])
                         continue
 
                     if action == 'SELL':
-                        position = positions_by_stock_id.get(signal['stock_id'])
-                        strategy_params = replay_data.get('strategy_params', {}) if replay_data else {}
+                        position = open_positions.get(signal['stock_id'])
                         can_sell = bool(position)
                         skip_reason = None if position else 'Keine offene Position zum Verkaufen'
                         if position:
-                            can_sell, skip_reason = _can_sell_position(position, strategy_params, signal.get('reason', ''))
+                            can_sell, skip_reason = _can_sell_position_state(position, strategy_params, signal.get('reason', ''))
 
                         if position and can_sell:
-                            decision_log = _log_decision(
-                                run,
+                            decision_log_buffer.append(_build_decision_log_mapping(
+                                run.id,
                                 signal,
                                 sim_date,
                                 executed=True,
                                 execution_note=skip_reason,
-                                flush=True,
-                            )
-                            cash_eur += _close_position(
-                                run, position, sim_date, signal['reason'], decision_log_id=decision_log.id
-                            )
+                            ))
+                            cash_eur += _close_position_state(run.id, position, sim_date, signal['reason'], trade_buffer)
                             open_position_stock_ids.discard(signal['stock_id'])
-                            positions_by_stock_id.pop(signal['stock_id'], None)
+                            open_positions.pop(signal['stock_id'], None)
                         else:
                             if _should_persist_decision(signal, sim_date):
-                                _log_decision(
-                                    run,
+                                decision_log_buffer.append(_build_decision_log_mapping(
+                                    run.id,
                                     signal,
                                     sim_date,
                                     executed=False,
                                     execution_note=skip_reason,
-                                    flush=False,
-                                )
+                                ))
                             signal_counts['SKIP'] += 1
 
                 log.info(
@@ -373,38 +353,31 @@ def run_historical_replay(app, run_id: int) -> SimulationRun:
                     cash_eur,
                 )
 
-                positions_value = _get_positions_value(run, sim_date, replay_data, positions)
+                positions_value = _get_positions_value_in_memory(sim_date, replay_data, open_positions)
                 equity = cash_eur + positions_value
                 peak_equity = max(peak_equity, equity)
                 drawdown_pct = ((peak_equity - equity) / peak_equity * 100) if peak_equity > 0 else 0.0
-
                 daily_pnl = equity - previous_equity
 
-                snapshot = (SimulationDailySnapshot.query
-                            .filter_by(run_id=run.id, sim_date=sim_date)
-                            .first())
-                if not snapshot:
-                    snapshot = SimulationDailySnapshot(
-                        run_id=run.id,
-                        sim_date=sim_date,
-                    )
-                    db.session.add(snapshot)
+                snapshot_buffer.append({
+                    'run_id': run.id,
+                    'sim_date': sim_date,
+                    'cash_eur': round(cash_eur, 2),
+                    'positions_value_eur': round(positions_value, 2),
+                    'equity_eur': round(equity, 2),
+                    'daily_pnl_eur': round(daily_pnl, 2),
+                    'drawdown_pct': round(drawdown_pct, 2),
+                    'open_positions': len(open_position_stock_ids),
+                })
 
-                snapshot.cash_eur = round(cash_eur, 2)
-                snapshot.positions_value_eur = round(positions_value, 2)
-                snapshot.equity_eur = round(equity, 2)
-                snapshot.daily_pnl_eur = round(daily_pnl, 2)
-                snapshot.drawdown_pct = round(drawdown_pct, 2)
-                snapshot.open_positions = len(open_position_stock_ids)
-                days_since_commit += 1
-                should_commit_now = days_since_commit >= REPLAY_COMMIT_INTERVAL_DAYS or sim_date >= run.end_date
-
-                if should_commit_now:
+                processed_days_since_flush += 1
+                should_flush = processed_days_since_flush >= REPLAY_PROGRESS_CHUNK_DAYS or sim_date >= run.end_date
+                if should_flush:
+                    _persist_replay_buffers(decision_log_buffer, trade_buffer, snapshot_buffer)
+                    _replace_open_positions(run.id, open_positions)
                     db.session.commit()
                     db.session.expire_all()
-                    days_since_commit = 0
-                else:
-                    db.session.flush()
+                    processed_days_since_flush = 0
 
                 previous_equity = equity
                 sim_date += timedelta(days=1)
@@ -436,10 +409,11 @@ def _update_open_positions(run: SimulationRun, sim_date, replay_data=None, posit
     for position in positions:
         latest = _get_cached_price(position.stock_id, sim_date, replay_data)
         if latest is None:
-            latest = (Price.query
-                      .filter(and_(Price.stock_id == position.stock_id, Price.date <= sim_date))
-                      .order_by(Price.date.desc())
-                      .first())
+            with db.session.no_autoflush:
+                latest = (Price.query
+                          .filter(and_(Price.stock_id == position.stock_id, Price.date <= sim_date))
+                          .order_by(Price.date.desc())
+                          .first())
         if not latest:
             continue
 
@@ -493,6 +467,14 @@ def _position_profit_pct(position: SimulationPosition) -> float:
     return ((current_value - cost_basis) / cost_basis) * 100
 
 
+def _position_profit_pct_state(position: dict) -> float:
+    current_value = float(position['shares']) * float(position.get('current_price_eur') or position.get('entry_price_eur') or 0.0)
+    cost_basis = float(position['shares']) * float(position.get('entry_price_eur') or 0.0)
+    if cost_basis <= 0:
+        return 0.0
+    return ((current_value - cost_basis) / cost_basis) * 100
+
+
 def _can_sell_position(position: SimulationPosition, strategy_params: dict, reason: str) -> tuple[bool, str | None]:
     normalized_reason = (reason or '').lower()
     rule_mode = strategy_params.get('min_profit_rule_mode', 'strategy_only')
@@ -514,6 +496,33 @@ def _can_sell_position(position: SimulationPosition, strategy_params: dict, reas
             return True, None
 
     profit_pct = _position_profit_pct(position)
+    if profit_pct < float(min_profit_pct):
+        return False, f'Mindestgewinn {float(min_profit_pct):.1f}% noch nicht erreicht ({profit_pct:.1f}%)'
+
+    return True, None
+
+
+def _can_sell_position_state(position: dict, strategy_params: dict, reason: str) -> tuple[bool, str | None]:
+    normalized_reason = (reason or '').lower()
+    rule_mode = strategy_params.get('min_profit_rule_mode', 'strategy_only')
+
+    if 'seitwärtsphase' in normalized_reason or 'seitwaertsphase' in normalized_reason:
+        min_profit_pct = strategy_params.get(
+            'min_profit_pct_for_sideways_exit',
+            strategy_params.get('min_profit_pct_for_sell')
+        )
+    else:
+        min_profit_pct = strategy_params.get('min_profit_pct_for_sell')
+
+    if min_profit_pct in (None, '', False):
+        return True, None
+
+    if rule_mode == 'strategy_only':
+        bypass_terms = ('stop-loss', 'stop loss', 'take-profit', 'trailing')
+        if any(term in normalized_reason for term in bypass_terms):
+            return True, None
+
+    profit_pct = _position_profit_pct_state(position)
     if profit_pct < float(min_profit_pct):
         return False, f'Mindestgewinn {float(min_profit_pct):.1f}% noch nicht erreicht ({profit_pct:.1f}%)'
 
@@ -589,7 +598,7 @@ def _close_position(run: SimulationRun, position: SimulationPosition, sim_date, 
     return net_revenue
 
 
-def _log_decision(run: SimulationRun, signal: dict, sim_date, executed: bool, execution_note=None, flush: bool = False):
+def _build_decision_log_mapping(run_id: int, signal: dict, sim_date, executed: bool, execution_note=None):
     reason_json = signal.get('reason_json') or {
         'summary': signal.get('reason', ''),
         'technical': {
@@ -601,34 +610,217 @@ def _log_decision(run: SimulationRun, signal: dict, sim_date, executed: bool, ex
     if execution_note:
         risk_json = {**risk_json, 'execution_note': execution_note}
 
-    log_entry = DecisionLog(
-        run_id=run.id,
-        stock_id=signal['stock_id'],
-        sim_date=sim_date,
-        action=signal['action'],
-        final_score=signal.get('score', 0.0),
-        technical_score=signal.get('technical_score'),
-        analyst_score=signal.get('analyst_score'),
-        news_score=signal.get('news_score'),
-        sector_score=signal.get('sector_score'),
-        risk_score=signal.get('risk_score'),
-        current_price=signal.get('current_price'),
-        current_price_eur=signal.get('current_price_eur'),
-        atr=signal.get('atr'),
-        rsi=signal.get('rsi'),
-        macd=signal.get('macd'),
-        ema_fast=signal.get('ema_fast'),
-        ema_slow=signal.get('ema_slow'),
-        reason_summary=signal.get('reason', ''),
-        reason_json=reason_json,
-        risk_json=risk_json,
-        data_snapshot_json=signal.get('data_snapshot_json') or {'sim_date': sim_date.isoformat()},
-        executed=executed,
-    )
+    return {
+        'run_id': run_id,
+        'stock_id': signal['stock_id'],
+        'sim_date': sim_date,
+        'action': signal['action'],
+        'final_score': signal.get('score', 0.0),
+        'technical_score': signal.get('technical_score'),
+        'analyst_score': signal.get('analyst_score'),
+        'news_score': signal.get('news_score'),
+        'sector_score': signal.get('sector_score'),
+        'risk_score': signal.get('risk_score'),
+        'current_price': signal.get('current_price'),
+        'current_price_eur': signal.get('current_price_eur'),
+        'atr': signal.get('atr'),
+        'rsi': signal.get('rsi'),
+        'macd': signal.get('macd'),
+        'ema_fast': signal.get('ema_fast'),
+        'ema_slow': signal.get('ema_slow'),
+        'reason_summary': signal.get('reason', ''),
+        'reason_json': reason_json,
+        'risk_json': risk_json,
+        'data_snapshot_json': signal.get('data_snapshot_json') or {'sim_date': sim_date.isoformat()},
+        'executed': executed,
+        'created_at': datetime.now(timezone.utc),
+    }
+
+
+def _log_decision(run: SimulationRun, signal: dict, sim_date, executed: bool, execution_note=None, flush: bool = False):
+    log_entry = DecisionLog(**_build_decision_log_mapping(run.id, signal, sim_date, executed, execution_note))
     db.session.add(log_entry)
     if flush:
         db.session.flush()
     return log_entry
+
+
+def _persist_replay_buffers(decision_log_buffer: list[dict], trade_buffer: list[dict], snapshot_buffer: list[dict]):
+    if decision_log_buffer:
+        db.session.bulk_insert_mappings(DecisionLog, decision_log_buffer)
+        decision_log_buffer.clear()
+    if trade_buffer:
+        db.session.bulk_insert_mappings(SimulationTrade, trade_buffer)
+        trade_buffer.clear()
+    if snapshot_buffer:
+        db.session.bulk_insert_mappings(SimulationDailySnapshot, snapshot_buffer)
+        snapshot_buffer.clear()
+
+
+def _build_trade_mapping(run_id: int, stock_id: int, action: str, sim_date, shares: float, price: float,
+                         price_eur: float, commission_eur: float, spread_eur: float, total_eur: float,
+                         pnl_eur: float, pnl_pct: float, reason: str, decision_log_id=None) -> dict:
+    return {
+        'run_id': run_id,
+        'stock_id': stock_id,
+        'action': action,
+        'sim_date': sim_date,
+        'shares': shares,
+        'price': price,
+        'price_eur': price_eur,
+        'fx_rate': 1.0,
+        'commission_eur': commission_eur,
+        'spread_eur': spread_eur,
+        'total_eur': total_eur,
+        'pnl_eur': pnl_eur,
+        'pnl_pct': pnl_pct,
+        'reason': reason,
+        'decision_log_id': decision_log_id,
+        'created_at': datetime.now(timezone.utc),
+    }
+
+
+def _replace_open_positions(run_id: int, open_positions: dict[int, dict]):
+    SimulationPosition.query.filter_by(run_id=run_id).delete(synchronize_session=False)
+    if open_positions:
+        db.session.bulk_insert_mappings(SimulationPosition, list(open_positions.values()))
+
+
+def _get_positions_value_in_memory(sim_date, replay_data=None, open_positions=None) -> float:
+    total = 0.0
+    for stock_id, position in (open_positions or {}).items():
+        latest = _get_cached_price(stock_id, sim_date, replay_data)
+        if latest:
+            total += float(latest.close_eur or latest.close) * float(position['shares'])
+        else:
+            total += float(position['entry_price_eur']) * float(position['shares'])
+    return total
+
+
+def _close_position_state(run_id: int, position: dict, sim_date, reason: str, trade_buffer: list[dict], decision_log_id=None) -> float:
+    revenue = float(position['shares']) * float(position.get('current_price_eur') or position.get('entry_price_eur') or 0.0)
+    commission = calc_commission(revenue)
+    spread = calc_spread_cost(revenue)
+    net_revenue = revenue - commission - spread
+
+    cost_basis = float(position['shares']) * float(position['entry_price_eur'])
+    pnl_eur = net_revenue - cost_basis
+    pnl_pct = (pnl_eur / cost_basis * 100) if cost_basis > 0 else 0.0
+
+    trade_buffer.append(_build_trade_mapping(
+        run_id,
+        position['stock_id'],
+        'SELL',
+        sim_date,
+        position['shares'],
+        float(position.get('current_price') or position.get('entry_price') or 0.0),
+        float(position.get('current_price_eur') or position.get('entry_price_eur') or 0.0),
+        commission,
+        spread,
+        net_revenue,
+        pnl_eur,
+        pnl_pct,
+        reason,
+        decision_log_id,
+    ))
+    return net_revenue
+
+
+def _trim_position_state(run_id: int, position: dict, sim_date, fraction: float, reason: str, trade_buffer: list[dict]) -> float:
+    fraction = min(max(fraction, 0.0), 1.0)
+    if fraction <= 0 or float(position['shares']) <= 0:
+        return 0.0
+
+    shares_to_sell = float(position['shares']) * fraction
+    revenue = shares_to_sell * float(position.get('current_price_eur') or position.get('entry_price_eur') or 0.0)
+    commission = calc_commission(revenue)
+    spread = calc_spread_cost(revenue)
+    net_revenue = revenue - commission - spread
+
+    cost_basis = shares_to_sell * float(position['entry_price_eur'])
+    pnl_eur = net_revenue - cost_basis
+    pnl_pct = (pnl_eur / cost_basis * 100) if cost_basis > 0 else 0.0
+
+    trade_buffer.append(_build_trade_mapping(
+        run_id,
+        position['stock_id'],
+        'SELL',
+        sim_date,
+        shares_to_sell,
+        float(position.get('current_price') or position.get('entry_price') or 0.0),
+        float(position.get('current_price_eur') or position.get('entry_price_eur') or 0.0),
+        commission,
+        spread,
+        net_revenue,
+        pnl_eur,
+        pnl_pct,
+        reason,
+    ))
+    position['shares'] = float(position['shares']) - shares_to_sell
+    return net_revenue
+
+
+def _update_open_positions_in_memory(run: SimulationRun, sim_date, replay_data=None, open_positions=None, trade_buffer=None):
+    open_positions = open_positions or {}
+    trade_buffer = trade_buffer if trade_buffer is not None else []
+    cash_delta = 0.0
+    strategy_params = (replay_data or {}).get('strategy_params', {})
+    trailing_stop_pct = strategy_params.get('trailing_stop_pct', config.TRAILING_STOP_PCT)
+    trim_position_above_eur = strategy_params.get('trim_position_above_eur')
+    trim_fraction = strategy_params.get('trim_fraction', 0.5)
+    sideways_days = strategy_params.get('sideways_days')
+    sideways_band_pct = strategy_params.get('sideways_band_pct')
+
+    for stock_id in list(open_positions.keys()):
+        position = open_positions.get(stock_id)
+        latest = _get_cached_price(stock_id, sim_date, replay_data)
+        if not latest:
+            continue
+
+        position['current_price'] = float(latest.close)
+        position['current_price_eur'] = float(latest.close_eur or latest.close)
+
+        if float(latest.close) > float(position.get('highest_price') or position.get('entry_price') or 0.0):
+            position['highest_price'] = float(latest.close)
+            trailing = float(latest.close) * (1 - trailing_stop_pct)
+            if trailing > float(position.get('trailing_stop') or 0.0):
+                position['trailing_stop'] = trailing
+
+        position_value_eur = float(position.get('current_price_eur') or position.get('entry_price_eur') or 0.0) * float(position['shares'])
+        already_trimmed = 'trimmed_once' in (position.get('reason') or '')
+        if trim_position_above_eur and position_value_eur > trim_position_above_eur and not already_trimmed:
+            cash_delta += _trim_position_state(run.id, position, sim_date, trim_fraction, 'Teilverkauf > 4000 EUR', trade_buffer)
+            position['reason'] = ((position.get('reason') or '') + ' | trimmed_once').strip(' |')
+            continue
+
+        opened_at = position.get('opened_at_sim_date')
+        if sideways_days and sideways_band_pct and opened_at:
+            if (sim_date - opened_at).days >= int(sideways_days):
+                history = _get_position_price_window(stock_id, sim_date, int(sideways_days), replay_data)
+                if history:
+                    closes = [p.close_eur or p.close for p in history if (p.close_eur or p.close)]
+                    if closes:
+                        band_pct = (max(closes) - min(closes)) / max(min(closes), 0.0001)
+                        if band_pct <= float(sideways_band_pct):
+                            can_sell, _ = _can_sell_position_state(position, strategy_params, 'Seitwärtsphase > 30 Tage')
+                            if can_sell:
+                                cash_delta += _close_position_state(run.id, position, sim_date, 'Seitwärtsphase > 30 Tage', trade_buffer)
+                                open_positions.pop(stock_id, None)
+                                continue
+
+        effective_stop = max(float(position.get('stop_loss') or 0.0), float(position.get('trailing_stop') or 0.0))
+        if effective_stop > 0 and float(latest.close) <= effective_stop:
+            cash_delta += _close_position_state(run.id, position, sim_date, 'Stop-Loss ausgelöst', trade_buffer)
+            open_positions.pop(stock_id, None)
+            continue
+
+        take_profit = float(position.get('take_profit') or 0.0)
+        if take_profit and float(latest.close) >= take_profit:
+            cash_delta += _close_position_state(run.id, position, sim_date, 'Take-Profit erreicht', trade_buffer)
+            open_positions.pop(stock_id, None)
+            continue
+
+    return cash_delta
 
 
 def _get_positions_value(run: SimulationRun, sim_date, replay_data=None, positions=None) -> float:
@@ -637,10 +829,11 @@ def _get_positions_value(run: SimulationRun, sim_date, replay_data=None, positio
     for position in positions:
         latest = _get_cached_price(position.stock_id, sim_date, replay_data)
         if latest is None:
-            latest = (Price.query
-                      .filter(and_(Price.stock_id == position.stock_id, Price.date <= sim_date))
-                      .order_by(Price.date.desc())
-                      .first())
+            with db.session.no_autoflush:
+                latest = (Price.query
+                          .filter(and_(Price.stock_id == position.stock_id, Price.date <= sim_date))
+                          .order_by(Price.date.desc())
+                          .first())
         if latest:
             total += (latest.close_eur or latest.close) * position.shares
         else:
@@ -649,11 +842,23 @@ def _get_positions_value(run: SimulationRun, sim_date, replay_data=None, positio
 
 
 def _get_position_price_window(stock_id: int, sim_date, days: int, replay_data=None):
-    if replay_data:
-        prices = replay_data.get('prices_by_stock', {}).get(stock_id, [])
-        start_date = sim_date - timedelta(days=days)
-        return [p for p in prices if start_date <= p.date <= sim_date]
-    return []
+    if not replay_data:
+        return []
+
+    prices = replay_data.get('prices_by_stock', {}).get(stock_id, [])
+    if not prices:
+        return []
+
+    price_dates = replay_data.get('price_dates_by_stock', {}).get(stock_id, [])
+    if not price_dates:
+        return []
+
+    start_date = sim_date - timedelta(days=days)
+
+    import bisect
+    left = bisect.bisect_left(price_dates, start_date)
+    right = bisect.bisect_right(price_dates, sim_date)
+    return prices[left:right]
 
 
 def _get_run_cash(run: SimulationRun) -> float:
@@ -792,6 +997,9 @@ def _build_replay_data_cache(run: SimulationRun) -> dict:
               .all()) if stock_ids else []
 
     prices_by_stock = {}
+    price_lookup_by_stock = {}
+    price_dates_by_stock = {}
+    price_index_by_stock = {}
     frames_by_stock = {}
     rows_by_stock = {}
     row_index_by_stock = {}
@@ -802,11 +1010,15 @@ def _build_replay_data_cache(run: SimulationRun) -> dict:
     algo_by_stock = {row.stock_id: row for row in algo_rows}
 
     for price in prices:
-      prices_by_stock.setdefault(price.stock_id, []).append(price)
+        prices_by_stock.setdefault(price.stock_id, []).append(price)
+        price_lookup_by_stock.setdefault(price.stock_id, {})[price.date] = price
 
     sector_changes = {}
     for stock in stocks:
         stock_prices = prices_by_stock.get(stock.id, [])
+        price_dates_by_stock[stock.id] = [p.date for p in stock_prices]
+        price_index_by_stock[stock.id] = {p.date: idx for idx, p in enumerate(stock_prices)}
+
         if len(stock_prices) >= 2:
             recent = stock_prices[-25:]
             oldest = recent[0].close_eur or recent[0].close
@@ -864,6 +1076,9 @@ def _build_replay_data_cache(run: SimulationRun) -> dict:
         'universe_symbols': universe_symbols,
         'stock_meta': stock_meta,
         'prices_by_stock': prices_by_stock,
+        'price_lookup_by_stock': price_lookup_by_stock,
+        'price_dates_by_stock': price_dates_by_stock,
+        'price_index_by_stock': price_index_by_stock,
         'frames_by_stock': frames_by_stock,
         'rows_by_stock': rows_by_stock,
         'row_index_by_stock': row_index_by_stock,
@@ -878,29 +1093,46 @@ def _build_replay_data_cache(run: SimulationRun) -> dict:
 def _get_cached_price(stock_id: int, sim_date, replay_data=None):
     if not replay_data:
         return None
+
+    exact = replay_data.get('price_lookup_by_stock', {}).get(stock_id, {}).get(sim_date)
+    if exact is not None:
+        return exact
+
     prices = replay_data.get('prices_by_stock', {}).get(stock_id, [])
-    latest = None
-    for price in prices:
-        if price.date <= sim_date:
-            latest = price
-        else:
-            break
-    return latest
+    if not prices:
+        return None
+
+    price_dates = replay_data.get('price_dates_by_stock', {}).get(stock_id, [])
+    if not price_dates:
+        return None
+
+    import bisect
+    idx = bisect.bisect_right(price_dates, sim_date) - 1
+    if idx < 0:
+        return None
+    return prices[idx]
 
 
 def _generate_signals_from_cache(run: SimulationRun, sim_date, replay_data: dict, include_details: bool = True) -> list[dict]:
     signals = []
     sector_scores = replay_data.get('sector_scores', {})
+    strategy_mode = replay_data.get('strategy_mode', 'score')
+    strategy_params = replay_data.get('strategy_params', {})
+    buy_threshold = strategy_params.get('buy_threshold', 65)
+    sell_threshold = strategy_params.get('sell_threshold', 35)
+    row_index_by_stock = replay_data.get('row_index_by_stock', {})
+    rows_by_stock = replay_data.get('rows_by_stock', {})
+    params_by_stock = replay_data.get('params_by_stock', {})
 
     for stock in replay_data.get('stocks', []):
-        row_idx = replay_data.get('row_index_by_stock', {}).get(stock.id, {}).get(sim_date)
-        rows = replay_data.get('rows_by_stock', {}).get(stock.id)
+        row_idx = row_index_by_stock.get(stock.id, {}).get(sim_date)
+        rows = rows_by_stock.get(stock.id)
         if row_idx is None or not rows:
             continue
 
         try:
             row = rows[row_idx]
-            params = replay_data.get('params_by_stock', {}).get(stock.id, _default_params())
+            params = params_by_stock.get(stock.id, _default_params())
             sector_score = sector_scores.get(stock.sector, 50.0)
             analyst_score = 50.0
             news_score = 50.0
@@ -908,26 +1140,24 @@ def _generate_signals_from_cache(run: SimulationRun, sim_date, replay_data: dict
             if not latest_price:
                 continue
 
+            latest_close = float(latest_price.close)
+            latest_close_eur = float(latest_price.close_eur or latest_price.close)
+            atr_value = float(row['atr']) if not pd.isna(row['atr']) else None
+            rsi_value = float(row['rsi']) if not pd.isna(row['rsi']) else None
+            macd_value = float(row['macd']) if not pd.isna(row['macd']) else None
+            macd_signal_value = float(row['macd_signal']) if not pd.isna(row['macd_signal']) else None
+            ema_fast_value = float(row['ema_fast']) if not pd.isna(row['ema_fast']) else None
+            ema_slow_value = float(row['ema_slow']) if not pd.isna(row['ema_slow']) else None
+
             technical_score = _compute_score_fast(row, params, 50.0, sector_score)
             score = _compute_score_fast(row, params, analyst_score, sector_score)
 
-            strategy_mode = replay_data.get('strategy_mode', 'score')
-            strategy_params = replay_data.get('strategy_params', {})
-            buy_threshold = strategy_params.get('buy_threshold', 65)
-            sell_threshold = strategy_params.get('sell_threshold', 35)
-
             if strategy_mode == 'trend_quality':
-                ema_fast = _safe_float(row.get('ema_fast'))
-                ema_slow = _safe_float(row.get('ema_slow'))
-                macd_value = _safe_float(row.get('macd'))
-                macd_signal_value = _safe_float(row.get('macd_signal'))
-                rsi_value = _safe_float(row.get('rsi'))
-
                 price_ok = (not strategy_params.get('require_price_above_ema_fast')) or (
-                    ema_fast is not None and float(latest_price.close) >= ema_fast * 0.995
+                    ema_fast_value is not None and latest_close >= ema_fast_value * 0.995
                 )
                 ema_ok = (not strategy_params.get('require_ema_fast_above_slow')) or (
-                    ema_fast is not None and ema_slow is not None and ema_fast >= ema_slow * 0.995
+                    ema_fast_value is not None and ema_slow_value is not None and ema_fast_value >= ema_slow_value * 0.995
                 )
                 macd_ok = (not strategy_params.get('require_macd_above_signal')) or (
                     macd_value is not None and macd_signal_value is not None and macd_value >= macd_signal_value
@@ -961,6 +1191,27 @@ def _generate_signals_from_cache(run: SimulationRun, sim_date, replay_data: dict
                 else:
                     action = 'HOLD'
 
+            if include_details and action in ('BUY', 'SELL'):
+                reason = _build_reason(row, params, score, analyst_score, sector_score)
+                reason_json = {
+                    'technical': {
+                        'rsi': rsi_value,
+                        'macd': macd_value,
+                        'ema_fast': ema_fast_value,
+                        'ema_slow': ema_slow_value,
+                    },
+                    'scores': {
+                        'final': score,
+                        'technical': technical_score,
+                        'analyst': analyst_score,
+                        'news': news_score,
+                        'sector': sector_score,
+                    }
+                }
+            else:
+                reason = action
+                reason_json = {}
+
             signal = {
                 'stock_id': stock.id,
                 'symbol': stock.symbol,
@@ -969,13 +1220,13 @@ def _generate_signals_from_cache(run: SimulationRun, sim_date, replay_data: dict
                 'currency': stock.currency,
                 'score': score,
                 'action': action,
-                'current_price': float(latest_price.close),
-                'current_price_eur': float(latest_price.close_eur or latest_price.close),
-                'atr': float(row['atr']) if not pd.isna(row['atr']) else None,
-                'rsi': float(row['rsi']) if not pd.isna(row['rsi']) else None,
-                'macd': float(row['macd']) if not pd.isna(row['macd']) else None,
-                'ema_fast': float(row['ema_fast']) if not pd.isna(row['ema_fast']) else None,
-                'ema_slow': float(row['ema_slow']) if not pd.isna(row['ema_slow']) else None,
+                'current_price': latest_close,
+                'current_price_eur': latest_close_eur,
+                'atr': atr_value,
+                'rsi': rsi_value,
+                'macd': macd_value,
+                'ema_fast': ema_fast_value,
+                'ema_slow': ema_slow_value,
                 'technical_score': technical_score,
                 'analyst_score': analyst_score,
                 'news_score': news_score,
@@ -987,27 +1238,9 @@ def _generate_signals_from_cache(run: SimulationRun, sim_date, replay_data: dict
                     'as_of_date': sim_date.isoformat(),
                     'history_points': row_idx + 1,
                 },
+                'reason': reason,
+                'reason_json': reason_json,
             }
-            if include_details:
-                signal['reason'] = _build_reason(row, params, score, analyst_score, sector_score)
-                signal['reason_json'] = {
-                    'technical': {
-                        'rsi': float(row['rsi']) if not pd.isna(row['rsi']) else None,
-                        'macd': float(row['macd']) if not pd.isna(row['macd']) else None,
-                        'ema_fast': float(row['ema_fast']) if not pd.isna(row['ema_fast']) else None,
-                        'ema_slow': float(row['ema_slow']) if not pd.isna(row['ema_slow']) else None,
-                    },
-                    'scores': {
-                        'final': score,
-                        'technical': technical_score,
-                        'analyst': analyst_score,
-                        'news': news_score,
-                        'sector': sector_score,
-                    }
-                }
-            else:
-                signal['reason'] = action
-                signal['reason_json'] = {}
             signals.append(signal)
         except Exception as e:
             log.error('Cached Signal-Berechnung für %s fehlgeschlagen: %s', stock.symbol, e)
