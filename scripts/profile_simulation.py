@@ -125,6 +125,9 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument('--name', help='Optionaler Run-Name')
     parser.add_argument('--capital', type=float, default=10000.0, help='Startkapital in EUR')
     parser.add_argument('--output', help='Pfad für JSON-Ausgabe')
+    parser.add_argument('--persist-chunk-days', type=int, help='Override für persist_chunk_days')
+    parser.add_argument('--cancel-check-interval-days', type=int, help='Override für cancel_check_interval_days')
+    parser.add_argument('--decision-log-mode', choices=['normal', 'debug', 'minimal'], help='Override für decision_log_mode')
     return parser.parse_args()
 
 
@@ -235,7 +238,7 @@ def resolve_payload(args: argparse.Namespace) -> dict:
         existing = db.session.get(SimulationRun, args.run_id)
         if not existing:
             raise ValueError(f'Run {args.run_id} nicht gefunden')
-        return {
+        payload = {
             'name': f'{existing.name} [profiled {datetime.now(timezone.utc).isoformat()}]',
             'start_date': existing.start_date.isoformat(),
             'end_date': existing.end_date.isoformat(),
@@ -246,13 +249,24 @@ def resolve_payload(args: argparse.Namespace) -> dict:
             'notes': (existing.notes or '') + '\nProfiled clone run',
             'auto_start': False,
         }
+        if args.persist_chunk_days is not None or args.cancel_check_interval_days is not None or args.decision_log_mode:
+            strategy = replay.get_strategy(existing.strategy_name) or {'params': {}}
+            params = dict(strategy.get('params') or {})
+            if args.persist_chunk_days is not None:
+                params['persist_chunk_days'] = args.persist_chunk_days
+            if args.cancel_check_interval_days is not None:
+                params['cancel_check_interval_days'] = args.cancel_check_interval_days
+            if args.decision_log_mode:
+                params['decision_log_mode'] = args.decision_log_mode
+            payload['strategy_params_override'] = params
+        return payload
 
     required = ['strategy', 'universe', 'start', 'end']
     missing = [field for field in required if not getattr(args, field)]
     if missing:
         raise ValueError(f'Fehlende Argumente: {", ".join(missing)}')
 
-    return {
+    payload = {
         'name': args.name or f'profile {args.strategy} {args.start}..{args.end}',
         'start_date': args.start,
         'end_date': args.end,
@@ -261,6 +275,16 @@ def resolve_payload(args: argparse.Namespace) -> dict:
         'universe_name': args.universe,
         'auto_start': False,
     }
+    if args.persist_chunk_days is not None or args.cancel_check_interval_days is not None or args.decision_log_mode:
+        params = {}
+        if args.persist_chunk_days is not None:
+            params['persist_chunk_days'] = args.persist_chunk_days
+        if args.cancel_check_interval_days is not None:
+            params['cancel_check_interval_days'] = args.cancel_check_interval_days
+        if args.decision_log_mode:
+            params['decision_log_mode'] = args.decision_log_mode
+        payload['strategy_params_override'] = params
+    return payload
 
 
 def collect_run_stats(run_id: int) -> dict:

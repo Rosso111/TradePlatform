@@ -47,6 +47,12 @@ def create_simulation_run(payload: dict) -> SimulationRun:
         raise ValueError('end_date darf nicht vor start_date liegen')
 
     selected_strategy_id = payload.get('strategy_id') or payload.get('strategy_name') or DEFAULT_STRATEGY_NAME
+    strategy_params_override = payload.get('strategy_params_override')
+    notes = payload.get('notes')
+    if strategy_params_override:
+        import json
+        override_note = f"strategy_params_override={json.dumps(strategy_params_override, sort_keys=True)}"
+        notes = ((notes or '').strip() + "\n" + override_note).strip()
 
     run = SimulationRun(
         name=payload.get('name') or f"Replay {payload.get('start_date')} – {payload.get('end_date')}",
@@ -59,7 +65,7 @@ def create_simulation_run(payload: dict) -> SimulationRun:
         end_date=end_date,
         step_interval=payload.get('step_interval') or '1d',
         initial_capital_eur=float(payload.get('initial_capital_eur') or config.STARTING_CAPITAL),
-        notes=payload.get('notes'),
+        notes=notes,
     )
     db.session.add(run)
     db.session.commit()
@@ -70,6 +76,8 @@ DECISION_LOG_SAMPLE_INTERVAL_DAYS = 5
 REPLAY_COMMIT_INTERVAL_DAYS = 5
 REPLAY_PERSIST_INTERVAL_DAYS = 30
 REPLAY_PROGRESS_CHUNK_DAYS = 100
+REPLAY_CANCEL_CHECK_INTERVAL_DAYS = 100
+DECISION_LOG_MODE_DEFAULT = 'normal'
 
 
 def _safe_float(value):
@@ -138,16 +146,57 @@ def _compute_score_fast(row: dict, params: dict, analyst_score: float = 50.0, se
     return min(max(score, 0), 100)
 
 
-def _should_persist_decision(signal: dict, sim_date) -> bool:
+def _get_strategy_param(replay_data: dict | None, key: str, default=None):
+    strategy_params = (replay_data or {}).get('strategy_params', {})
+    return strategy_params.get(key, default)
+
+
+
+def _get_decision_log_mode(replay_data: dict | None = None) -> str:
+    mode = str(_get_strategy_param(replay_data, 'decision_log_mode', DECISION_LOG_MODE_DEFAULT) or DECISION_LOG_MODE_DEFAULT).strip().lower()
+    return mode if mode in ('normal', 'debug', 'minimal') else DECISION_LOG_MODE_DEFAULT
+
+
+def _get_progress_chunk_days(replay_data: dict | None = None) -> int:
+    value = _get_strategy_param(replay_data, 'persist_chunk_days', REPLAY_PROGRESS_CHUNK_DAYS)
+    try:
+        parsed = int(value)
+    except (TypeError, ValueError):
+        return REPLAY_PROGRESS_CHUNK_DAYS
+    return max(10, min(parsed, 5000))
+
+
+def _get_cancel_check_interval_days(replay_data: dict | None = None) -> int:
+    value = _get_strategy_param(replay_data, 'cancel_check_interval_days', None)
+    if value is None:
+        return _get_progress_chunk_days(replay_data)
+    try:
+        parsed = int(value)
+    except (TypeError, ValueError):
+        return _get_progress_chunk_days(replay_data)
+    return max(10, min(parsed, 5000))
+
+
+def _should_persist_decision(signal: dict, sim_date, replay_data: dict | None = None) -> bool:
+    mode = _get_decision_log_mode(replay_data)
     action = (signal.get('action') or 'HOLD').upper()
     if action in ('BUY', 'SELL'):
         return True
 
     score = float(signal.get('score') or 0.0)
-    if score >= 60 or score <= 40:
-        return True
 
-    return (sim_date.toordinal() % DECISION_LOG_SAMPLE_INTERVAL_DAYS) == 0
+    if mode == 'debug':
+        if score >= 60 or score <= 40:
+            return True
+        return (sim_date.toordinal() % DECISION_LOG_SAMPLE_INTERVAL_DAYS) == 0
+
+    if mode == 'minimal':
+        return score >= 75 or score <= 25
+
+    # normal
+    if score >= 70 or score <= 30:
+        return True
+    return (sim_date.toordinal() % (DECISION_LOG_SAMPLE_INTERVAL_DAYS * 3)) == 0
 
 
 def run_historical_replay(app, run_id: int) -> SimulationRun:
@@ -170,27 +219,37 @@ def run_historical_replay(app, run_id: int) -> SimulationRun:
             previous_equity = run.initial_capital_eur
             replay_data = _build_replay_data_cache(run)
             benchmark_return_pct = _calculate_benchmark_return_until_date(run, run.end_date, replay_data)
+            progress_chunk_days = _get_progress_chunk_days(replay_data)
+            cancel_check_interval_days = _get_cancel_check_interval_days(replay_data)
 
             open_positions = {}
             decision_log_buffer = []
             trade_buffer = []
             snapshot_buffer = []
             processed_days_since_flush = 0
+            days_since_cancel_check = 0
+            realized_sell_trades = 0
+            winning_trades = 0
+            losing_trades = 0
+            gross_profit = 0.0
+            gross_loss = 0.0
+            max_drawdown_pct = 0.0
+            daily_returns = []
 
             sim_date = run.start_date
             while sim_date <= run.end_date:
-                should_check_run_status = processed_days_since_flush == 0 or sim_date == run.start_date
+                should_check_run_status = days_since_cancel_check == 0 or sim_date == run.start_date
                 if should_check_run_status:
-                    db.session.refresh(run)
-                    if str(run.status).lower() == 'cancel_requested':
+                    current_status = db.session.query(SimulationRun.status).filter(SimulationRun.id == run.id).scalar()
+                    if str(current_status).lower() == 'cancel_requested':
                         _persist_replay_buffers(decision_log_buffer, trade_buffer, snapshot_buffer)
                         _replace_open_positions(run.id, open_positions)
                         run.status = 'cancelled'
                         run.finished_at = datetime.now(timezone.utc)
+                        run.current_date = sim_date
                         db.session.commit()
                         return run
 
-                run.current_date = sim_date
                 cash_eur += _update_open_positions_in_memory(run, sim_date, replay_data, open_positions, trade_buffer)
 
                 signals = _generate_signals_from_cache(run, sim_date, replay_data, include_details=True)
@@ -206,7 +265,7 @@ def run_historical_replay(app, run_id: int) -> SimulationRun:
                     signal_counts[action] = signal_counts.get(action, 0) + 1
 
                     if action == 'SKIP':
-                        if _should_persist_decision(signal, sim_date):
+                        if _should_persist_decision(signal, sim_date, replay_data):
                             decision_log_buffer.append(_build_decision_log_mapping(
                                 run.id,
                                 signal,
@@ -217,7 +276,7 @@ def run_historical_replay(app, run_id: int) -> SimulationRun:
                         continue
 
                     if action == 'HOLD':
-                        if _should_persist_decision(signal, sim_date):
+                        if _should_persist_decision(signal, sim_date, replay_data):
                             decision_log_buffer.append(_build_decision_log_mapping(
                                 run.id,
                                 signal,
@@ -258,7 +317,7 @@ def run_historical_replay(app, run_id: int) -> SimulationRun:
                             skip_reason = 'Nicht genug Cash inkl. Kosten'
 
                         if not should_execute:
-                            if _should_persist_decision(signal, sim_date):
+                            if _should_persist_decision(signal, sim_date, replay_data):
                                 decision_log_buffer.append(_build_decision_log_mapping(
                                     run.id,
                                     signal,
@@ -334,7 +393,7 @@ def run_historical_replay(app, run_id: int) -> SimulationRun:
                             open_position_stock_ids.discard(signal['stock_id'])
                             open_positions.pop(signal['stock_id'], None)
                         else:
-                            if _should_persist_decision(signal, sim_date):
+                            if _should_persist_decision(signal, sim_date, replay_data):
                                 decision_log_buffer.append(_build_decision_log_mapping(
                                     run.id,
                                     signal,
@@ -357,7 +416,10 @@ def run_historical_replay(app, run_id: int) -> SimulationRun:
                 equity = cash_eur + positions_value
                 peak_equity = max(peak_equity, equity)
                 drawdown_pct = ((peak_equity - equity) / peak_equity * 100) if peak_equity > 0 else 0.0
+                max_drawdown_pct = max(max_drawdown_pct, drawdown_pct)
                 daily_pnl = equity - previous_equity
+                if previous_equity and previous_equity > 0:
+                    daily_returns.append((equity - previous_equity) / previous_equity)
 
                 snapshot_buffer.append({
                     'run_id': run.id,
@@ -371,18 +433,40 @@ def run_historical_replay(app, run_id: int) -> SimulationRun:
                 })
 
                 processed_days_since_flush += 1
-                should_flush = processed_days_since_flush >= REPLAY_PROGRESS_CHUNK_DAYS or sim_date >= run.end_date
+                days_since_cancel_check += 1
+                should_flush = processed_days_since_flush >= progress_chunk_days or sim_date >= run.end_date
                 if should_flush:
+                    sell_trades = [t for t in trade_buffer if t.get('action') == 'SELL']
+                    all_trades_in_chunk = len(trade_buffer)
+                    realized_sell_trades += len(sell_trades)
+                    winning_trades += sum(1 for t in sell_trades if (t.get('pnl_eur') or 0.0) > 0)
+                    losing_trades += sum(1 for t in sell_trades if (t.get('pnl_eur') or 0.0) <= 0)
+                    gross_profit += sum((t.get('pnl_eur') or 0.0) for t in sell_trades if (t.get('pnl_eur') or 0.0) > 0)
+                    gross_loss += abs(sum((t.get('pnl_eur') or 0.0) for t in sell_trades if (t.get('pnl_eur') or 0.0) <= 0))
                     _persist_replay_buffers(decision_log_buffer, trade_buffer, snapshot_buffer)
                     _replace_open_positions(run.id, open_positions)
+                    run.current_date = sim_date
+                    run.total_trades = (run.total_trades or 0) + all_trades_in_chunk
                     db.session.commit()
-                    db.session.expire_all()
                     processed_days_since_flush = 0
+                if days_since_cancel_check >= cancel_check_interval_days:
+                    days_since_cancel_check = 0
 
                 previous_equity = equity
                 sim_date += timedelta(days=1)
 
-            _finalize_run(run, benchmark_return_pct=benchmark_return_pct)
+            _finalize_run_in_memory(
+                run,
+                final_equity=previous_equity,
+                benchmark_return_pct=benchmark_return_pct,
+                max_drawdown_pct=max_drawdown_pct,
+                total_trades=run.total_trades or 0,
+                winning_trades=winning_trades,
+                losing_trades=losing_trades,
+                gross_profit=gross_profit,
+                gross_loss=gross_loss,
+                daily_returns=daily_returns,
+            )
             return run
 
         except Exception as e:
@@ -925,6 +1009,42 @@ def _finalize_run(run: SimulationRun, benchmark_return_pct: float | None = None)
     db.session.commit()
 
 
+def _finalize_run_in_memory(run: SimulationRun, final_equity: float, benchmark_return_pct: float | None,
+                            max_drawdown_pct: float, total_trades: int, winning_trades: int,
+                            losing_trades: int, gross_profit: float, gross_loss: float,
+                            daily_returns: list[float]):
+    total_return_pct = ((final_equity - run.initial_capital_eur) / run.initial_capital_eur * 100) if run.initial_capital_eur > 0 else 0.0
+    benchmark_return_pct = benchmark_return_pct if benchmark_return_pct is not None else _calculate_buy_and_hold_benchmark(run)
+    closed_trades = winning_trades + losing_trades
+    win_rate = (winning_trades / closed_trades * 100) if closed_trades > 0 else 0.0
+    profit_factor = (gross_profit / gross_loss) if gross_loss > 0 else (gross_profit if gross_profit > 0 else 0.0)
+
+    sharpe_ratio = 0.0
+    if len(daily_returns) > 1:
+        mean_return = sum(daily_returns) / len(daily_returns)
+        variance = sum((r - mean_return) ** 2 for r in daily_returns) / (len(daily_returns) - 1)
+        std_dev = math.sqrt(variance) if variance > 0 else 0.0
+        if std_dev > 0:
+            sharpe_ratio = mean_return / std_dev * math.sqrt(252)
+
+    if str(run.status).lower() == 'cancel_requested':
+        run.status = 'cancelled'
+    else:
+        run.status = 'completed'
+    run.finished_at = datetime.now(timezone.utc)
+    run.final_equity_eur = round(final_equity, 2)
+    run.total_return_pct = round(total_return_pct, 2)
+    run.benchmark_return_pct = round(benchmark_return_pct, 2)
+    run.max_drawdown_pct = round(max_drawdown_pct, 2)
+    run.sharpe_ratio = round(sharpe_ratio, 4)
+    run.win_rate = round(win_rate, 2)
+    run.profit_factor = round(profit_factor, 4)
+    run.total_trades = total_trades
+    run.winning_trades = winning_trades
+    run.losing_trades = losing_trades
+    db.session.commit()
+
+
 def _calculate_buy_and_hold_benchmark(run: SimulationRun) -> float:
     return _calculate_benchmark_return_until_date(run, run.end_date) or 0.0
 
@@ -973,9 +1093,25 @@ def _calculate_benchmark_return_until_date(run: SimulationRun, end_date, replay_
     return (end_eur - start_eur) / start_eur * 100
 
 
+def _extract_strategy_params_override(run: SimulationRun) -> dict:
+    notes = run.notes or ''
+    marker = 'strategy_params_override='
+    for line in reversed(notes.splitlines()):
+        if line.startswith(marker):
+            try:
+                import json
+                value = json.loads(line[len(marker):])
+                return value if isinstance(value, dict) else {}
+            except Exception:
+                return {}
+    return {}
+
+
+
 def _build_replay_data_cache(run: SimulationRun) -> dict:
     strategy = get_strategy(run.strategy_name) or {'id': DEFAULT_STRATEGY_NAME, 'mode': 'score', 'params': {}}
     strategy_params = strategy.get('params', {}) or {}
+    strategy_params = {**strategy_params, **_extract_strategy_params_override(run)}
     strategy_mode = strategy.get('mode') or 'score'
 
     universe = get_universe(run.universe_name) or {'id': DEFAULT_UNIVERSE_NAME, 'symbols': []}
