@@ -6,6 +6,8 @@ from flask import Blueprint, jsonify, request
 from datetime import date, timedelta
 import logging
 import threading
+import uuid
+from datetime import datetime, timezone
 
 from models import (
     db, Account, Position, Trade, Stock, Price, Signal, EquityHistory, AlgoParams,
@@ -14,6 +16,16 @@ from models import (
 from services.replay_engine import _calculate_benchmark_return_until_date
 from services.strategy_store import list_strategies, get_strategy, upsert_strategy, set_active_strategy, approve_strategy_for_live
 from services.universe_store import list_universes
+from services.scenario_store import (
+    list_scenarios,
+    upsert_scenario,
+    get_scenario,
+    delete_scenario,
+    create_scenario_batch,
+    update_scenario_batch,
+    get_scenario_batch,
+    delete_scenario_batch,
+)
 
 log = logging.getLogger(__name__)
 api = Blueprint('api', __name__, url_prefix='/api')
@@ -274,6 +286,175 @@ def get_universes():
     return jsonify(list_universes())
 
 
+# ─── Scenario Runner ─────────────────────────────────────────────────────────
+
+@api.route('/scenarios', methods=['GET'])
+def get_scenarios():
+    return jsonify(list_scenarios())
+
+
+@api.route('/scenarios/<scenario_id>', methods=['PUT'])
+def update_scenario(scenario_id):
+    payload = request.get_json(silent=True) or {}
+    payload['id'] = scenario_id
+    try:
+        saved = upsert_scenario(payload)
+        return jsonify({'success': True, 'scenario': saved})
+    except ValueError as e:
+        return jsonify({'success': False, 'error': str(e)}), 400
+
+
+@api.route('/scenarios/<scenario_id>', methods=['DELETE'])
+def remove_scenario(scenario_id):
+    try:
+        delete_scenario(scenario_id)
+        return jsonify({'success': True, 'deleted_scenario_id': scenario_id})
+    except ValueError as e:
+        return jsonify({'success': False, 'error': str(e)}), 404
+
+
+@api.route('/scenario-batches', methods=['POST'])
+def create_batch():
+    payload = request.get_json(silent=True) or {}
+    scenario_ids = payload.get('scenario_ids') or []
+    if not scenario_ids:
+        return jsonify({'success': False, 'error': 'scenario_ids fehlt'}), 400
+
+    scenarios = []
+    for scenario_id in scenario_ids:
+        scenario = get_scenario(scenario_id)
+        if not scenario:
+            return jsonify({'success': False, 'error': f'Szenario {scenario_id} nicht gefunden'}), 404
+        scenarios.append(scenario)
+
+    batch_id = payload.get('id') or f"batch_{uuid.uuid4().hex[:10]}"
+    batch = {
+        'id': batch_id,
+        'name': payload.get('name') or f'Scenario Batch {datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")}',
+        'status': 'queued',
+        'created_at': datetime.now(timezone.utc).isoformat(),
+        'started_at': None,
+        'finished_at': None,
+        'current_index': 0,
+        'scenario_ids': scenario_ids,
+        'run_ids': [],
+        'results': [],
+        'error': None,
+    }
+
+    try:
+        saved = create_scenario_batch(batch)
+        return jsonify({'success': True, 'batch': saved}), 201
+    except ValueError as e:
+        return jsonify({'success': False, 'error': str(e)}), 400
+
+
+@api.route('/scenario-batches/<batch_id>', methods=['GET'])
+def get_batch(batch_id):
+    batch = get_scenario_batch(batch_id)
+    if not batch:
+        return jsonify({'success': False, 'error': 'Batch nicht gefunden'}), 404
+    return jsonify({'success': True, 'batch': batch})
+
+
+@api.route('/scenario-batches/<batch_id>', methods=['DELETE'])
+def delete_batch(batch_id):
+    try:
+        delete_scenario_batch(batch_id)
+        return jsonify({'success': True, 'deleted_batch_id': batch_id})
+    except ValueError as e:
+        return jsonify({'success': False, 'error': str(e)}), 404
+
+
+@api.route('/scenario-batches/<batch_id>/run', methods=['POST'])
+def run_batch(batch_id):
+    from flask import current_app
+    from services.replay_engine import create_simulation_run, run_historical_replay
+
+    batch = get_scenario_batch(batch_id)
+    if not batch:
+        return jsonify({'success': False, 'error': 'Batch nicht gefunden'}), 404
+
+    if str(batch.get('status')).lower() == 'running':
+        return jsonify({'success': False, 'error': 'Batch läuft bereits'}), 409
+
+    app_obj = current_app._get_current_object()
+
+    def background_batch_runner():
+        try:
+            current_batch = update_scenario_batch(batch_id, {
+                'status': 'running',
+                'started_at': datetime.now(timezone.utc).isoformat(),
+                'error': None,
+            })
+            run_ids = list(current_batch.get('run_ids') or [])
+            results = list(current_batch.get('results') or [])
+
+            for index, scenario_id in enumerate(current_batch.get('scenario_ids') or []):
+                scenario = get_scenario(scenario_id)
+                if not scenario:
+                    raise ValueError(f'Szenario {scenario_id} nicht gefunden')
+
+                payload = {
+                    'name': scenario.get('name') or scenario_id,
+                    'start_date': scenario.get('start_date'),
+                    'end_date': scenario.get('end_date'),
+                    'initial_capital_eur': scenario.get('initial_capital_eur', 10000),
+                    'strategy_id': scenario.get('strategy_id'),
+                    'universe_name': scenario.get('universe_name'),
+                    'notes': scenario.get('notes'),
+                    'auto_start': False,
+                    'strategy_params_override': scenario.get('params_override') or {},
+                }
+
+                with app_obj.app_context():
+                    run = create_simulation_run(payload)
+                    run_historical_replay(app_obj, run.id)
+                    db.session.refresh(run)
+
+                run_ids.append(run.id)
+                results.append({
+                    'scenario_id': scenario_id,
+                    'run_id': run.id,
+                    'status': run.status,
+                    'final_equity_eur': run.final_equity_eur,
+                    'total_return_pct': run.total_return_pct,
+                    'max_drawdown_pct': run.max_drawdown_pct,
+                    'sharpe_ratio': run.sharpe_ratio,
+                })
+
+                update_scenario_batch(batch_id, {
+                    'current_index': index + 1,
+                    'run_ids': run_ids,
+                    'results': results,
+                })
+
+            update_scenario_batch(batch_id, {
+                'status': 'completed',
+                'finished_at': datetime.now(timezone.utc).isoformat(),
+                'run_ids': run_ids,
+                'results': results,
+                'current_index': len(current_batch.get('scenario_ids') or []),
+            })
+        except Exception as e:
+            log.exception('Scenario batch fehlgeschlagen: %s', batch_id)
+            update_scenario_batch(batch_id, {
+                'status': 'failed',
+                'finished_at': datetime.now(timezone.utc).isoformat(),
+                'error': str(e),
+            })
+
+    thread = threading.Thread(
+        target=background_batch_runner,
+        name=f"scenario-batch-{batch_id}",
+        daemon=True,
+    )
+    thread.start()
+
+    refreshed = get_scenario_batch(batch_id)
+    return jsonify({'success': True, 'batch': refreshed})
+
+
 # ─── Manueller Trigger ───────────────────────────────────────────────────────
 
 @api.route('/trading/run', methods=['POST'])
@@ -328,6 +509,28 @@ def get_simulations():
             .order_by(SimulationRun.created_at.desc())
             .all())
     return jsonify([run.to_dict() for run in runs])
+
+
+@api.route('/simulations', methods=['DELETE'])
+def delete_all_simulations():
+    runs = SimulationRun.query.all()
+    running = [run for run in runs if str(run.status).upper() == 'RUNNING']
+    if running:
+        return jsonify({
+            'success': False,
+            'error': 'Laufende Simulationen bitte erst abbrechen, bevor alle gelöscht werden.'
+        }), 409
+
+    try:
+        deleted_ids = [run.id for run in runs]
+        for run in runs:
+            db.session.delete(run)
+        db.session.commit()
+        return jsonify({'success': True, 'deleted_run_ids': deleted_ids, 'deleted_count': len(deleted_ids)})
+    except Exception as e:
+        db.session.rollback()
+        log.error(f"Alle Simulationen löschen: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
 
 
 @api.route('/simulations', methods=['POST'])

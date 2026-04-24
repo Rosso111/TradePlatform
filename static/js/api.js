@@ -54,6 +54,9 @@ export const api = {
   runOptimization: () => request('/trading/optimize', { method: 'POST' }),
 
   getSimulations: () => request('/simulations'),
+  deleteAllSimulations: () => request('/simulations', {
+    method: 'DELETE',
+  }),
   createSimulation: (payload) => request('/simulations', {
     method: 'POST',
     body: JSON.stringify(payload),
@@ -67,4 +70,24 @@ export const api = {
   getSimulationDecisions: (runId, limit = 400) => request(`/simulations/${runId}/decisions?limit=${limit}`),
   getSimulationMetrics: (runId) => request(`/simulations/${runId}/metrics`),
   getSimulationBenchmark: (runId) => request(`/simulations/${runId}/benchmark`),
+
+  getScenarios: () => request('/scenarios'),
+  updateScenario: (scenarioId, payload) => request(`/scenarios/${scenarioId}`, {
+    method: 'PUT',
+    body: JSON.stringify(payload),
+  }),
+  deleteScenario: (scenarioId) => request(`/scenarios/${scenarioId}`, {
+    method: 'DELETE',
+  }),
+  createScenarioBatch: (payload) => request('/scenario-batches', {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  }),
+  getScenarioBatch: (batchId) => request(`/scenario-batches/${batchId}`),
+  deleteScenarioBatch: (batchId) => request(`/scenario-batches/${batchId}`, {
+    method: 'DELETE',
+  }),
+  runScenarioBatch: (batchId) => request(`/scenario-batches/${batchId}/run`, {
+    method: 'POST',
+  }),
 };
