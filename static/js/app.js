@@ -19,6 +19,10 @@ const state = {
   trades: [],
   equity: [],
   signals: [],
+  strategies: [],
+  approvedLiveStrategies: [],
+  activeStrategy: null,
+  selectedLabStrategyId: null,
   selectedSymbol: null,
   activeTab: 'dashboard',
 };
@@ -33,6 +37,7 @@ document.addEventListener('DOMContentLoaded', () => {
   initNavigation();
   initPeriodButtons();
   initSimulationControls();
+  initStrategyEditor();
   loadAll();
   setTimeout(() => hideLoading(), 5000);
 });
@@ -77,6 +82,7 @@ async function loadAll() {
     loadTrades(),
     loadEquity(),
     loadSimulations(),
+    loadStrategies(),
   ]);
 }
 
@@ -148,6 +154,19 @@ async function loadAlgoParams() {
     renderAlgoParams(params);
   } catch (e) {
     console.warn('Algo:', e);
+  }
+}
+
+async function loadStrategies() {
+  try {
+    const data = await api.getStrategies();
+    state.strategies = data.strategies || [];
+    state.approvedLiveStrategies = data.approved_live_strategies || [];
+    state.activeStrategy = data.active_strategy || null;
+    renderStrategyEditor();
+    populateSimulationStrategySelect();
+  } catch (e) {
+    console.warn('Strategies:', e);
   }
 }
 
@@ -483,6 +502,15 @@ function renderSectorChart() {
   if (side) side.innerHTML = html;
 }
 
+function escapeHtml(value) {
+  return String(value ?? '')
+    .replaceAll('&', '&amp;')
+    .replaceAll('<', '&lt;')
+    .replaceAll('>', '&gt;')
+    .replaceAll('"', '&quot;')
+    .replaceAll("'", '&#39;');
+}
+
 function renderAlgoParams(params) {
   const container = document.getElementById('algo-grid');
   if (!container) return;
@@ -506,6 +534,127 @@ function initNavigation() {
   });
 }
 
+function initStrategyEditor() {
+  const liveSelect = document.getElementById('strategy-select');
+  const labSelect = document.getElementById('strategy-lab-select');
+  const saveBtn = document.getElementById('btn-strategy-save');
+
+  if (liveSelect) {
+    liveSelect.addEventListener('change', async () => {
+      const strategyId = liveSelect.value;
+      try {
+        await api.setActiveStrategy(strategyId);
+        state.activeStrategy = strategyId;
+        renderStrategyEditor();
+        showToast('Aktive Live-Strategie gewechselt', 'info');
+      } catch (error) {
+        showToast(`Live-Strategie konnte nicht aktiviert werden: ${error.message}`, 'info');
+      }
+    });
+  }
+
+  if (labSelect) {
+    labSelect.addEventListener('change', () => {
+      state.selectedLabStrategyId = labSelect.value;
+      renderStrategyLabEditor();
+    });
+  }
+
+  if (saveBtn) {
+    saveBtn.addEventListener('click', saveStrategyFromEditor);
+  }
+}
+
+function renderStrategyEditor() {
+  const select = document.getElementById('strategy-select');
+  const approvedList = document.getElementById('approved-strategies-list');
+  if (select) {
+    const approvedIds = state.approvedLiveStrategies || [];
+    const approvedStrategies = (state.strategies || []).filter((strategy) => approvedIds.includes(strategy.id));
+
+    if (!approvedStrategies.length) {
+      select.innerHTML = '<option value="">Keine freigegebenen Strategien</option>';
+      select.disabled = true;
+    } else {
+      select.disabled = false;
+      select.innerHTML = approvedStrategies.map((strategy) => `
+        <option value="${escapeHtml(strategy.id)}" ${strategy.id === state.activeStrategy ? 'selected' : ''}>${escapeHtml(strategy.name || strategy.id)}</option>
+      `).join('');
+    }
+  }
+
+  if (approvedList) {
+    const approvedIds = state.approvedLiveStrategies || [];
+    const approvedStrategies = (state.strategies || []).filter((strategy) => approvedIds.includes(strategy.id));
+    approvedList.innerHTML = approvedStrategies.length
+      ? approvedStrategies.map((strategy) => `<div class="algo-card"><div class="algo-symbol">${escapeHtml(strategy.name || strategy.id)}</div><div class="strategy-editor-help">${escapeHtml(strategy.description || '')}</div><div class="algo-metric"><span>ID</span><span>${escapeHtml(strategy.id)}</span></div></div>`).join('')
+      : '<div class="empty-state" style="padding:20px;color:var(--text-muted)">Noch keine Strategien für Live freigegeben.</div>';
+  }
+
+  renderStrategyLabEditor();
+}
+
+function renderStrategyLabEditor() {
+  const select = document.getElementById('strategy-lab-select');
+  const nameInput = document.getElementById('strategy-name');
+  const descriptionInput = document.getElementById('strategy-description');
+  const jsonInput = document.getElementById('strategy-json');
+  if (!select || !nameInput || !descriptionInput || !jsonInput) return;
+
+  const previousValue = state.selectedLabStrategyId || select.value;
+  select.innerHTML = (state.strategies || []).map((strategy) => `
+    <option value="${escapeHtml(strategy.id)}">${escapeHtml(strategy.name || strategy.id)}</option>
+  `).join('');
+
+  const selectedId = previousValue || (state.strategies[0] && state.strategies[0].id);
+  const current = (state.strategies || []).find((strategy) => strategy.id === selectedId) || state.strategies[0];
+  if (!current) return;
+
+  state.selectedLabStrategyId = current.id;
+  select.value = current.id;
+  nameInput.value = current.name || '';
+  descriptionInput.value = current.description || '';
+  jsonInput.value = JSON.stringify({
+    id: current.id,
+    enabled: current.enabled,
+    mode: current.mode,
+    params: current.params || {},
+  }, null, 2);
+}
+
+async function saveStrategyFromEditor() {
+  const select = document.getElementById('strategy-lab-select');
+  const nameInput = document.getElementById('strategy-name');
+  const descriptionInput = document.getElementById('strategy-description');
+  const jsonInput = document.getElementById('strategy-json');
+  if (!select || !nameInput || !descriptionInput || !jsonInput) return;
+
+  try {
+    const parsed = JSON.parse(jsonInput.value);
+    const strategyId = parsed.id || select.value;
+    const payload = {
+      ...parsed,
+      id: strategyId,
+      name: nameInput.value || strategyId,
+      description: descriptionInput.value || '',
+    };
+    await api.updateStrategy(strategyId, payload);
+    await loadStrategies();
+    showToast('Teststrategie gespeichert', 'info');
+  } catch (error) {
+    showToast(`Strategie konnte nicht gespeichert werden: ${error.message}`, 'info');
+  }
+}
+
+function populateSimulationStrategySelect() {
+  const select = document.getElementById('simulation-strategy-select');
+  if (!select) return;
+
+  select.innerHTML = (state.strategies || []).map((strategy) => `
+    <option value="${escapeHtml(strategy.id)}" ${strategy.id === (state.activeStrategy || 'default_v1') ? 'selected' : ''}>${escapeHtml(strategy.name || strategy.id)}</option>
+  `).join('');
+}
+
 function switchTab(tab) {
   state.activeTab = tab;
   document.querySelectorAll('.tab-btn').forEach((b) => b.classList.toggle('active', b.dataset.tab === tab));
@@ -514,6 +663,7 @@ function switchTab(tab) {
 
   if (tab === 'algorithm') loadAlgoParams();
   if (tab === 'simulations') loadSimulations();
+  if (tab === 'strategies') loadStrategies();
 }
 
 function initPeriodButtons() {

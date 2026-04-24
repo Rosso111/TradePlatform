@@ -40,6 +40,7 @@
     <nav class="header-nav">
       <button class="nav-btn active" data-tab="dashboard">Dashboard</button>
       <button class="nav-btn" data-tab="simulations">Simulations</button>
+      <button class="nav-btn" data-tab="strategies">Strategien</button>
       <button class="nav-btn" data-tab="chart">Chart</button>
       <button class="nav-btn" data-tab="positions">Positionen</button>
       <button class="nav-btn" data-tab="trades">Trades</button>
@@ -71,6 +72,7 @@
     <div class="view-tabs">
       <button class="tab-btn active" data-tab="dashboard">Dashboard</button>
       <button class="tab-btn" data-tab="simulations">Simulations</button>
+      <button class="tab-btn" data-tab="strategies">Strategien</button>
       <button class="tab-btn" data-tab="chart">Chart</button>
       <button class="tab-btn" data-tab="positions">Positionen</button>
       <button class="tab-btn" data-tab="trades">Trades</button>
@@ -154,37 +156,180 @@
 
     <!-- Simulations -->
     <div class="view-panel" data-tab="simulations">
-      <div class="card">
-        <div style="display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap;margin-bottom:12px">
-          <div>
-            <div class="card-title" style="margin-bottom:6px">Historical Replay</div>
-            <p style="color:var(--text-secondary);font-size:.82rem">
-              Starte historische Replay-Läufe ohne Zukunftswissen und vergleiche Strategie vs. Benchmark.
-            </p>
+      <div class="simulation-workbench">
+        <aside class="simulation-sidebar">
+          <div class="card simulation-sticky-panel">
+            <div style="display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap;margin-bottom:12px">
+              <div>
+                <div class="card-title" style="margin-bottom:6px">Historical Replay</div>
+                <p style="color:var(--text-secondary);font-size:.82rem">
+                  Steuerung links, Ergebnisse rechts. Oben die wichtigsten Parameter, unten die Szenarien.
+                </p>
+              </div>
+            </div>
+
+            <form id="simulation-form" class="simulation-form simulation-form-compact">
+              <input type="text" name="name" placeholder="Run-Name (optional)">
+              <input type="date" name="start_date" value="2025-06-01" required>
+              <input type="date" name="end_date" value="2025-06-02" required>
+              <input type="number" name="initial_capital_eur" value="10000" min="100" step="100">
+              <select name="strategy_id" id="simulation-strategy-select"></select>
+              <select name="universe_name" id="simulation-universe-select"></select>
+              <button class="btn btn-primary" type="submit">Replay starten</button>
+            </form>
+
+            <form id="scenario-form" class="scenario-form simulation-control-form">
+              <div class="scenario-section">
+                <div class="scenario-section-title">Scenario Basics</div>
+                <div class="scenario-grid">
+                  <input type="text" name="id" placeholder="scenario_id" required>
+                  <input type="text" name="name" placeholder="Szenario-Name" required>
+                  <input type="date" name="start_date" required>
+                  <input type="date" name="end_date" required>
+                  <input type="number" name="initial_capital_eur" value="10000" min="100" step="100">
+                  <select name="strategy_id" id="scenario-strategy-select"></select>
+                  <select name="universe_name" id="scenario-universe-select"></select>
+                  <textarea name="notes" rows="2" placeholder="Notizen (optional)"></textarea>
+                </div>
+              </div>
+
+              <div class="scenario-section">
+                <div class="scenario-section-title">Main Parameters</div>
+                <div class="scenario-grid">
+                  <label class="scenario-field">Buy Threshold
+                    <div class="scenario-slider-wrap"><input type="range" name="buy_threshold_slider" min="0" max="100" step="1" value="65"><span data-slider-value="buy_threshold_slider">65</span></div>
+                    <input type="number" name="buy_threshold" min="0" max="100" step="1">
+                  </label>
+                  <label class="scenario-field">Sell Threshold
+                    <div class="scenario-slider-wrap"><input type="range" name="sell_threshold_slider" min="0" max="100" step="1" value="35"><span data-slider-value="sell_threshold_slider">35</span></div>
+                    <input type="number" name="sell_threshold" min="0" max="100" step="1">
+                  </label>
+                  <label class="scenario-field">Max Positions
+                    <input type="number" name="max_positions" min="1" max="50" step="1">
+                  </label>
+                  <label class="scenario-field">Trailing Stop %
+                    <div class="scenario-slider-wrap"><input type="range" name="trailing_stop_pct_slider" min="0" max="0.2" step="0.001" value="0.03"><span data-slider-value="trailing_stop_pct_slider">0.03</span></div>
+                    <input type="number" name="trailing_stop_pct" min="0" max="1" step="0.001">
+                  </label>
+                  <label class="scenario-field">Min RSI
+                    <div class="scenario-slider-wrap"><input type="range" name="min_rsi_slider" min="0" max="100" step="1" value="40"><span data-slider-value="min_rsi_slider">40</span></div>
+                    <input type="number" name="min_rsi" min="0" max="100" step="1">
+                  </label>
+                  <label class="scenario-field">Max RSI
+                    <div class="scenario-slider-wrap"><input type="range" name="max_rsi_slider" min="0" max="100" step="1" value="70"><span data-slider-value="max_rsi_slider">70</span></div>
+                    <input type="number" name="max_rsi" min="0" max="100" step="1">
+                  </label>
+                  <label class="scenario-field">Min Sector Score
+                    <div class="scenario-slider-wrap"><input type="range" name="min_sector_score_slider" min="0" max="100" step="1" value="50"><span data-slider-value="min_sector_score_slider">50</span></div>
+                    <input type="number" name="min_sector_score" min="0" max="100" step="1">
+                  </label>
+                  <label class="scenario-field">Decision Log Mode
+                    <select name="decision_log_mode">
+                      <option value="">(default)</option>
+                      <option value="normal">normal</option>
+                      <option value="debug">debug</option>
+                      <option value="minimal">minimal</option>
+                    </select>
+                  </label>
+                  <label class="scenario-field">Persist Chunk Days
+                    <input type="number" name="persist_chunk_days" min="10" max="5000" step="10">
+                  </label>
+                  <label class="scenario-field">Cancel Check Days
+                    <input type="number" name="cancel_check_interval_days" min="10" max="5000" step="10">
+                  </label>
+                  <label class="scenario-toggle"><input type="checkbox" name="require_price_above_ema_fast"> Price &gt; EMA Fast</label>
+                  <label class="scenario-toggle"><input type="checkbox" name="require_ema_fast_above_slow"> EMA Fast &gt; EMA Slow</label>
+                  <label class="scenario-toggle"><input type="checkbox" name="require_macd_above_signal"> MACD &gt; Signal</label>
+                </div>
+              </div>
+
+              <div class="scenario-section">
+                <div class="scenario-section-title">Advanced JSON Overrides</div>
+                <textarea name="params_override" rows="6" placeholder='{"top_n_buys":6,"scale_position_by_score":true}'></textarea>
+              </div>
+
+              <div class="simulation-sidebar-actions">
+                <button class="btn btn-ghost" type="submit">Szenario speichern</button>
+                <button class="btn btn-ghost" id="scenario-batch-create-btn" type="button">Batch anlegen</button>
+                <button class="btn btn-ghost" id="scenario-batch-delete-btn" type="button">Batch löschen</button>
+                <button class="btn btn-primary" id="scenario-batch-run-btn" type="button">Batch starten</button>
+              </div>
+            </form>
           </div>
-          <form id="simulation-form" class="simulation-form">
-            <input type="text" name="name" placeholder="Run-Name (optional)">
-            <input type="date" name="start_date" value="2024-01-01" required>
-            <input type="date" name="end_date" value="2024-12-31" required>
-            <input type="number" name="initial_capital_eur" value="10000" min="100" step="100">
-            <button class="btn btn-primary" type="submit">Replay starten</button>
-          </form>
+        </aside>
+
+        <section class="simulation-main">
+          <div class="simulation-main-top">
+            <div class="simulation-runs-panel card">
+              <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap;margin-bottom:12px">
+                <div class="card-title" style="margin:0">Simulationsläufe</div>
+                <div style="display:flex;gap:8px;flex-wrap:wrap">
+                  <button class="btn btn-ghost" id="simulation-delete-active-btn" type="button">Aktiven Run löschen</button>
+                  <button class="btn btn-danger" id="simulation-delete-all-btn" type="button">Alle löschen</button>
+                </div>
+              </div>
+              <div id="simulation-runs"></div>
+            </div>
+
+            <div class="simulation-results-panel">
+              <div id="simulation-summary"></div>
+              <div class="card simulation-chart-panel">
+                <div class="card-title">Equity vs. Benchmark</div>
+                <div id="simulation-chart"></div>
+                <div id="simulation-chart-tooltip" class="simulation-chart-tooltip"></div>
+              </div>
+            </div>
+          </div>
+
+          <div class="simulation-main-bottom">
+            <div class="card simulation-scenarios-panel">
+              <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:12px">
+                <div>
+                  <div class="card-title" style="margin-bottom:6px">Szenarien</div>
+                  <div style="color:var(--text-secondary);font-size:.8rem">Scrollbare Szenarienliste. Klick lädt links in den Editor.</div>
+                </div>
+              </div>
+              <div id="scenario-list" class="scenario-list scenario-list-scroll"></div>
+              <div id="scenario-batch-status" class="scenario-batch-status"></div>
+            </div>
+
+            <div class="card simulation-scenario-detail-panel">
+              <div class="card-title">Szenario-Details</div>
+              <div id="scenario-detail-view" class="scenario-detail-view">
+                <div class="empty-state" style="padding:18px;color:var(--text-muted)">Klicke auf ein Szenario, um Details zu sehen.</div>
+              </div>
+            </div>
+          </div>
+        </section>
+      </div>
+    </div>
+
+    <!-- Strategien -->
+    <div class="view-panel" data-tab="strategies">
+      <div class="card">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;gap:12px;flex-wrap:wrap">
+          <div>
+            <div class="card-title" style="margin:0">Strategie-Labor</div>
+          </div>
+          <div style="display:flex;gap:8px;flex-wrap:wrap">
+            <button class="btn btn-ghost" id="btn-strategy-save">Strategie speichern</button>
+          </div>
+        </div>
+        <div class="strategy-editor">
+          <div class="strategy-editor-head">
+            <label for="strategy-lab-select">Teststrategie</label>
+            <select id="strategy-lab-select"></select>
+          </div>
+          <input type="text" id="strategy-name" placeholder="Strategie-Name">
+          <textarea id="strategy-description" rows="2" placeholder="Beschreibung"></textarea>
+          <textarea id="strategy-json" rows="18" spellcheck="false" placeholder='{"mode":"trend_quality","params":{...}}'></textarea>
+          <div class="strategy-editor-help">Hier bearbeitest du Teststrategien für Simulationen. Erst nach Freigabe erscheinen sie im Algorithmus-Tab.</div>
         </div>
       </div>
 
-      <div class="simulation-layout">
-        <div class="card">
-          <div class="card-title">Simulationsläufe</div>
-          <div id="simulation-runs"></div>
-        </div>
-
-        <div style="display:flex;flex-direction:column;gap:16px">
-          <div id="simulation-summary"></div>
-          <div class="card">
-            <div class="card-title">Equity vs. Benchmark</div>
-            <div id="simulation-chart"></div>
-          </div>
-        </div>
+      <div class="card">
+        <div class="card-title">Freigegebene Live-Strategien</div>
+        <div id="approved-strategies-list" class="strategy-approved-list"></div>
       </div>
     </div>
 
@@ -254,11 +399,22 @@
     <!-- Algorithmus -->
     <div class="view-panel" data-tab="algorithm">
       <div class="card">
-        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
-          <div class="card-title" style="margin:0">Optimierte Parameter (Backtesting)</div>
-          <button class="btn btn-ghost" id="btn-optimize" onclick="triggerOptimize()">⚙ Neu optimieren</button>
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;gap:12px;flex-wrap:wrap">
+          <div>
+            <div class="card-title" style="margin:0">Freigegebene Live-Strategien & Optimierte Parameter</div>
+          </div>
+          <div style="display:flex;gap:8px;flex-wrap:wrap">
+            <button class="btn btn-ghost" id="btn-optimize" onclick="triggerOptimize()">⚙ Neu optimieren</button>
+          </div>
         </div>
-        <p style="color:var(--text-secondary);font-size:.8rem;margin-bottom:14px">
+        <div class="strategy-editor">
+          <div class="strategy-editor-head">
+            <label for="strategy-select">Aktive Live-Strategie</label>
+            <select id="strategy-select"></select>
+          </div>
+          <div class="strategy-editor-help">Hier erscheinen nur Strategien, die aus der Simulation für den Live-Algorithmus freigegeben wurden.</div>
+        </div>
+        <p style="color:var(--text-secondary);font-size:.8rem;margin:14px 0 14px">
           Parameter wurden durch Grid-Search auf historischen Daten optimiert (Sharpe-Ratio-Maximierung).
           Zeithorizont: 400 Tage Backtest.
         </p>

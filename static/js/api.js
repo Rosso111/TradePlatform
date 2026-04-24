@@ -37,19 +37,57 @@ export const api = {
   getEquity: (days = 60) => request(`/equity?days=${days}`),
   getPrices: (symbol, days = 90) => request(`/prices/${symbol}?days=${days}`),
   getAlgoParams: () => request('/algo/params'),
+  getStrategies: () => request('/strategies'),
+  getUniverses: () => request('/universes'),
+  setActiveStrategy: (strategyId) => request('/strategies/active', {
+    method: 'POST',
+    body: JSON.stringify({ strategy_id: strategyId }),
+  }),
+  updateStrategy: (strategyId, payload) => request(`/strategies/${strategyId}`, {
+    method: 'PUT',
+    body: JSON.stringify(payload),
+  }),
+  approveStrategyForLive: (strategyId) => request(`/strategies/${strategyId}/approve-live`, {
+    method: 'POST',
+  }),
   runTradingCycle: () => request('/trading/run', { method: 'POST' }),
   runOptimization: () => request('/trading/optimize', { method: 'POST' }),
 
   getSimulations: () => request('/simulations'),
+  deleteAllSimulations: () => request('/simulations', {
+    method: 'DELETE',
+  }),
   createSimulation: (payload) => request('/simulations', {
     method: 'POST',
     body: JSON.stringify(payload),
   }),
   getSimulation: (runId) => request(`/simulations/${runId}`),
+  deleteSimulation: (runId) => request(`/simulations/${runId}`, { method: 'DELETE' }),
+  cancelSimulation: (runId) => request(`/simulations/${runId}/cancel`, { method: 'POST' }),
   getSimulationEquity: (runId) => request(`/simulations/${runId}/equity`),
-  getSimulationTrades: (runId) => request(`/simulations/${runId}/trades`),
+  getSimulationTrades: (runId, limit = 300) => request(`/simulations/${runId}/trades?limit=${limit}`),
   getSimulationPositions: (runId) => request(`/simulations/${runId}/positions`),
-  getSimulationDecisions: (runId) => request(`/simulations/${runId}/decisions`),
+  getSimulationDecisions: (runId, limit = 400) => request(`/simulations/${runId}/decisions?limit=${limit}`),
   getSimulationMetrics: (runId) => request(`/simulations/${runId}/metrics`),
   getSimulationBenchmark: (runId) => request(`/simulations/${runId}/benchmark`),
+
+  getScenarios: () => request('/scenarios'),
+  updateScenario: (scenarioId, payload) => request(`/scenarios/${scenarioId}`, {
+    method: 'PUT',
+    body: JSON.stringify(payload),
+  }),
+  deleteScenario: (scenarioId) => request(`/scenarios/${scenarioId}`, {
+    method: 'DELETE',
+  }),
+  createScenarioBatch: (payload) => request('/scenario-batches', {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  }),
+  getScenarioBatch: (batchId) => request(`/scenario-batches/${batchId}`),
+  deleteScenarioBatch: (batchId) => request(`/scenario-batches/${batchId}`, {
+    method: 'DELETE',
+  }),
+  runScenarioBatch: (batchId) => request(`/scenario-batches/${batchId}/run`, {
+    method: 'POST',
+  }),
 };

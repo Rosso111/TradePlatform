@@ -6,11 +6,14 @@ import logging
 import os
 from datetime import datetime, timezone
 
+from dotenv import load_dotenv
 from flask import Flask, render_template
 from flask_socketio import SocketIO
 from flask_cors import CORS
 from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.triggers.interval import IntervalTrigger
+from sqlalchemy import text
+from sqlalchemy.exc import SQLAlchemyError
 
 import config
 from models import db, Account
@@ -26,12 +29,17 @@ scheduler = BackgroundScheduler(timezone='Europe/Vienna')
 
 
 def create_app():
+    load_dotenv(os.path.join(os.path.dirname(os.path.abspath(__file__)), '.env'))
     app = Flask(__name__)
     app.config['SECRET_KEY'] = config.SECRET_KEY
     app.config['SQLALCHEMY_DATABASE_URI'] = config.SQLALCHEMY_DATABASE_URI
     app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
-
-    os.makedirs(os.path.dirname(config.DATABASE_PATH), exist_ok=True)
+    app.config['SQLALCHEMY_ENGINE_OPTIONS'] = {
+        'connect_args': {
+            'connect_timeout': 10,
+        },
+        'pool_pre_ping': True,
+    }
 
     # Extensions
     db.init_app(app)
@@ -51,6 +59,7 @@ def create_app():
     with app.app_context():
         db.create_all()
         _init_account()
+        _init_performance_indexes(app)
         log.info("Datenbank initialisiert.")
 
     # Scheduler starten
@@ -60,6 +69,28 @@ def create_app():
     _initial_data_load(app)
 
     return app
+
+
+def _init_performance_indexes(app):
+    """Legt wichtige Performance-Indizes fuer Replay/API-Last an."""
+
+    index_statements = [
+        'CREATE INDEX IF NOT EXISTS idx_prices_stock_date_desc ON prices (stock_id, date DESC)',
+        'CREATE INDEX IF NOT EXISTS idx_decision_logs_run_date_id ON decision_logs (run_id, sim_date DESC, id DESC)',
+        'CREATE INDEX IF NOT EXISTS idx_decision_logs_run_executed ON decision_logs (run_id, executed)',
+        'CREATE INDEX IF NOT EXISTS idx_simulation_trades_run_date_id ON simulation_trades (run_id, sim_date DESC, id DESC)',
+        'CREATE INDEX IF NOT EXISTS idx_simulation_positions_run_stock ON simulation_positions (run_id, stock_id)',
+        'CREATE INDEX IF NOT EXISTS idx_simulation_daily_snapshots_run_date_desc ON simulation_daily_snapshots (run_id, sim_date DESC)',
+    ]
+
+    try:
+        for stmt in index_statements:
+            db.session.execute(text(stmt))
+        db.session.commit()
+        log.info('Performance-Indizes geprüft/angelegt.')
+    except SQLAlchemyError as e:
+        db.session.rollback()
+        log.warning('Performance-Indizes konnten nicht angelegt werden: %s', e)
 
 
 def _init_account():

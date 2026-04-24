@@ -5,10 +5,26 @@ Liefert alle Daten für das Frontend.
 from flask import Blueprint, jsonify, request
 from datetime import date, timedelta
 import logging
+import threading
+import uuid
+from datetime import datetime, timezone
 
 from models import (
     db, Account, Position, Trade, Stock, Price, Signal, EquityHistory, AlgoParams,
     SimulationRun, SimulationPosition, SimulationTrade, DecisionLog, SimulationDailySnapshot,
+)
+from services.replay_engine import _calculate_benchmark_return_until_date
+from services.strategy_store import list_strategies, get_strategy, upsert_strategy, set_active_strategy, approve_strategy_for_live
+from services.universe_store import list_universes
+from services.scenario_store import (
+    list_scenarios,
+    upsert_scenario,
+    get_scenario,
+    delete_scenario,
+    create_scenario_batch,
+    update_scenario_batch,
+    get_scenario_batch,
+    delete_scenario_batch,
 )
 
 log = logging.getLogger(__name__)
@@ -225,6 +241,220 @@ def get_algo_params():
     return jsonify(result)
 
 
+# ─── Strategien ──────────────────────────────────────────────────────────────
+
+@api.route('/strategies', methods=['GET'])
+def get_strategies():
+    return jsonify(list_strategies())
+
+
+@api.route('/strategies/active', methods=['POST'])
+def update_active_strategy():
+    payload = request.get_json(silent=True) or {}
+    strategy_id = payload.get('strategy_id')
+    if not strategy_id:
+        return jsonify({'success': False, 'error': 'strategy_id fehlt'}), 400
+    try:
+        data = set_active_strategy(strategy_id)
+        return jsonify({'success': True, **data})
+    except ValueError as e:
+        return jsonify({'success': False, 'error': str(e)}), 404
+
+
+@api.route('/strategies/<strategy_id>', methods=['PUT'])
+def update_strategy(strategy_id):
+    payload = request.get_json(silent=True) or {}
+    payload['id'] = strategy_id
+    try:
+        saved = upsert_strategy(payload)
+        return jsonify({'success': True, 'strategy': saved})
+    except ValueError as e:
+        return jsonify({'success': False, 'error': str(e)}), 400
+
+
+@api.route('/strategies/<strategy_id>/approve-live', methods=['POST'])
+def approve_strategy_live(strategy_id):
+    try:
+        data = approve_strategy_for_live(strategy_id)
+        return jsonify({'success': True, **data})
+    except ValueError as e:
+        return jsonify({'success': False, 'error': str(e)}), 400
+
+
+@api.route('/universes', methods=['GET'])
+def get_universes():
+    return jsonify(list_universes())
+
+
+# ─── Scenario Runner ─────────────────────────────────────────────────────────
+
+@api.route('/scenarios', methods=['GET'])
+def get_scenarios():
+    return jsonify(list_scenarios())
+
+
+@api.route('/scenarios/<scenario_id>', methods=['PUT'])
+def update_scenario(scenario_id):
+    payload = request.get_json(silent=True) or {}
+    payload['id'] = scenario_id
+    try:
+        saved = upsert_scenario(payload)
+        return jsonify({'success': True, 'scenario': saved})
+    except ValueError as e:
+        return jsonify({'success': False, 'error': str(e)}), 400
+
+
+@api.route('/scenarios/<scenario_id>', methods=['DELETE'])
+def remove_scenario(scenario_id):
+    try:
+        delete_scenario(scenario_id)
+        return jsonify({'success': True, 'deleted_scenario_id': scenario_id})
+    except ValueError as e:
+        return jsonify({'success': False, 'error': str(e)}), 404
+
+
+@api.route('/scenario-batches', methods=['POST'])
+def create_batch():
+    payload = request.get_json(silent=True) or {}
+    scenario_ids = payload.get('scenario_ids') or []
+    if not scenario_ids:
+        return jsonify({'success': False, 'error': 'scenario_ids fehlt'}), 400
+
+    scenarios = []
+    for scenario_id in scenario_ids:
+        scenario = get_scenario(scenario_id)
+        if not scenario:
+            return jsonify({'success': False, 'error': f'Szenario {scenario_id} nicht gefunden'}), 404
+        scenarios.append(scenario)
+
+    batch_id = payload.get('id') or f"batch_{uuid.uuid4().hex[:10]}"
+    batch = {
+        'id': batch_id,
+        'name': payload.get('name') or f'Scenario Batch {datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")}',
+        'status': 'queued',
+        'created_at': datetime.now(timezone.utc).isoformat(),
+        'started_at': None,
+        'finished_at': None,
+        'current_index': 0,
+        'scenario_ids': scenario_ids,
+        'run_ids': [],
+        'results': [],
+        'error': None,
+    }
+
+    try:
+        saved = create_scenario_batch(batch)
+        return jsonify({'success': True, 'batch': saved}), 201
+    except ValueError as e:
+        return jsonify({'success': False, 'error': str(e)}), 400
+
+
+@api.route('/scenario-batches/<batch_id>', methods=['GET'])
+def get_batch(batch_id):
+    batch = get_scenario_batch(batch_id)
+    if not batch:
+        return jsonify({'success': False, 'error': 'Batch nicht gefunden'}), 404
+    return jsonify({'success': True, 'batch': batch})
+
+
+@api.route('/scenario-batches/<batch_id>', methods=['DELETE'])
+def delete_batch(batch_id):
+    try:
+        delete_scenario_batch(batch_id)
+        return jsonify({'success': True, 'deleted_batch_id': batch_id})
+    except ValueError as e:
+        return jsonify({'success': False, 'error': str(e)}), 404
+
+
+@api.route('/scenario-batches/<batch_id>/run', methods=['POST'])
+def run_batch(batch_id):
+    from flask import current_app
+    from services.replay_engine import create_simulation_run, run_historical_replay
+
+    batch = get_scenario_batch(batch_id)
+    if not batch:
+        return jsonify({'success': False, 'error': 'Batch nicht gefunden'}), 404
+
+    if str(batch.get('status')).lower() == 'running':
+        return jsonify({'success': False, 'error': 'Batch läuft bereits'}), 409
+
+    app_obj = current_app._get_current_object()
+
+    def background_batch_runner():
+        try:
+            current_batch = update_scenario_batch(batch_id, {
+                'status': 'running',
+                'started_at': datetime.now(timezone.utc).isoformat(),
+                'error': None,
+            })
+            run_ids = list(current_batch.get('run_ids') or [])
+            results = list(current_batch.get('results') or [])
+
+            for index, scenario_id in enumerate(current_batch.get('scenario_ids') or []):
+                scenario = get_scenario(scenario_id)
+                if not scenario:
+                    raise ValueError(f'Szenario {scenario_id} nicht gefunden')
+
+                payload = {
+                    'name': scenario.get('name') or scenario_id,
+                    'start_date': scenario.get('start_date'),
+                    'end_date': scenario.get('end_date'),
+                    'initial_capital_eur': scenario.get('initial_capital_eur', 10000),
+                    'strategy_id': scenario.get('strategy_id'),
+                    'universe_name': scenario.get('universe_name'),
+                    'notes': scenario.get('notes'),
+                    'auto_start': False,
+                    'strategy_params_override': scenario.get('params_override') or {},
+                }
+
+                with app_obj.app_context():
+                    run = create_simulation_run(payload)
+                    run_historical_replay(app_obj, run.id)
+                    db.session.refresh(run)
+
+                run_ids.append(run.id)
+                results.append({
+                    'scenario_id': scenario_id,
+                    'run_id': run.id,
+                    'status': run.status,
+                    'final_equity_eur': run.final_equity_eur,
+                    'total_return_pct': run.total_return_pct,
+                    'max_drawdown_pct': run.max_drawdown_pct,
+                    'sharpe_ratio': run.sharpe_ratio,
+                })
+
+                update_scenario_batch(batch_id, {
+                    'current_index': index + 1,
+                    'run_ids': run_ids,
+                    'results': results,
+                })
+
+            update_scenario_batch(batch_id, {
+                'status': 'completed',
+                'finished_at': datetime.now(timezone.utc).isoformat(),
+                'run_ids': run_ids,
+                'results': results,
+                'current_index': len(current_batch.get('scenario_ids') or []),
+            })
+        except Exception as e:
+            log.exception('Scenario batch fehlgeschlagen: %s', batch_id)
+            update_scenario_batch(batch_id, {
+                'status': 'failed',
+                'finished_at': datetime.now(timezone.utc).isoformat(),
+                'error': str(e),
+            })
+
+    thread = threading.Thread(
+        target=background_batch_runner,
+        name=f"scenario-batch-{batch_id}",
+        daemon=True,
+    )
+    thread.start()
+
+    refreshed = get_scenario_batch(batch_id)
+    return jsonify({'success': True, 'batch': refreshed})
+
+
 # ─── Manueller Trigger ───────────────────────────────────────────────────────
 
 @api.route('/trading/run', methods=['POST'])
@@ -281,6 +511,28 @@ def get_simulations():
     return jsonify([run.to_dict() for run in runs])
 
 
+@api.route('/simulations', methods=['DELETE'])
+def delete_all_simulations():
+    runs = SimulationRun.query.all()
+    running = [run for run in runs if str(run.status).upper() == 'RUNNING']
+    if running:
+        return jsonify({
+            'success': False,
+            'error': 'Laufende Simulationen bitte erst abbrechen, bevor alle gelöscht werden.'
+        }), 409
+
+    try:
+        deleted_ids = [run.id for run in runs]
+        for run in runs:
+            db.session.delete(run)
+        db.session.commit()
+        return jsonify({'success': True, 'deleted_run_ids': deleted_ids, 'deleted_count': len(deleted_ids)})
+    except Exception as e:
+        db.session.rollback()
+        log.error(f"Alle Simulationen löschen: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
 @api.route('/simulations', methods=['POST'])
 def create_simulation():
     from flask import current_app
@@ -297,7 +549,21 @@ def create_simulation():
         run_id = run.id
         auto_start = str(payload.get('auto_start', True)).lower() in ('1', 'true', 'yes', 'on')
         if auto_start:
-            run = run_historical_replay(current_app._get_current_object(), run_id)
+            app_obj = current_app._get_current_object()
+
+            def background_replay():
+                try:
+                    run_historical_replay(app_obj, run_id)
+                except Exception:
+                    log.exception("Hintergrund-Replay fehlgeschlagen fuer run_id=%s", run_id)
+
+            thread = threading.Thread(
+                target=background_replay,
+                name=f"replay-run-{run_id}",
+                daemon=True,
+            )
+            thread.start()
+            run = SimulationRun.query.get(run_id)
         else:
             run = SimulationRun.query.get(run_id)
         return jsonify({
@@ -325,10 +591,70 @@ def get_simulation(run_id):
                         .limit(5)
                         .all())
 
+    total_days = None
+    processed_days = 0
+    progress_pct = 0.0
+    if run.start_date and run.end_date:
+        total_days = max((run.end_date - run.start_date).days + 1, 1)
+        if latest_snapshot and latest_snapshot.sim_date:
+            processed_days = max((latest_snapshot.sim_date - run.start_date).days + 1, 0)
+        elif run.current_date:
+            processed_days = max((run.current_date - run.start_date).days, 0)
+        processed_days = min(processed_days, total_days)
+        progress_pct = round((processed_days / total_days) * 100, 1) if total_days else 0.0
+
     data = run.to_dict()
     data['latest_snapshot'] = latest_snapshot.to_dict() if latest_snapshot else None
     data['latest_decisions'] = [row.to_dict() for row in latest_decisions]
+    data['progress'] = {
+        'processed_days': processed_days,
+        'total_days': total_days,
+        'progress_pct': progress_pct,
+        'current_date': run.current_date.isoformat() if run.current_date else None,
+        'latest_snapshot_date': latest_snapshot.sim_date.isoformat() if latest_snapshot and latest_snapshot.sim_date else None,
+    }
     return jsonify(data)
+
+
+@api.route('/simulations/<int:run_id>', methods=['DELETE'])
+def delete_simulation(run_id):
+    run = SimulationRun.query.get_or_404(run_id)
+
+    if str(run.status).upper() == 'RUNNING':
+        return jsonify({
+            'success': False,
+            'error': 'Laufende Simulationen bitte erst abbrechen.'
+        }), 409
+
+    try:
+        db.session.delete(run)
+        db.session.commit()
+        return jsonify({'success': True, 'deleted_run_id': run_id})
+    except Exception as e:
+        db.session.rollback()
+        log.error(f"Simulation löschen: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@api.route('/simulations/<int:run_id>/cancel', methods=['POST'])
+def cancel_simulation(run_id):
+    run = SimulationRun.query.get_or_404(run_id)
+
+    if str(run.status).upper() != 'RUNNING':
+        return jsonify({
+            'success': False,
+            'error': 'Nur laufende Simulationen können abgebrochen werden.'
+        }), 409
+
+    try:
+        run.status = 'cancel_requested'
+        run.notes = ((run.notes or '').strip() + '\nCancel requested via UI').strip()
+        db.session.commit()
+        return jsonify({'success': True, 'run': run.to_dict()})
+    except Exception as e:
+        db.session.rollback()
+        log.error(f"Simulation abbrechen: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
 
 
 @api.route('/simulations/<int:run_id>/equity', methods=['GET'])
@@ -342,9 +668,11 @@ def get_simulation_equity(run_id):
 
 @api.route('/simulations/<int:run_id>/trades', methods=['GET'])
 def get_simulation_trades(run_id):
+    limit = min(int(request.args.get('limit', 300)), 1000)
     rows = (SimulationTrade.query
             .filter_by(run_id=run_id)
             .order_by(SimulationTrade.sim_date.desc(), SimulationTrade.id.desc())
+            .limit(limit)
             .all())
     return jsonify([row.to_dict() for row in rows])
 
@@ -361,6 +689,7 @@ def get_simulation_positions(run_id):
 @api.route('/simulations/<int:run_id>/decisions', methods=['GET'])
 def get_simulation_decisions(run_id):
     query = DecisionLog.query.filter_by(run_id=run_id)
+    limit = min(int(request.args.get('limit', 400)), 1000)
 
     action = request.args.get('action')
     symbol = request.args.get('symbol')
@@ -374,6 +703,7 @@ def get_simulation_decisions(run_id):
         query = query.filter(DecisionLog.executed == (executed.lower() == 'true'))
 
     rows = (query.order_by(DecisionLog.sim_date.desc(), DecisionLog.id.desc())
+            .limit(limit)
             .all())
     return jsonify([row.to_dict() for row in rows])
 
@@ -381,9 +711,55 @@ def get_simulation_decisions(run_id):
 @api.route('/simulations/<int:run_id>/metrics', methods=['GET'])
 def get_simulation_metrics(run_id):
     run = SimulationRun.query.get_or_404(run_id)
+    snapshots = (SimulationDailySnapshot.query
+                 .filter_by(run_id=run_id)
+                 .order_by(SimulationDailySnapshot.sim_date.asc())
+                 .all())
+    trades = (SimulationTrade.query
+              .filter_by(run_id=run_id)
+              .order_by(SimulationTrade.sim_date.asc(), SimulationTrade.id.asc())
+              .all())
+    sell_trades = [t for t in trades if t.action == 'SELL']
+
+    latest_snapshot = snapshots[-1] if snapshots else None
+    live_equity = latest_snapshot.equity_eur if latest_snapshot else run.initial_capital_eur
+    live_total_return_pct = ((live_equity - run.initial_capital_eur) / run.initial_capital_eur * 100) if run.initial_capital_eur else 0.0
+    live_max_drawdown_pct = max((s.drawdown_pct or 0.0) for s in snapshots) if snapshots else 0.0
+
+    winning = [t for t in sell_trades if (t.pnl_eur or 0) > 0]
+    losing = [t for t in sell_trades if (t.pnl_eur or 0) <= 0]
+    live_win_rate = (len(winning) / len(sell_trades) * 100) if sell_trades else 0.0
+    gross_profit = sum((t.pnl_eur or 0.0) for t in winning)
+    gross_loss = abs(sum((t.pnl_eur or 0.0) for t in losing))
+    live_profit_factor = (gross_profit / gross_loss) if gross_loss > 0 else (gross_profit if gross_profit > 0 else 0.0)
+
+    daily_returns = []
+    prev_equity = None
+    for snapshot in snapshots:
+        equity = snapshot.equity_eur or 0.0
+        if prev_equity and prev_equity > 0:
+            daily_returns.append((equity - prev_equity) / prev_equity)
+        prev_equity = equity
+
+    live_sharpe_ratio = 0.0
+    if len(daily_returns) > 1:
+        mean_return = sum(daily_returns) / len(daily_returns)
+        variance = sum((r - mean_return) ** 2 for r in daily_returns) / (len(daily_returns) - 1)
+        std_dev = (variance ** 0.5) if variance > 0 else 0.0
+        if std_dev > 0:
+            live_sharpe_ratio = mean_return / std_dev * (252 ** 0.5)
+
+    benchmark_return_pct = run.benchmark_return_pct
+    if benchmark_return_pct is None and latest_snapshot and run.start_date and run.end_date:
+        total_days = max((run.end_date - run.start_date).days + 1, 1)
+        processed_days = max((latest_snapshot.sim_date - run.start_date).days + 1, 1)
+        processed_ratio = min(processed_days / total_days, 1.0)
+        full_benchmark_return = _calculate_benchmark_return_until_date(run, latest_snapshot.sim_date)
+        benchmark_return_pct = full_benchmark_return if full_benchmark_return is not None else processed_ratio * 0.0
+
     outperformance_pct = None
-    if run.total_return_pct is not None and run.benchmark_return_pct is not None:
-        outperformance_pct = round(run.total_return_pct - run.benchmark_return_pct, 2)
+    if benchmark_return_pct is not None:
+        outperformance_pct = round(live_total_return_pct - benchmark_return_pct, 2)
 
     decision_counts = {}
     for action, count in (
@@ -400,19 +776,26 @@ def get_simulation_metrics(run_id):
         'run_id': run.id,
         'status': run.status,
         'initial_capital_eur': round(run.initial_capital_eur, 2),
-        'final_equity_eur': round(run.final_equity_eur or 0.0, 2),
-        'total_return_pct': round(run.total_return_pct or 0.0, 2),
-        'benchmark_return_pct': round(run.benchmark_return_pct or 0.0, 2),
+        'final_equity_eur': round((run.final_equity_eur if run.final_equity_eur is not None else live_equity) or 0.0, 2),
+        'total_return_pct': round((run.total_return_pct if run.total_return_pct is not None else live_total_return_pct) or 0.0, 2),
+        'benchmark_return_pct': round((run.benchmark_return_pct if run.benchmark_return_pct is not None else (benchmark_return_pct or 0.0)) or 0.0, 2),
         'outperformance_pct': outperformance_pct,
-        'max_drawdown_pct': round(run.max_drawdown_pct or 0.0, 2),
-        'sharpe_ratio': round(run.sharpe_ratio or 0.0, 4),
-        'win_rate': round(run.win_rate or 0.0, 2),
-        'profit_factor': round(run.profit_factor or 0.0, 4),
-        'total_trades': run.total_trades or 0,
-        'winning_trades': run.winning_trades or 0,
-        'losing_trades': run.losing_trades or 0,
+        'max_drawdown_pct': round((run.max_drawdown_pct if run.max_drawdown_pct is not None else live_max_drawdown_pct) or 0.0, 2),
+        'sharpe_ratio': round((run.sharpe_ratio if run.sharpe_ratio is not None else live_sharpe_ratio) or 0.0, 4),
+        'win_rate': round((run.win_rate if run.win_rate is not None else live_win_rate) or 0.0, 2),
+        'profit_factor': round((run.profit_factor if run.profit_factor is not None else live_profit_factor) or 0.0, 4),
+        'total_trades': run.total_trades if run.total_trades not in (None, 0) or str(run.status).lower() == 'completed' else len(trades),
+        'winning_trades': run.winning_trades if run.winning_trades not in (None, 0) or str(run.status).lower() == 'completed' else len(winning),
+        'losing_trades': run.losing_trades if run.losing_trades not in (None, 0) or str(run.status).lower() == 'completed' else len(losing),
         'decision_counts': decision_counts,
         'executed_decisions': executed_decisions,
+        'live': {
+            'equity_eur': round(live_equity or 0.0, 2),
+            'latest_snapshot_date': latest_snapshot.sim_date.isoformat() if latest_snapshot and latest_snapshot.sim_date else None,
+            'open_positions': latest_snapshot.open_positions if latest_snapshot else 0,
+            'positions_value_eur': round((latest_snapshot.positions_value_eur if latest_snapshot else 0.0) or 0.0, 2),
+            'cash_eur': round((latest_snapshot.cash_eur if latest_snapshot else run.initial_capital_eur) or 0.0, 2),
+        },
     })
 
 
@@ -424,7 +807,35 @@ def get_simulation_benchmark(run_id):
             .order_by(SimulationDailySnapshot.sim_date.asc())
             .all())
 
-    if not rows or run.benchmark_return_pct is None:
+    if not rows:
+        return jsonify({
+            'run_id': run.id,
+            'benchmark_name': 'buy_and_hold_first_active_stock',
+            'points': []
+        })
+
+    first_stock = Stock.query.filter_by(active=True).order_by(Stock.symbol.asc()).first()
+    if not first_stock:
+        return jsonify({
+            'run_id': run.id,
+            'benchmark_name': 'buy_and_hold_first_active_stock',
+            'points': []
+        })
+
+    benchmark_prices = (Price.query
+                        .filter(Price.stock_id == first_stock.id, Price.date <= run.end_date)
+                        .order_by(Price.date.asc())
+                        .all())
+    start_price = next((price for price in benchmark_prices if price.date >= run.start_date), None)
+    if not start_price:
+        return jsonify({
+            'run_id': run.id,
+            'benchmark_name': 'buy_and_hold_first_active_stock',
+            'points': []
+        })
+
+    start_eur = start_price.close_eur or start_price.close
+    if not start_eur or start_eur <= 0:
         return jsonify({
             'run_id': run.id,
             'benchmark_name': 'buy_and_hold_first_active_stock',
@@ -432,9 +843,19 @@ def get_simulation_benchmark(run_id):
         })
 
     benchmark_points = []
-    step_return = run.benchmark_return_pct / max(len(rows) - 1, 1)
-    for idx, row in enumerate(rows):
-        benchmark_value = run.initial_capital_eur * (1 + ((step_return * idx) / 100.0))
+    price_idx = 0
+    latest_price = None
+    for row in rows:
+        while price_idx < len(benchmark_prices) and benchmark_prices[price_idx].date <= row.sim_date:
+            latest_price = benchmark_prices[price_idx]
+            price_idx += 1
+
+        if not latest_price:
+            continue
+
+        end_eur = latest_price.close_eur or latest_price.close
+        benchmark_return_pct = ((end_eur - start_eur) / start_eur * 100) if start_eur > 0 else 0.0
+        benchmark_value = run.initial_capital_eur * (1 + (benchmark_return_pct / 100.0))
         benchmark_points.append({
             'sim_date': row.sim_date.isoformat(),
             'value_eur': round(benchmark_value, 2),
