@@ -142,6 +142,27 @@
         "6758.T",
         "005930.KS"
       ]
+    },
+    {
+      "id": "momentum_100",
+      "name": "Momentum 100",
+      "description": "100 bekannte Wachstums- und Momentum-Titel weltweit, komplett verschieden vom Global Core.",
+      "symbols": [
+        "META", "TSLA", "AMD", "CRM", "NOW", "ADBE", "INTU", "SHOP", "PANW", "CRWD",
+        "ZS", "DDOG", "ANET", "FTNT", "PLTR", "UBER", "NFLX", "TTD", "MDB", "NET",
+        "SNOW", "PYPL", "ZM", "RBLX", "APP",
+        "QCOM", "AVGO", "AMAT", "LRCX", "KLAC", "MRVL", "TXN",
+        "LLY", "MRNA", "REGN", "VRTX", "ISRG", "TMO", "UNH", "ABBV", "DXCM", "IDXX", "GILD", "BIIB",
+        "COST", "HD", "NKE", "SBUX", "LULU", "MNST", "CMG", "TJX", "MCD", "ULTA", "DECK",
+        "KO", "PEP", "PG", "WMT",
+        "MA", "V", "SPGI", "BLK", "ICE", "MSCI", "GS", "COIN", "BAC",
+        "ENPH", "FSLR", "ODFL", "AXON", "CPRT", "FICO", "DE", "ETN", "HON", "GNRC",
+        "MELI", "SE", "TSM", "NVO", "AMGN", "ABNB",
+        "MUV2.DE", "RHM.DE", "EOAN.DE", "LIN.DE",
+        "OR.PA", "SAN.PA", "SU.PA", "SAF.PA", "AI.PA", "KER.PA", "DG.PA", "DSY.PA",
+        "HEIA.AS", "PRX.AS", "WKL.AS",
+        "STMN.SW"
+      ]
     }
   ]
 }

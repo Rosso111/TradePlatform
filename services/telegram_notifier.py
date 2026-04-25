@@ -1,4 +1,5 @@
 import logging
+import os
 import threading
 import urllib.request
 import urllib.parse
@@ -7,8 +8,8 @@ import time
 
 log = logging.getLogger(__name__)
 
-TELEGRAM_TOKEN = '***ROTATED***'
-TELEGRAM_CHAT_ID = '8787363623'
+TELEGRAM_TOKEN = os.environ.get('TELEGRAM_TOKEN', '')
+TELEGRAM_CHAT_ID = os.environ.get('TELEGRAM_CHAT_ID', '')
 
 _polling_thread = None
 _last_update_id = 0
