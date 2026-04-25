@@ -91,6 +91,7 @@ export function initSimulationControls() {
   const createBatchBtn = document.getElementById('scenario-batch-create-btn');
   const deleteBatchBtn = document.getElementById('scenario-batch-delete-btn');
   const runBatchBtn = document.getElementById('scenario-batch-run-btn');
+  const cancelActiveRunBtn = document.getElementById('simulation-cancel-active-btn');
   const deleteActiveRunBtn = document.getElementById('simulation-delete-active-btn');
   const deleteAllRunsBtn = document.getElementById('simulation-delete-all-btn');
   const scenarioStrategySelect = document.getElementById('scenario-strategy-select');
@@ -230,11 +231,25 @@ export function initSimulationControls() {
     });
   }
 
+  if (cancelActiveRunBtn) {
+    cancelActiveRunBtn.addEventListener('click', async () => {
+      const selectedRun = getSelectedRun();
+      if (!selectedRun) {
+        showToast('Kein Run ausgewählt', 'info');
+        return;
+      }
+      const runLabel = selectedRun.name || `Run #${selectedRun.id}`;
+      const confirmed = window.confirm(`Laufenden Run "${runLabel}" wirklich abbrechen?`);
+      if (!confirmed) return;
+      await cancelRunById(selectedRun.id);
+    });
+  }
+
   if (deleteActiveRunBtn) {
     deleteActiveRunBtn.addEventListener('click', async () => {
       const selectedRun = getSelectedRun();
       if (!selectedRun) {
-        showToast('Kein aktiver Run ausgewählt', 'info');
+        showToast('Kein Run ausgewählt', 'info');
         return;
       }
       const runLabel = selectedRun.name || `Run #${selectedRun.id}`;
@@ -251,11 +266,11 @@ export function initSimulationControls() {
         return;
       }
       const hasActiveRuns = currentSimulationRuns.some((run) => isRunActive(run));
-      const confirmed = window.confirm(
-        hasActiveRuns
-          ? 'Es gibt noch aktive/laufende Runs. Diese müssen erst abgebrochen werden. Abgeschlossene Runs trotzdem gesammelt löschen?'
-          : `Wirklich alle ${currentSimulationRuns.length} Runs löschen?`
-      );
+      if (hasActiveRuns) {
+        showToast('Bitte erst alle laufenden Runs abbrechen und abwarten, bevor du alle löscht.', 'info');
+        return;
+      }
+      const confirmed = window.confirm(`Wirklich alle ${currentSimulationRuns.length} Runs löschen?`);
       if (!confirmed) return;
 
       await withSimulationAction(async () => {
@@ -496,69 +511,24 @@ function renderSimulationRuns(runs) {
     return;
   }
   container.innerHTML = runs.map((run) => {
-    const runStatus = String(run.status || '').toLowerCase();
-    const canCancel = runStatus === 'running';
-    const deleteDisabled = isRunActive(run);
     return `
-      <div class="simulation-run-row">
-        <button class="simulation-run-item" data-run-id="${run.id}">
-          <div class="simulation-run-head">
-            <strong>${escapeHtml(run.name || `Run #${run.id}`)}</strong>
-            <span class="simulation-status ${run.status}">${escapeHtml(run.status)}</span>
-          </div>
-          <div class="simulation-run-id">ID: ${run.id}</div>
-          <div class="simulation-run-meta">${escapeHtml(run.start_date || '-')} → ${escapeHtml(run.end_date || '-')}</div>
-          <div class="simulation-run-metrics">
-            <span>${fmtEUR(run.final_equity_eur)}</span>
-            <span class="${(run.total_return_pct || 0) >= 0 ? 'positive' : 'negative'}">${fmtPct(run.total_return_pct || 0)}</span>
-          </div>
-        </button>
-        <div class="simulation-run-actions">
-          ${canCancel ? `<button class="btn btn-ghost simulation-run-cancel-btn" type="button" data-cancel-run-id="${run.id}">Abbrechen</button>` : ''}
-          <button class="btn ${deleteDisabled ? 'btn-ghost' : 'btn-danger'} simulation-run-delete-btn" type="button" data-delete-run-id="${run.id}" ${deleteDisabled ? 'disabled' : ''}>Löschen</button>
+      <button class="simulation-run-item" data-run-id="${run.id}">
+        <div class="simulation-run-head">
+          <strong>${escapeHtml(run.name || `Run #${run.id}`)}</strong>
+          <span class="simulation-status ${run.status}">${escapeHtml(run.status)}</span>
         </div>
-      </div>
+        <div class="simulation-run-id">ID: ${run.id}</div>
+        <div class="simulation-run-meta">${escapeHtml(run.start_date || '-')} → ${escapeHtml(run.end_date || '-')}</div>
+        <div class="simulation-run-metrics">
+          <span>${fmtEUR(run.final_equity_eur)}</span>
+          <span class="${(run.total_return_pct || 0) >= 0 ? 'positive' : 'negative'}">${fmtPct(run.total_return_pct || 0)}</span>
+        </div>
+      </button>
     `;
   }).join('');
 
   container.querySelectorAll('[data-run-id]').forEach((btn) => {
     btn.addEventListener('click', () => loadSimulationDetail(Number(btn.dataset.runId)));
-  });
-
-  container.querySelectorAll('[data-cancel-run-id]').forEach((btn) => {
-    btn.addEventListener('click', async (event) => {
-      event.preventDefault();
-      event.stopPropagation();
-      const runId = Number(btn.dataset.cancelRunId);
-      const run = currentSimulationRuns.find((item) => Number(item.id) === runId);
-      if (!run) {
-        await refreshRunsOnly();
-        showToast('Run wurde nicht mehr gefunden', 'info');
-        return;
-      }
-      const runLabel = run.name || `Run #${run.id}`;
-      const confirmed = window.confirm(`Laufenden Run "${runLabel}" wirklich abbrechen?`);
-      if (!confirmed) return;
-      await cancelRunById(runId);
-    });
-  });
-
-  container.querySelectorAll('[data-delete-run-id]').forEach((btn) => {
-    btn.addEventListener('click', async (event) => {
-      event.preventDefault();
-      event.stopPropagation();
-      const runId = Number(btn.dataset.deleteRunId);
-      const run = currentSimulationRuns.find((item) => Number(item.id) === runId);
-      if (!run) {
-        await refreshRunsOnly();
-        showToast('Run wurde nicht mehr gefunden', 'info');
-        return;
-      }
-      const runLabel = run.name || `Run #${run.id}`;
-      const confirmed = window.confirm(`Run "${runLabel}" wirklich löschen?`);
-      if (!confirmed) return;
-      await deleteRunById(runId);
-    });
   });
 
   updateSimulationActionButtons();
@@ -578,16 +548,20 @@ function getSelectedRun() {
 }
 
 function updateSimulationActionButtons() {
+  const cancelActiveRunBtn = document.getElementById('simulation-cancel-active-btn');
   const deleteActiveRunBtn = document.getElementById('simulation-delete-active-btn');
   const selectedRun = getSelectedRun();
+  const isActive = isRunActive(selectedRun);
+
+  if (cancelActiveRunBtn) {
+    const canCancel = Boolean(selectedRun) && String(selectedRun?.status || '').toUpperCase() === 'RUNNING' && !simulationActionInFlight;
+    cancelActiveRunBtn.disabled = !canCancel;
+    cancelActiveRunBtn.title = !selectedRun ? 'Bitte zuerst einen Run auswählen' : canCancel ? 'Laufenden Run abbrechen' : 'Nur laufende Runs können abgebrochen werden';
+  }
   if (deleteActiveRunBtn) {
-    const canDelete = Boolean(selectedRun) && !isRunActive(selectedRun) && !simulationActionInFlight;
+    const canDelete = Boolean(selectedRun) && !isActive && !simulationActionInFlight;
     deleteActiveRunBtn.disabled = !canDelete;
-    deleteActiveRunBtn.title = !selectedRun
-      ? 'Bitte zuerst einen Run auswählen'
-      : isRunActive(selectedRun)
-        ? 'Aktive Runs bitte erst abbrechen'
-        : 'Ausgewählten Run löschen';
+    deleteActiveRunBtn.title = !selectedRun ? 'Bitte zuerst einen Run auswählen' : isActive ? 'Erst abbrechen lassen, dann löschen' : 'Ausgewählten Run löschen';
   }
 }
 
@@ -731,24 +705,23 @@ function renderSimulationChart(equityRows, benchmarkRows) {
     return;
   }
   if (container.querySelector('.empty-state')) container.innerHTML = '';
+
+  // Immer neu erstellen damit Zeitbereich resettet wird
+  resetSimulationChart();
+
   const width = container.clientWidth || 600;
   const height = container.clientHeight || 280;
-  if (!simulationChart) {
-    simulationChart = LightweightCharts.createChart(container, {
-      layout: { background: { type: 'solid', color: '#161b22' }, textColor: '#8b949e' },
-      grid: { vertLines: { color: '#21262d' }, horzLines: { color: '#21262d' } },
-      rightPriceScale: { borderColor: '#30363d' },
-      timeScale: { borderColor: '#30363d', timeVisible: false },
-      width, height,
-    });
-    simulationEquitySeries = simulationChart.addAreaSeries({ lineColor: '#3fb950', topColor: 'rgba(63,185,80,.30)', bottomColor: 'rgba(63,185,80,0)', lineWidth: 2 });
-    simulationBenchmarkSeries = simulationChart.addLineSeries({ color: '#58a6ff', lineWidth: 2, lineStyle: 2 });
-  } else {
-    simulationChart.resize(width, height);
-  }
-  simulationEquitySeries.setData((equityRows || []).map((row) => ({ time: row.sim_date, value: Number(row.equity_eur) })));
-  simulationBenchmarkSeries.setData((benchmarkRows || []).map((row) => ({ time: row.sim_date, value: Number(row.value_eur) })));
-  simulationChart.timeScale().fitContent();
+  simulationChart = LightweightCharts.createChart(container, {
+    layout: { background: { type: 'solid', color: '#161b22' }, textColor: '#8b949e' },
+    grid: { vertLines: { color: '#21262d' }, horzLines: { color: '#21262d' } },
+    rightPriceScale: { borderColor: '#30363d' },
+    timeScale: { borderColor: '#30363d', timeVisible: false, minBarSpacing: 0.1, rightOffset: 2 },
+    width, height,
+  });
+  simulationEquitySeries = simulationChart.addAreaSeries({ lineColor: '#3fb950', topColor: 'rgba(63,185,80,.30)', bottomColor: 'rgba(63,185,80,0)', lineWidth: 2 });
+  const chartData = (equityRows || []).map((row) => ({ time: row.sim_date, value: Number(row.equity_eur) }));
+  simulationEquitySeries.setData(chartData);
+  requestAnimationFrame(() => simulationChart.timeScale().fitContent());
 }
 
 function renderSimulationEmpty() {

@@ -259,6 +259,17 @@ def run_historical_replay(app, run_id: int) -> SimulationRun:
                 max_positions = strategy_params.get('max_positions', config.MAX_POSITIONS)
                 max_position_size = strategy_params.get('max_position_size', 0.1)
                 min_position_size = strategy_params.get('min_position_size', 0.03)
+                atr_position_sizing = strategy_params.get('atr_position_sizing', False)
+                risk_pct_per_trade = float(strategy_params.get('risk_pct_per_trade', 0.01))
+                atr_stop_multiplier = float(strategy_params.get('atr_stop_multiplier', 2.0))
+
+                # Top-N: nur die N stärksten BUY-Signale des Tages zulassen
+                top_n = strategy_params.get('top_n_signals')
+                if top_n:
+                    top_buy_ids = {s['stock_id'] for s in signals if s.get('action') == 'BUY'}
+                    top_buy_ids = set(list(top_buy_ids)[:int(top_n)])
+                else:
+                    top_buy_ids = None
 
                 for signal in signals:
                     action = signal.get('action', 'HOLD')
@@ -296,15 +307,37 @@ def run_historical_replay(app, run_id: int) -> SimulationRun:
                         if len(open_position_stock_ids) >= max_positions:
                             should_execute = False
                             skip_reason = 'Maximale Anzahl Positionen erreicht'
+                        if top_buy_ids is not None and signal['stock_id'] not in top_buy_ids:
+                            should_execute = False
+                            skip_reason = 'Außerhalb Top-N Signale'
 
                         latest_price_eur = signal['current_price_eur']
                         if latest_price_eur <= 0:
                             should_execute = False
                             skip_reason = 'Ungueltiger Preis'
 
-                        budget_eur = min(cash_eur * max_position_size, cash_eur)
-                        budget_eur = max(budget_eur, run.initial_capital_eur * min_position_size)
-                        budget_eur = min(budget_eur, cash_eur)
+                        # ATR-basiertes Position Sizing: gleiches EUR-Risiko pro Trade
+                        atr = signal.get('atr')
+                        native_price = signal.get('current_price', 0)
+                        if atr_position_sizing and atr and native_price > 0 and latest_price_eur > 0:
+                            atr_pct = atr / native_price
+                            stop_dist_eur = latest_price_eur * atr_pct * atr_stop_multiplier
+                            if stop_dist_eur > 0:
+                                risk_eur = run.initial_capital_eur * risk_pct_per_trade
+                                shares_target = risk_eur / stop_dist_eur
+                                budget_eur = shares_target * latest_price_eur
+                                budget_eur = min(budget_eur, cash_eur * max_position_size)
+                                budget_eur = max(budget_eur, run.initial_capital_eur * min_position_size)
+                                budget_eur = min(budget_eur, cash_eur)
+                            else:
+                                budget_eur = min(cash_eur * max_position_size, cash_eur)
+                                budget_eur = max(budget_eur, run.initial_capital_eur * min_position_size)
+                                budget_eur = min(budget_eur, cash_eur)
+                        else:
+                            budget_eur = min(cash_eur * max_position_size, cash_eur)
+                            budget_eur = max(budget_eur, run.initial_capital_eur * min_position_size)
+                            budget_eur = min(budget_eur, cash_eur)
+
                         if budget_eur < 100:
                             should_execute = False
                             skip_reason = 'Zu wenig Cash fuer neuen Trade'
@@ -892,6 +925,14 @@ def _update_open_positions_in_memory(run: SimulationRun, sim_date, replay_data=N
                                 open_positions.pop(stock_id, None)
                                 continue
 
+        max_hold_days = strategy_params.get('max_hold_days')
+        if max_hold_days and opened_at and (sim_date - opened_at).days >= int(max_hold_days):
+            can_sell, _ = _can_sell_position_state(position, strategy_params, 'Maximale Haltedauer erreicht')
+            if can_sell:
+                cash_delta += _close_position_state(run.id, position, sim_date, 'Maximale Haltedauer erreicht', trade_buffer)
+                open_positions.pop(stock_id, None)
+                continue
+
         effective_stop = max(float(position.get('stop_loss') or 0.0), float(position.get('trailing_stop') or 0.0))
         if effective_stop > 0 and float(latest.close) <= effective_stop:
             cash_delta += _close_position_state(run.id, position, sim_date, 'Stop-Loss ausgelöst', trade_buffer)
@@ -1178,6 +1219,13 @@ def _build_replay_data_cache(run: SimulationRun) -> dict:
         )
         params_by_stock[stock.id] = params
 
+        # Strategy-spezifische Indikator-Parameter (z.B. Donchian) aus strategy_params ergänzen
+        indicator_params = {
+            **params,
+            'donchian_entry_days': strategy_params.get('donchian_entry_days', 20),
+            'donchian_exit_days': strategy_params.get('donchian_exit_days', 10),
+        }
+
         df = pd.DataFrame([
             {
                 'date': p.date,
@@ -1190,7 +1238,7 @@ def _build_replay_data_cache(run: SimulationRun) -> dict:
             }
             for p in stock_prices
         ]).set_index('date')
-        df = add_indicators(df, params)
+        df = add_indicators(df, indicator_params)
         frames_by_stock[stock.id] = df
 
         valid_df = df.dropna()
@@ -1206,6 +1254,14 @@ def _build_replay_data_cache(run: SimulationRun) -> dict:
         avg_change = sum(changes) / len(changes)
         sector_scores[sector] = min(max(50 + avg_change * 3, 10), 90)
 
+    # 12-Monats-Momentum vorberechnen (für Dual-Momentum-Strategie)
+    momentum_lookback = int(strategy_params.get('momentum_lookback_days', 252))
+    momentum_12m_by_stock = {}
+    for stock_id, df in frames_by_stock.items():
+        col = 'CloseEUR' if 'CloseEUR' in df.columns else 'Close'
+        mom = df[col].pct_change(momentum_lookback)
+        momentum_12m_by_stock[stock_id] = mom.to_dict()
+
     return {
         'stocks': stocks,
         'universe': universe,
@@ -1220,6 +1276,7 @@ def _build_replay_data_cache(run: SimulationRun) -> dict:
         'row_index_by_stock': row_index_by_stock,
         'params_by_stock': params_by_stock,
         'sector_scores': sector_scores,
+        'momentum_12m_by_stock': momentum_12m_by_stock,
         'strategy': strategy,
         'strategy_mode': strategy_mode,
         'strategy_params': strategy_params,
@@ -1259,6 +1316,20 @@ def _generate_signals_from_cache(run: SimulationRun, sim_date, replay_data: dict
     row_index_by_stock = replay_data.get('row_index_by_stock', {})
     rows_by_stock = replay_data.get('rows_by_stock', {})
     params_by_stock = replay_data.get('params_by_stock', {})
+    momentum_12m_by_stock = replay_data.get('momentum_12m_by_stock', {})
+
+    # Dual Momentum: Ranking aller Aktien nach 12M-Return für diesen Tag
+    if strategy_mode == 'dual_momentum':
+        abs_threshold = float(strategy_params.get('absolute_momentum_threshold', 0.0))
+        all_mom = {}
+        for stock in replay_data.get('stocks', []):
+            m = momentum_12m_by_stock.get(stock.id, {}).get(sim_date)
+            if m is not None and not (isinstance(m, float) and math.isnan(m)):
+                all_mom[stock.id] = float(m)
+        # Nur Aktien mit positivem absolutem Momentum qualifizieren
+        eligible_ids = {sid for sid, m in all_mom.items() if m > abs_threshold}
+        # Relative Stärke: sortiert nach 12M-Return absteigend
+        ranked_ids = sorted(eligible_ids, key=lambda sid: all_mom.get(sid, 0), reverse=True)
 
     for stock in replay_data.get('stocks', []):
         row_idx = row_index_by_stock.get(stock.id, {}).get(sim_date)
@@ -1319,6 +1390,51 @@ def _generate_signals_from_cache(run: SimulationRun, sim_date, replay_data: dict
                     action = 'SELL'
                 else:
                     action = 'HOLD'
+
+            elif strategy_mode == 'breakout':
+                # Donchian Channel Breakout (Turtle-Stil)
+                dc_prev_high = row.get('donchian_prev_high')
+                dc_low = row.get('donchian_low')
+                breakout_buffer = float(strategy_params.get('breakout_buffer', 0.001))
+                ema_200 = row.get('ema_200')
+
+                dc_prev_high_ok = dc_prev_high is not None and not (isinstance(dc_prev_high, float) and math.isnan(dc_prev_high))
+                dc_low_ok = dc_low is not None and not (isinstance(dc_low, float) and math.isnan(dc_low))
+
+                # Optionaler Trend-Filter: Kurs über EMA200
+                trend_ok = True
+                if strategy_params.get('require_trend_filter', True) and ema_200 is not None and not math.isnan(float(ema_200)):
+                    trend_ok = latest_close >= float(ema_200)
+
+                if dc_prev_high_ok and trend_ok and latest_close > float(dc_prev_high) * (1 + breakout_buffer):
+                    action = 'BUY'
+                    # Score = Breakout-Stärke (für top_n Ranking)
+                    score = min(50 + (latest_close / float(dc_prev_high) - 1) * 500, 100)
+                elif dc_low_ok and latest_close < float(dc_low):
+                    action = 'SELL'
+                    score = 0.0
+                else:
+                    action = 'HOLD'
+
+            elif strategy_mode == 'dual_momentum':
+                # Dual Momentum (Antonacci): absolutes + relatives Momentum
+                mom_12m = all_mom.get(stock.id)
+                top_n_dm = int(strategy_params.get('top_n_signals', 10))
+
+                in_top_n = stock.id in ranked_ids[:top_n_dm]
+                has_abs_momentum = stock.id in eligible_ids
+
+                if has_abs_momentum and in_top_n:
+                    action = 'BUY'
+                    # Score = normierter 12M-Return für Ranking
+                    score = min(50 + float(mom_12m or 0) * 50, 100)
+                elif mom_12m is not None and float(mom_12m) < 0:
+                    # Absolutes Momentum negativ: Exit-Signal
+                    action = 'SELL'
+                    score = 0.0
+                else:
+                    action = 'HOLD'
+
             else:
                 if score >= buy_threshold:
                     action = 'BUY'

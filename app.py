@@ -60,6 +60,7 @@ def create_app():
         db.create_all()
         _init_account()
         _init_performance_indexes(app)
+        _cleanup_stuck_simulation_runs()
         log.info("Datenbank initialisiert.")
 
     # Scheduler starten
@@ -79,6 +80,7 @@ def _init_performance_indexes(app):
         'CREATE INDEX IF NOT EXISTS idx_decision_logs_run_date_id ON decision_logs (run_id, sim_date DESC, id DESC)',
         'CREATE INDEX IF NOT EXISTS idx_decision_logs_run_executed ON decision_logs (run_id, executed)',
         'CREATE INDEX IF NOT EXISTS idx_simulation_trades_run_date_id ON simulation_trades (run_id, sim_date DESC, id DESC)',
+        'CREATE INDEX IF NOT EXISTS idx_simulation_trades_decision_log_id ON simulation_trades (decision_log_id)',
         'CREATE INDEX IF NOT EXISTS idx_simulation_positions_run_stock ON simulation_positions (run_id, stock_id)',
         'CREATE INDEX IF NOT EXISTS idx_simulation_daily_snapshots_run_date_desc ON simulation_daily_snapshots (run_id, sim_date DESC)',
     ]
@@ -91,6 +93,22 @@ def _init_performance_indexes(app):
     except SQLAlchemyError as e:
         db.session.rollback()
         log.warning('Performance-Indizes konnten nicht angelegt werden: %s', e)
+
+
+def _cleanup_stuck_simulation_runs():
+    """Markiert Runs als failed, deren Background-Thread durch einen Neustart abgebrochen wurde."""
+    from models import SimulationRun
+    stuck = SimulationRun.query.filter(
+        SimulationRun.status.in_(['running', 'cancel_requested'])
+    ).all()
+    if not stuck:
+        return
+    for run in stuck:
+        run.status = 'failed'
+        run.error_message = 'Run unterbrochen (App-Neustart)'
+        run.finished_at = datetime.now(timezone.utc)
+    db.session.commit()
+    log.warning('Startup-Cleanup: %d unterbrochene Runs auf failed gesetzt.', len(stuck))
 
 
 def _init_account():
@@ -143,6 +161,12 @@ def _setup_scheduler(app):
 
     scheduler.start()
     log.info(f"Scheduler gestartet. Handelszyklus alle {config.TRADING_INTERVAL_MINUTES} Minuten.")
+
+    try:
+        from services.telegram_notifier import start_polling
+        start_polling(app)
+    except Exception as e:
+        log.warning('Telegram polling konnte nicht gestartet werden: %s', e)
 
 
 def _initial_data_load(app):

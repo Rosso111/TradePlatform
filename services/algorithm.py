@@ -88,6 +88,16 @@ def add_indicators(df: pd.DataFrame, params: dict) -> pd.DataFrame:
     else:
         df['vol_score'] = 50.0
 
+    # Donchian Channel (für Breakout-Strategie)
+    dc_entry = int(params.get('donchian_entry_days', 20))
+    dc_exit = int(params.get('donchian_exit_days', 10))
+    df['donchian_high'] = high.rolling(dc_entry, min_periods=dc_entry).max()
+    df['donchian_prev_high'] = df['donchian_high'].shift(1)
+    df['donchian_low'] = low.rolling(dc_exit, min_periods=dc_exit).min()
+
+    # EMA200 (für Trend-Filter bei Mean-Reversion / Dual Momentum)
+    df['ema_200'] = close.ewm(span=200, adjust=False).mean()
+
     return df
 
 

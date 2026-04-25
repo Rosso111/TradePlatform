@@ -522,32 +522,12 @@ body {
   background: var(--bg-hover);
 }
 
-.simulation-run-row {
-  display: grid;
-  grid-template-columns: 1fr auto;
-  gap: 10px;
-  align-items: stretch;
-  margin-bottom: 10px;
-}
-
 .simulation-run-head,
 .simulation-run-metrics,
 .simulation-decision-row {
   display: flex;
   justify-content: space-between;
   gap: 10px;
-}
-
-.simulation-run-actions {
-  display: flex;
-  flex-direction: column;
-  justify-content: center;
-  gap: 8px;
-}
-
-.simulation-run-actions .btn {
-  min-width: 110px;
-  justify-content: center;
 }
 
 .scenario-list {

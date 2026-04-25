@@ -436,6 +436,11 @@ def run_batch(batch_id):
                 'results': results,
                 'current_index': len(current_batch.get('scenario_ids') or []),
             })
+            try:
+                from services.telegram_notifier import notify_batch_complete
+                notify_batch_complete(current_batch.get('name', batch_id), results)
+            except Exception:
+                pass
         except Exception as e:
             log.exception('Scenario batch fehlgeschlagen: %s', batch_id)
             update_scenario_batch(batch_id, {
@@ -443,6 +448,11 @@ def run_batch(batch_id):
                 'finished_at': datetime.now(timezone.utc).isoformat(),
                 'error': str(e),
             })
+            try:
+                from services.telegram_notifier import send_message
+                send_message(f'❌ <b>Batch {batch_id}</b> fehlgeschlagen: {e}')
+            except Exception:
+                pass
 
     thread = threading.Thread(
         target=background_batch_runner,
@@ -503,6 +513,23 @@ def get_status():
 
 # ─── Historical Simulations ─────────────────────────────────────────────────
 
+def _delete_simulation_runs_bulk(run_ids: list[int]):
+    """Löscht SimulationRuns in korrekter FK-Reihenfolge.
+
+    simulation_trades.decision_log_id referenziert decision_logs — ohne explizite
+    Reihenfolge würde PostgreSQL einen FK-Fehler werfen wenn decision_logs vor
+    simulation_trades gelöscht werden.
+    """
+    SimulationTrade.query.filter(SimulationTrade.run_id.in_(run_ids)).update(
+        {'decision_log_id': None}, synchronize_session=False
+    )
+    SimulationPosition.query.filter(SimulationPosition.run_id.in_(run_ids)).delete(synchronize_session=False)
+    SimulationTrade.query.filter(SimulationTrade.run_id.in_(run_ids)).delete(synchronize_session=False)
+    DecisionLog.query.filter(DecisionLog.run_id.in_(run_ids)).delete(synchronize_session=False)
+    SimulationDailySnapshot.query.filter(SimulationDailySnapshot.run_id.in_(run_ids)).delete(synchronize_session=False)
+    SimulationRun.query.filter(SimulationRun.id.in_(run_ids)).delete(synchronize_session=False)
+
+
 @api.route('/simulations', methods=['GET'])
 def get_simulations():
     runs = (SimulationRun.query
@@ -513,18 +540,19 @@ def get_simulations():
 
 @api.route('/simulations', methods=['DELETE'])
 def delete_all_simulations():
+    from sqlalchemy import text
     runs = SimulationRun.query.all()
-    running = [run for run in runs if str(run.status).upper() == 'RUNNING']
-    if running:
+    active = [run for run in runs if str(run.status).upper() in ('RUNNING', 'CANCEL_REQUESTED')]
+    if active:
         return jsonify({
             'success': False,
-            'error': 'Laufende Simulationen bitte erst abbrechen, bevor alle gelöscht werden.'
+            'error': 'Laufende oder abbrechende Simulationen bitte erst fertig abbrechen lassen.'
         }), 409
 
     try:
         deleted_ids = [run.id for run in runs]
-        for run in runs:
-            db.session.delete(run)
+        if deleted_ids:
+            _delete_simulation_runs_bulk(deleted_ids)
         db.session.commit()
         return jsonify({'success': True, 'deleted_run_ids': deleted_ids, 'deleted_count': len(deleted_ids)})
     except Exception as e:
@@ -620,14 +648,14 @@ def get_simulation(run_id):
 def delete_simulation(run_id):
     run = SimulationRun.query.get_or_404(run_id)
 
-    if str(run.status).upper() == 'RUNNING':
+    if str(run.status).upper() in ('RUNNING', 'CANCEL_REQUESTED'):
         return jsonify({
             'success': False,
-            'error': 'Laufende Simulationen bitte erst abbrechen.'
+            'error': 'Laufende oder abbrechende Simulationen bitte erst fertig abbrechen lassen.'
         }), 409
 
     try:
-        db.session.delete(run)
+        _delete_simulation_runs_bulk([run_id])
         db.session.commit()
         return jsonify({'success': True, 'deleted_run_id': run_id})
     except Exception as e:

@@ -227,6 +227,44 @@
         "min_profit_pct_for_sideways_exit": 3,
         "min_profit_rule_mode": "strategy_only"
       }
+    },
+    {
+      "id": "breakout_v1",
+      "name": "Donchian Breakout v1",
+      "description": "Turtle-style Donchian Channel Breakout. Kauft neue N-Tage-Hochs, Exit bei M-Tage-Tief. ATR-basiertes Position Sizing.",
+      "enabled": true,
+      "mode": "breakout",
+      "params": {
+        "donchian_entry_days": 20,
+        "donchian_exit_days": 10,
+        "breakout_buffer": 0.001,
+        "require_trend_filter": true,
+        "max_positions": 13,
+        "trailing_stop_pct": 0.08,
+        "atr_position_sizing": true,
+        "risk_pct_per_trade": 0.01,
+        "atr_stop_multiplier": 2.0,
+        "min_position_size": 0.03,
+        "max_position_size": 0.15
+      }
+    },
+    {
+      "id": "dual_momentum_v1",
+      "name": "Dual Momentum v1",
+      "description": "Antonacci Dual Momentum: kauft Top-N Aktien nach 12M-Return (relatives Momentum) die auch positives absolutes Momentum haben.",
+      "enabled": true,
+      "mode": "dual_momentum",
+      "params": {
+        "momentum_lookback_days": 252,
+        "absolute_momentum_threshold": 0.0,
+        "top_n_signals": 7,
+        "max_positions": 13,
+        "trailing_stop_pct": 0.08,
+        "buy_threshold": 0,
+        "sell_threshold": -1,
+        "min_position_size": 0.03,
+        "max_position_size": 0.15
+      }
     }
   ]
 }
