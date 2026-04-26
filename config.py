@@ -273,6 +273,9 @@ STOCK_UNIVERSE = [
     {'symbol': 'CBA.AX',  'name': 'Commonwealth Bank',   'sector': 'Financials',   'region': 'AU', 'currency': 'AUD'},
     {'symbol': 'CSL.AX',  'name': 'CSL Ltd.',            'sector': 'Healthcare',   'region': 'AU', 'currency': 'AUD'},
     {'symbol': 'RIO.AX',  'name': 'Rio Tinto Ltd.',      'sector': 'Materials',    'region': 'AU', 'currency': 'AUD'},
+
+    # === BENCHMARK (Regime-Filter — kein Handelsobjekt) ===
+    {'symbol': 'SPY',     'name': 'SPDR S&P 500 ETF',    'sector': 'Benchmark',    'region': 'US', 'currency': 'USD'},
 ]
 
 # Wechselkurs-Paare (Basis: EUR)

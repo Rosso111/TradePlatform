@@ -271,6 +271,11 @@ def run_historical_replay(app, run_id: int) -> SimulationRun:
                 else:
                     top_buy_ids = None
 
+                # Market Regime Filter: einmal pro Tag bestimmen
+                regime_data = replay_data.get('regime_data', {}) if replay_data else {}
+                regime_bullish = _is_regime_bullish(sim_date, regime_data)
+                regime_blocks_buys = regime_bullish is False  # None = kein Filter aktiv
+
                 for signal in signals:
                     action = signal.get('action', 'HOLD')
                     signal_counts[action] = signal_counts.get(action, 0) + 1
@@ -301,6 +306,9 @@ def run_historical_replay(app, run_id: int) -> SimulationRun:
                         should_execute = True
                         skip_reason = None
 
+                        if regime_blocks_buys:
+                            should_execute = False
+                            skip_reason = f"Marktregime bearish ({regime_data.get('symbol','SPY')} < SMA{regime_data.get('period',200)})"
                         if signal['stock_id'] in open_position_stock_ids:
                             should_execute = False
                             skip_reason = 'Position bereits offen'
@@ -1149,6 +1157,61 @@ def _extract_strategy_params_override(run: SimulationRun) -> dict:
 
 
 
+def _build_regime_filter_data(run: SimulationRun, strategy_params: dict) -> dict:
+    """Precompute benchmark SMA series for the Market Regime Filter.
+
+    Returns a dict with sorted date list and (price, sma) tuples, or empty dict
+    if the filter is disabled or the benchmark symbol has no data.
+    """
+    if not strategy_params.get('market_regime_filter', False):
+        return {}
+
+    benchmark_symbol = str(strategy_params.get('regime_filter_symbol', 'SPY'))
+    period = int(strategy_params.get('regime_filter_period', 200))
+
+    benchmark_stock = Stock.query.filter_by(symbol=benchmark_symbol, active=True).first()
+    if not benchmark_stock:
+        log.warning('Regime-Filter: Benchmark %s nicht in DB — Filter deaktiviert.', benchmark_symbol)
+        return {}
+
+    benchmark_prices = (Price.query
+                        .filter(Price.stock_id == benchmark_stock.id, Price.date <= run.end_date)
+                        .order_by(Price.date.asc())
+                        .all())
+    if len(benchmark_prices) < period:
+        log.warning('Regime-Filter: Zu wenige Datenpunkte für %s (%d < %d).', benchmark_symbol, len(benchmark_prices), period)
+        return {}
+
+    closes = [float(p.close_eur or p.close) for p in benchmark_prices]
+    dates = [p.date for p in benchmark_prices]
+
+    regime_dates = []
+    regime_values = {}
+    for i in range(period - 1, len(dates)):
+        sma = sum(closes[i - period + 1:i + 1]) / period
+        regime_dates.append(dates[i])
+        regime_values[dates[i]] = (closes[i], sma)
+
+    log.info('Regime-Filter: %s SMA%d — %d Datenpunkte geladen.', benchmark_symbol, period, len(regime_dates))
+    return {'dates': regime_dates, 'values': regime_values, 'symbol': benchmark_symbol, 'period': period}
+
+
+def _is_regime_bullish(sim_date, regime_data: dict) -> bool | None:
+    """Return True if benchmark > SMA (bullish), False if bearish, None if no data."""
+    if not regime_data:
+        return None
+    dates = regime_data.get('dates', [])
+    if not dates:
+        return None
+    import bisect
+    idx = bisect.bisect_right(dates, sim_date) - 1
+    if idx < 0:
+        return None
+    d = dates[idx]
+    price, sma = regime_data['values'][d]
+    return price >= sma
+
+
 def _build_replay_data_cache(run: SimulationRun) -> dict:
     strategy = get_strategy(run.strategy_name) or {'id': DEFAULT_STRATEGY_NAME, 'mode': 'score', 'params': {}}
     strategy_params = strategy.get('params', {}) or {}
@@ -1262,6 +1325,9 @@ def _build_replay_data_cache(run: SimulationRun) -> dict:
         mom = df[col].pct_change(momentum_lookback)
         momentum_12m_by_stock[stock_id] = mom.to_dict()
 
+    # Market Regime Filter: Benchmark SMA
+    regime_data = _build_regime_filter_data(run, strategy_params)
+
     return {
         'stocks': stocks,
         'universe': universe,
@@ -1280,6 +1346,7 @@ def _build_replay_data_cache(run: SimulationRun) -> dict:
         'strategy': strategy,
         'strategy_mode': strategy_mode,
         'strategy_params': strategy_params,
+        'regime_data': regime_data,
     }
 
 

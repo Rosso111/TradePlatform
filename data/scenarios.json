@@ -9844,6 +9844,1658 @@
         "buy_threshold": 58.0,
         "sell_threshold": 38.0
       }
+    },
+    {
+      "id": "mom100_763",
+      "name": "Momentum 100 — TQ Aggressive — mps=40% ts=9%",
+      "strategy_id": "trend_quality_aggressive_v1",
+      "universe_name": "momentum_100",
+      "start_date": "2016-01-01",
+      "end_date": "2026-04-22",
+      "initial_capital_eur": 10000,
+      "notes": "Erster Run mit dem neuen momentum_100 Universe, beste bekannte Parameter",
+      "params_override": {
+        "persist_chunk_days": 4000,
+        "cancel_check_interval_days": 100,
+        "decision_log_mode": "normal",
+        "trailing_stop_pct": 0.09,
+        "atr_position_sizing": false,
+        "max_positions": 13,
+        "top_n_signals": 7,
+        "max_position_size": 0.4,
+        "buy_threshold": 58.0,
+        "sell_threshold": 38.0
+      }
+    },
+    {
+      "strategy_id": "trend_quality_aggressive_v1",
+      "start_date": "2016-01-01",
+      "end_date": "2026-04-22",
+      "initial_capital_eur": 10000,
+      "params_override": {
+        "persist_chunk_days": 4000,
+        "cancel_check_interval_days": 100,
+        "decision_log_mode": "normal",
+        "atr_position_sizing": false,
+        "max_positions": 13,
+        "top_n_signals": 7,
+        "buy_threshold": 58.0,
+        "sell_threshold": 38.0,
+        "max_position_size": 0.75,
+        "trailing_stop_pct": 0.08
+      },
+      "id": "tq_gc_mps_764",
+      "name": "GC10Y — mps=75% ts=8%",
+      "universe_name": "global_core_10y",
+      "notes": "Sweep um mps=70% Optimum"
+    },
+    {
+      "strategy_id": "trend_quality_aggressive_v1",
+      "start_date": "2016-01-01",
+      "end_date": "2026-04-22",
+      "initial_capital_eur": 10000,
+      "params_override": {
+        "persist_chunk_days": 4000,
+        "cancel_check_interval_days": 100,
+        "decision_log_mode": "normal",
+        "atr_position_sizing": false,
+        "max_positions": 13,
+        "top_n_signals": 7,
+        "buy_threshold": 58.0,
+        "sell_threshold": 38.0,
+        "max_position_size": 0.8,
+        "trailing_stop_pct": 0.08
+      },
+      "id": "tq_gc_mps_765",
+      "name": "GC10Y — mps=80% ts=8%",
+      "universe_name": "global_core_10y",
+      "notes": "Sweep um mps=70% Optimum"
+    },
+    {
+      "strategy_id": "trend_quality_aggressive_v1",
+      "start_date": "2016-01-01",
+      "end_date": "2026-04-22",
+      "initial_capital_eur": 10000,
+      "params_override": {
+        "persist_chunk_days": 4000,
+        "cancel_check_interval_days": 100,
+        "decision_log_mode": "normal",
+        "atr_position_sizing": false,
+        "max_positions": 13,
+        "top_n_signals": 7,
+        "buy_threshold": 58.0,
+        "sell_threshold": 38.0,
+        "max_position_size": 0.85,
+        "trailing_stop_pct": 0.08
+      },
+      "id": "tq_gc_mps_766",
+      "name": "GC10Y — mps=85% ts=8%",
+      "universe_name": "global_core_10y",
+      "notes": "Sweep um mps=70% Optimum"
+    },
+    {
+      "strategy_id": "trend_quality_aggressive_v1",
+      "start_date": "2016-01-01",
+      "end_date": "2026-04-22",
+      "initial_capital_eur": 10000,
+      "params_override": {
+        "persist_chunk_days": 4000,
+        "cancel_check_interval_days": 100,
+        "decision_log_mode": "normal",
+        "atr_position_sizing": false,
+        "max_positions": 13,
+        "top_n_signals": 7,
+        "buy_threshold": 58.0,
+        "sell_threshold": 38.0,
+        "max_position_size": 0.55,
+        "trailing_stop_pct": 0.08
+      },
+      "id": "tq_mom100_767",
+      "name": "MOM100 — mps=55% ts=8%",
+      "universe_name": "momentum_100",
+      "notes": "Parameter-Optimum für momentum_100"
+    },
+    {
+      "strategy_id": "trend_quality_aggressive_v1",
+      "start_date": "2016-01-01",
+      "end_date": "2026-04-22",
+      "initial_capital_eur": 10000,
+      "params_override": {
+        "persist_chunk_days": 4000,
+        "cancel_check_interval_days": 100,
+        "decision_log_mode": "normal",
+        "atr_position_sizing": false,
+        "max_positions": 13,
+        "top_n_signals": 7,
+        "buy_threshold": 58.0,
+        "sell_threshold": 38.0,
+        "max_position_size": 0.65,
+        "trailing_stop_pct": 0.08
+      },
+      "id": "tq_mom100_768",
+      "name": "MOM100 — mps=65% ts=8%",
+      "universe_name": "momentum_100",
+      "notes": "Parameter-Optimum für momentum_100"
+    },
+    {
+      "strategy_id": "trend_quality_aggressive_v1",
+      "start_date": "2016-01-01",
+      "end_date": "2026-04-22",
+      "initial_capital_eur": 10000,
+      "params_override": {
+        "persist_chunk_days": 4000,
+        "cancel_check_interval_days": 100,
+        "decision_log_mode": "normal",
+        "atr_position_sizing": false,
+        "max_positions": 13,
+        "top_n_signals": 7,
+        "buy_threshold": 58.0,
+        "sell_threshold": 38.0,
+        "max_position_size": 0.75,
+        "trailing_stop_pct": 0.08
+      },
+      "id": "tq_mom100_769",
+      "name": "MOM100 — mps=75% ts=8%",
+      "universe_name": "momentum_100",
+      "notes": "Parameter-Optimum für momentum_100"
+    },
+    {
+      "strategy_id": "trend_quality_aggressive_v1",
+      "start_date": "2016-01-01",
+      "end_date": "2026-04-22",
+      "initial_capital_eur": 10000,
+      "params_override": {
+        "persist_chunk_days": 4000,
+        "cancel_check_interval_days": 100,
+        "decision_log_mode": "normal",
+        "atr_position_sizing": false,
+        "max_positions": 13,
+        "top_n_signals": 5,
+        "buy_threshold": 58.0,
+        "sell_threshold": 38.0,
+        "max_position_size": 0.7,
+        "trailing_stop_pct": 0.08
+      },
+      "id": "tq_gc_topn_770",
+      "name": "GC10Y — topn=5 mps=70% ts=8%",
+      "universe_name": "global_core_10y",
+      "notes": "top_n_signals Sweep"
+    },
+    {
+      "strategy_id": "trend_quality_aggressive_v1",
+      "start_date": "2016-01-01",
+      "end_date": "2026-04-22",
+      "initial_capital_eur": 10000,
+      "params_override": {
+        "persist_chunk_days": 4000,
+        "cancel_check_interval_days": 100,
+        "decision_log_mode": "normal",
+        "atr_position_sizing": false,
+        "max_positions": 13,
+        "top_n_signals": 9,
+        "buy_threshold": 58.0,
+        "sell_threshold": 38.0,
+        "max_position_size": 0.7,
+        "trailing_stop_pct": 0.08
+      },
+      "id": "tq_gc_topn_771",
+      "name": "GC10Y — topn=9 mps=70% ts=8%",
+      "universe_name": "global_core_10y",
+      "notes": "top_n_signals Sweep"
+    },
+    {
+      "id": "tq_1k_772",
+      "name": "1K Push — mps=85%_topn9_ts8",
+      "strategy_id": "trend_quality_aggressive_v1",
+      "universe_name": "global_core_10y",
+      "start_date": "2016-01-01",
+      "end_date": "2026-04-22",
+      "initial_capital_eur": 10000,
+      "notes": "1000% Push — gezielte Kombination der besten Faktoren",
+      "params_override": {
+        "persist_chunk_days": 4000,
+        "cancel_check_interval_days": 100,
+        "decision_log_mode": "normal",
+        "atr_position_sizing": false,
+        "max_positions": 13,
+        "buy_threshold": 58.0,
+        "sell_threshold": 38.0,
+        "max_position_size": 0.85,
+        "trailing_stop_pct": 0.08,
+        "top_n_signals": 9
+      }
+    },
+    {
+      "id": "tq_1k_773",
+      "name": "1K Push — mps=85%_ts7",
+      "strategy_id": "trend_quality_aggressive_v1",
+      "universe_name": "global_core_10y",
+      "start_date": "2016-01-01",
+      "end_date": "2026-04-22",
+      "initial_capital_eur": 10000,
+      "notes": "1000% Push — gezielte Kombination der besten Faktoren",
+      "params_override": {
+        "persist_chunk_days": 4000,
+        "cancel_check_interval_days": 100,
+        "decision_log_mode": "normal",
+        "atr_position_sizing": false,
+        "max_positions": 13,
+        "buy_threshold": 58.0,
+        "sell_threshold": 38.0,
+        "max_position_size": 0.85,
+        "trailing_stop_pct": 0.07,
+        "top_n_signals": 7
+      }
+    },
+    {
+      "id": "tq_1k_774",
+      "name": "1K Push — mps=85%_ts6",
+      "strategy_id": "trend_quality_aggressive_v1",
+      "universe_name": "global_core_10y",
+      "start_date": "2016-01-01",
+      "end_date": "2026-04-22",
+      "initial_capital_eur": 10000,
+      "notes": "1000% Push — gezielte Kombination der besten Faktoren",
+      "params_override": {
+        "persist_chunk_days": 4000,
+        "cancel_check_interval_days": 100,
+        "decision_log_mode": "normal",
+        "atr_position_sizing": false,
+        "max_positions": 13,
+        "buy_threshold": 58.0,
+        "sell_threshold": 38.0,
+        "max_position_size": 0.85,
+        "trailing_stop_pct": 0.06,
+        "top_n_signals": 7
+      }
+    },
+    {
+      "id": "tq_1k_775",
+      "name": "1K Push — mps=88%_ts8",
+      "strategy_id": "trend_quality_aggressive_v1",
+      "universe_name": "global_core_10y",
+      "start_date": "2016-01-01",
+      "end_date": "2026-04-22",
+      "initial_capital_eur": 10000,
+      "notes": "1000% Push — gezielte Kombination der besten Faktoren",
+      "params_override": {
+        "persist_chunk_days": 4000,
+        "cancel_check_interval_days": 100,
+        "decision_log_mode": "normal",
+        "atr_position_sizing": false,
+        "max_positions": 13,
+        "buy_threshold": 58.0,
+        "sell_threshold": 38.0,
+        "max_position_size": 0.88,
+        "trailing_stop_pct": 0.08,
+        "top_n_signals": 7
+      }
+    },
+    {
+      "id": "tq_1k_776",
+      "name": "1K Push — mps=92%_ts8",
+      "strategy_id": "trend_quality_aggressive_v1",
+      "universe_name": "global_core_10y",
+      "start_date": "2016-01-01",
+      "end_date": "2026-04-22",
+      "initial_capital_eur": 10000,
+      "notes": "1000% Push — gezielte Kombination der besten Faktoren",
+      "params_override": {
+        "persist_chunk_days": 4000,
+        "cancel_check_interval_days": 100,
+        "decision_log_mode": "normal",
+        "atr_position_sizing": false,
+        "max_positions": 13,
+        "buy_threshold": 58.0,
+        "sell_threshold": 38.0,
+        "max_position_size": 0.92,
+        "trailing_stop_pct": 0.08,
+        "top_n_signals": 7
+      }
+    },
+    {
+      "id": "tq_1k_777",
+      "name": "1K Push — mps=85%_topn9_ts7",
+      "strategy_id": "trend_quality_aggressive_v1",
+      "universe_name": "global_core_10y",
+      "start_date": "2016-01-01",
+      "end_date": "2026-04-22",
+      "initial_capital_eur": 10000,
+      "notes": "1000% Push — gezielte Kombination der besten Faktoren",
+      "params_override": {
+        "persist_chunk_days": 4000,
+        "cancel_check_interval_days": 100,
+        "decision_log_mode": "normal",
+        "atr_position_sizing": false,
+        "max_positions": 13,
+        "buy_threshold": 58.0,
+        "sell_threshold": 38.0,
+        "max_position_size": 0.85,
+        "trailing_stop_pct": 0.07,
+        "top_n_signals": 9
+      }
+    },
+    {
+      "id": "tq_1k_778",
+      "name": "1K Push — mps=85%_bt55",
+      "strategy_id": "trend_quality_aggressive_v1",
+      "universe_name": "global_core_10y",
+      "start_date": "2016-01-01",
+      "end_date": "2026-04-22",
+      "initial_capital_eur": 10000,
+      "notes": "1000% Push — gezielte Kombination der besten Faktoren",
+      "params_override": {
+        "persist_chunk_days": 4000,
+        "cancel_check_interval_days": 100,
+        "decision_log_mode": "normal",
+        "atr_position_sizing": false,
+        "max_positions": 13,
+        "buy_threshold": 55.0,
+        "sell_threshold": 38.0,
+        "max_position_size": 0.85,
+        "trailing_stop_pct": 0.08,
+        "top_n_signals": 7
+      }
+    },
+    {
+      "id": "tq_1k_779",
+      "name": "1K Push — mps=85%_pos15_topn9",
+      "strategy_id": "trend_quality_aggressive_v1",
+      "universe_name": "global_core_10y",
+      "start_date": "2016-01-01",
+      "end_date": "2026-04-22",
+      "initial_capital_eur": 10000,
+      "notes": "1000% Push — gezielte Kombination der besten Faktoren",
+      "params_override": {
+        "persist_chunk_days": 4000,
+        "cancel_check_interval_days": 100,
+        "decision_log_mode": "normal",
+        "atr_position_sizing": false,
+        "max_positions": 15,
+        "buy_threshold": 58.0,
+        "sell_threshold": 38.0,
+        "max_position_size": 0.85,
+        "trailing_stop_pct": 0.08,
+        "top_n_signals": 9
+      }
+    },
+    {
+      "id": "tq_1k_780",
+      "name": "1K Push R3 — mps=88%_ts7",
+      "strategy_id": "trend_quality_aggressive_v1",
+      "universe_name": "global_core_10y",
+      "start_date": "2016-01-01",
+      "end_date": "2026-04-22",
+      "initial_capital_eur": 10000,
+      "notes": "1000% Push Round 3 — mps=88% finetuning",
+      "params_override": {
+        "persist_chunk_days": 4000,
+        "cancel_check_interval_days": 100,
+        "decision_log_mode": "normal",
+        "atr_position_sizing": false,
+        "max_positions": 13,
+        "top_n_signals": 7,
+        "buy_threshold": 58.0,
+        "sell_threshold": 38.0,
+        "max_position_size": 0.88,
+        "trailing_stop_pct": 0.07
+      }
+    },
+    {
+      "id": "tq_1k_781",
+      "name": "1K Push R3 — mps=88%_ts6",
+      "strategy_id": "trend_quality_aggressive_v1",
+      "universe_name": "global_core_10y",
+      "start_date": "2016-01-01",
+      "end_date": "2026-04-22",
+      "initial_capital_eur": 10000,
+      "notes": "1000% Push Round 3 — mps=88% finetuning",
+      "params_override": {
+        "persist_chunk_days": 4000,
+        "cancel_check_interval_days": 100,
+        "decision_log_mode": "normal",
+        "atr_position_sizing": false,
+        "max_positions": 13,
+        "top_n_signals": 7,
+        "buy_threshold": 58.0,
+        "sell_threshold": 38.0,
+        "max_position_size": 0.88,
+        "trailing_stop_pct": 0.06
+      }
+    },
+    {
+      "id": "tq_1k_782",
+      "name": "1K Push R3 — mps=88%_ts9",
+      "strategy_id": "trend_quality_aggressive_v1",
+      "universe_name": "global_core_10y",
+      "start_date": "2016-01-01",
+      "end_date": "2026-04-22",
+      "initial_capital_eur": 10000,
+      "notes": "1000% Push Round 3 — mps=88% finetuning",
+      "params_override": {
+        "persist_chunk_days": 4000,
+        "cancel_check_interval_days": 100,
+        "decision_log_mode": "normal",
+        "atr_position_sizing": false,
+        "max_positions": 13,
+        "top_n_signals": 7,
+        "buy_threshold": 58.0,
+        "sell_threshold": 38.0,
+        "max_position_size": 0.88,
+        "trailing_stop_pct": 0.09
+      }
+    },
+    {
+      "id": "tq_1k_783",
+      "name": "1K Push R3 — mps=88%_bt55",
+      "strategy_id": "trend_quality_aggressive_v1",
+      "universe_name": "global_core_10y",
+      "start_date": "2016-01-01",
+      "end_date": "2026-04-22",
+      "initial_capital_eur": 10000,
+      "notes": "1000% Push Round 3 — mps=88% finetuning",
+      "params_override": {
+        "persist_chunk_days": 4000,
+        "cancel_check_interval_days": 100,
+        "decision_log_mode": "normal",
+        "atr_position_sizing": false,
+        "max_positions": 13,
+        "top_n_signals": 7,
+        "buy_threshold": 55.0,
+        "sell_threshold": 38.0,
+        "max_position_size": 0.88,
+        "trailing_stop_pct": 0.08
+      }
+    },
+    {
+      "id": "tq_1k_784",
+      "name": "1K Push R3 — mps=88%_bt56",
+      "strategy_id": "trend_quality_aggressive_v1",
+      "universe_name": "global_core_10y",
+      "start_date": "2016-01-01",
+      "end_date": "2026-04-22",
+      "initial_capital_eur": 10000,
+      "notes": "1000% Push Round 3 — mps=88% finetuning",
+      "params_override": {
+        "persist_chunk_days": 4000,
+        "cancel_check_interval_days": 100,
+        "decision_log_mode": "normal",
+        "atr_position_sizing": false,
+        "max_positions": 13,
+        "top_n_signals": 7,
+        "buy_threshold": 56.0,
+        "sell_threshold": 38.0,
+        "max_position_size": 0.88,
+        "trailing_stop_pct": 0.08
+      }
+    },
+    {
+      "id": "tq_1k_785",
+      "name": "1K Push R3 — mps=88%_ts7_bt55",
+      "strategy_id": "trend_quality_aggressive_v1",
+      "universe_name": "global_core_10y",
+      "start_date": "2016-01-01",
+      "end_date": "2026-04-22",
+      "initial_capital_eur": 10000,
+      "notes": "1000% Push Round 3 — mps=88% finetuning",
+      "params_override": {
+        "persist_chunk_days": 4000,
+        "cancel_check_interval_days": 100,
+        "decision_log_mode": "normal",
+        "atr_position_sizing": false,
+        "max_positions": 13,
+        "top_n_signals": 7,
+        "buy_threshold": 55.0,
+        "sell_threshold": 38.0,
+        "max_position_size": 0.88,
+        "trailing_stop_pct": 0.07
+      }
+    },
+    {
+      "id": "tq_1k_786",
+      "name": "1K Push R3 — mps=86%_ts8",
+      "strategy_id": "trend_quality_aggressive_v1",
+      "universe_name": "global_core_10y",
+      "start_date": "2016-01-01",
+      "end_date": "2026-04-22",
+      "initial_capital_eur": 10000,
+      "notes": "1000% Push Round 3 — mps=88% finetuning",
+      "params_override": {
+        "persist_chunk_days": 4000,
+        "cancel_check_interval_days": 100,
+        "decision_log_mode": "normal",
+        "atr_position_sizing": false,
+        "max_positions": 13,
+        "top_n_signals": 7,
+        "buy_threshold": 58.0,
+        "sell_threshold": 38.0,
+        "max_position_size": 0.86,
+        "trailing_stop_pct": 0.08
+      }
+    },
+    {
+      "id": "tq_1k_787",
+      "name": "1K Push R3 — mps=88%_pos11",
+      "strategy_id": "trend_quality_aggressive_v1",
+      "universe_name": "global_core_10y",
+      "start_date": "2016-01-01",
+      "end_date": "2026-04-22",
+      "initial_capital_eur": 10000,
+      "notes": "1000% Push Round 3 — mps=88% finetuning",
+      "params_override": {
+        "persist_chunk_days": 4000,
+        "cancel_check_interval_days": 100,
+        "decision_log_mode": "normal",
+        "atr_position_sizing": false,
+        "max_positions": 11,
+        "top_n_signals": 7,
+        "buy_threshold": 58.0,
+        "sell_threshold": 38.0,
+        "max_position_size": 0.88,
+        "trailing_stop_pct": 0.08
+      }
+    },
+    {
+      "id": "tq_1k_788",
+      "name": "1K Push R4 — mps=89%",
+      "strategy_id": "trend_quality_aggressive_v1",
+      "universe_name": "global_core_10y",
+      "start_date": "2016-01-01",
+      "end_date": "2026-04-22",
+      "initial_capital_eur": 10000,
+      "notes": "1000% Push Round 4 — sell_threshold + mps peak search",
+      "params_override": {
+        "persist_chunk_days": 4000,
+        "cancel_check_interval_days": 100,
+        "decision_log_mode": "normal",
+        "atr_position_sizing": false,
+        "max_positions": 13,
+        "top_n_signals": 7,
+        "buy_threshold": 58.0,
+        "trailing_stop_pct": 0.08,
+        "sell_threshold": 38.0,
+        "max_position_size": 0.89
+      }
+    },
+    {
+      "id": "tq_1k_789",
+      "name": "1K Push R4 — mps=90%",
+      "strategy_id": "trend_quality_aggressive_v1",
+      "universe_name": "global_core_10y",
+      "start_date": "2016-01-01",
+      "end_date": "2026-04-22",
+      "initial_capital_eur": 10000,
+      "notes": "1000% Push Round 4 — sell_threshold + mps peak search",
+      "params_override": {
+        "persist_chunk_days": 4000,
+        "cancel_check_interval_days": 100,
+        "decision_log_mode": "normal",
+        "atr_position_sizing": false,
+        "max_positions": 13,
+        "top_n_signals": 7,
+        "buy_threshold": 58.0,
+        "trailing_stop_pct": 0.08,
+        "sell_threshold": 38.0,
+        "max_position_size": 0.9
+      }
+    },
+    {
+      "id": "tq_1k_790",
+      "name": "1K Push R4 — mps=88%_st35",
+      "strategy_id": "trend_quality_aggressive_v1",
+      "universe_name": "global_core_10y",
+      "start_date": "2016-01-01",
+      "end_date": "2026-04-22",
+      "initial_capital_eur": 10000,
+      "notes": "1000% Push Round 4 — sell_threshold + mps peak search",
+      "params_override": {
+        "persist_chunk_days": 4000,
+        "cancel_check_interval_days": 100,
+        "decision_log_mode": "normal",
+        "atr_position_sizing": false,
+        "max_positions": 13,
+        "top_n_signals": 7,
+        "buy_threshold": 58.0,
+        "trailing_stop_pct": 0.08,
+        "sell_threshold": 35.0,
+        "max_position_size": 0.88
+      }
+    },
+    {
+      "id": "tq_1k_791",
+      "name": "1K Push R4 — mps=88%_st32",
+      "strategy_id": "trend_quality_aggressive_v1",
+      "universe_name": "global_core_10y",
+      "start_date": "2016-01-01",
+      "end_date": "2026-04-22",
+      "initial_capital_eur": 10000,
+      "notes": "1000% Push Round 4 — sell_threshold + mps peak search",
+      "params_override": {
+        "persist_chunk_days": 4000,
+        "cancel_check_interval_days": 100,
+        "decision_log_mode": "normal",
+        "atr_position_sizing": false,
+        "max_positions": 13,
+        "top_n_signals": 7,
+        "buy_threshold": 58.0,
+        "trailing_stop_pct": 0.08,
+        "sell_threshold": 32.0,
+        "max_position_size": 0.88
+      }
+    },
+    {
+      "id": "tq_1k_792",
+      "name": "1K Push R4 — mps=88%_st30",
+      "strategy_id": "trend_quality_aggressive_v1",
+      "universe_name": "global_core_10y",
+      "start_date": "2016-01-01",
+      "end_date": "2026-04-22",
+      "initial_capital_eur": 10000,
+      "notes": "1000% Push Round 4 — sell_threshold + mps peak search",
+      "params_override": {
+        "persist_chunk_days": 4000,
+        "cancel_check_interval_days": 100,
+        "decision_log_mode": "normal",
+        "atr_position_sizing": false,
+        "max_positions": 13,
+        "top_n_signals": 7,
+        "buy_threshold": 58.0,
+        "trailing_stop_pct": 0.08,
+        "sell_threshold": 30.0,
+        "max_position_size": 0.88
+      }
+    },
+    {
+      "id": "tq_1k_793",
+      "name": "1K Push R4 — mps=88%_pos17",
+      "strategy_id": "trend_quality_aggressive_v1",
+      "universe_name": "global_core_10y",
+      "start_date": "2016-01-01",
+      "end_date": "2026-04-22",
+      "initial_capital_eur": 10000,
+      "notes": "1000% Push Round 4 — sell_threshold + mps peak search",
+      "params_override": {
+        "persist_chunk_days": 4000,
+        "cancel_check_interval_days": 100,
+        "decision_log_mode": "normal",
+        "atr_position_sizing": false,
+        "max_positions": 17,
+        "top_n_signals": 7,
+        "buy_threshold": 58.0,
+        "trailing_stop_pct": 0.08,
+        "sell_threshold": 38.0,
+        "max_position_size": 0.88
+      }
+    },
+    {
+      "id": "tq_1k_794",
+      "name": "1K Push R4 — mps=89%_st35",
+      "strategy_id": "trend_quality_aggressive_v1",
+      "universe_name": "global_core_10y",
+      "start_date": "2016-01-01",
+      "end_date": "2026-04-22",
+      "initial_capital_eur": 10000,
+      "notes": "1000% Push Round 4 — sell_threshold + mps peak search",
+      "params_override": {
+        "persist_chunk_days": 4000,
+        "cancel_check_interval_days": 100,
+        "decision_log_mode": "normal",
+        "atr_position_sizing": false,
+        "max_positions": 13,
+        "top_n_signals": 7,
+        "buy_threshold": 58.0,
+        "trailing_stop_pct": 0.08,
+        "sell_threshold": 35.0,
+        "max_position_size": 0.89
+      }
+    },
+    {
+      "id": "tq_1k_795",
+      "name": "1K Push R4 — mps=90%_st35",
+      "strategy_id": "trend_quality_aggressive_v1",
+      "universe_name": "global_core_10y",
+      "start_date": "2016-01-01",
+      "end_date": "2026-04-22",
+      "initial_capital_eur": 10000,
+      "notes": "1000% Push Round 4 — sell_threshold + mps peak search",
+      "params_override": {
+        "persist_chunk_days": 4000,
+        "cancel_check_interval_days": 100,
+        "decision_log_mode": "normal",
+        "atr_position_sizing": false,
+        "max_positions": 13,
+        "top_n_signals": 7,
+        "buy_threshold": 58.0,
+        "trailing_stop_pct": 0.08,
+        "sell_threshold": 35.0,
+        "max_position_size": 0.9
+      }
+    },
+    {
+      "id": "tq_1k_796",
+      "name": "1K Push R5 — pos1_mps99",
+      "strategy_id": "trend_quality_aggressive_v1",
+      "universe_name": "global_core_10y",
+      "start_date": "2016-01-01",
+      "end_date": "2026-04-22",
+      "initial_capital_eur": 10000,
+      "notes": "1000% Push Round 5 — Konzentration + andere Ansätze",
+      "params_override": {
+        "persist_chunk_days": 4000,
+        "cancel_check_interval_days": 100,
+        "decision_log_mode": "normal",
+        "atr_position_sizing": false,
+        "trailing_stop_pct": 0.08,
+        "buy_threshold": 58.0,
+        "sell_threshold": 38.0,
+        "max_positions": 1,
+        "top_n_signals": 1,
+        "max_position_size": 0.99
+      }
+    },
+    {
+      "id": "tq_1k_797",
+      "name": "1K Push R5 — pos2_mps88",
+      "strategy_id": "trend_quality_aggressive_v1",
+      "universe_name": "global_core_10y",
+      "start_date": "2016-01-01",
+      "end_date": "2026-04-22",
+      "initial_capital_eur": 10000,
+      "notes": "1000% Push Round 5 — Konzentration + andere Ansätze",
+      "params_override": {
+        "persist_chunk_days": 4000,
+        "cancel_check_interval_days": 100,
+        "decision_log_mode": "normal",
+        "atr_position_sizing": false,
+        "trailing_stop_pct": 0.08,
+        "buy_threshold": 58.0,
+        "sell_threshold": 38.0,
+        "max_positions": 2,
+        "top_n_signals": 2,
+        "max_position_size": 0.88
+      }
+    },
+    {
+      "id": "tq_1k_798",
+      "name": "1K Push R5 — pos3_mps88",
+      "strategy_id": "trend_quality_aggressive_v1",
+      "universe_name": "global_core_10y",
+      "start_date": "2016-01-01",
+      "end_date": "2026-04-22",
+      "initial_capital_eur": 10000,
+      "notes": "1000% Push Round 5 — Konzentration + andere Ansätze",
+      "params_override": {
+        "persist_chunk_days": 4000,
+        "cancel_check_interval_days": 100,
+        "decision_log_mode": "normal",
+        "atr_position_sizing": false,
+        "trailing_stop_pct": 0.08,
+        "buy_threshold": 58.0,
+        "sell_threshold": 38.0,
+        "max_positions": 3,
+        "top_n_signals": 3,
+        "max_position_size": 0.88
+      }
+    },
+    {
+      "id": "tq_1k_799",
+      "name": "1K Push R5 — mps88_st20",
+      "strategy_id": "trend_quality_aggressive_v1",
+      "universe_name": "global_core_10y",
+      "start_date": "2016-01-01",
+      "end_date": "2026-04-22",
+      "initial_capital_eur": 10000,
+      "notes": "1000% Push Round 5 — Konzentration + andere Ansätze",
+      "params_override": {
+        "persist_chunk_days": 4000,
+        "cancel_check_interval_days": 100,
+        "decision_log_mode": "normal",
+        "atr_position_sizing": false,
+        "trailing_stop_pct": 0.08,
+        "buy_threshold": 58.0,
+        "sell_threshold": 20.0,
+        "max_positions": 13,
+        "top_n_signals": 7,
+        "max_position_size": 0.88
+      }
+    },
+    {
+      "id": "tq_1k_800",
+      "name": "1K Push R5 — mps88_st25",
+      "strategy_id": "trend_quality_aggressive_v1",
+      "universe_name": "global_core_10y",
+      "start_date": "2016-01-01",
+      "end_date": "2026-04-22",
+      "initial_capital_eur": 10000,
+      "notes": "1000% Push Round 5 — Konzentration + andere Ansätze",
+      "params_override": {
+        "persist_chunk_days": 4000,
+        "cancel_check_interval_days": 100,
+        "decision_log_mode": "normal",
+        "atr_position_sizing": false,
+        "trailing_stop_pct": 0.08,
+        "buy_threshold": 58.0,
+        "sell_threshold": 25.0,
+        "max_positions": 13,
+        "top_n_signals": 7,
+        "max_position_size": 0.88
+      }
+    },
+    {
+      "id": "tq_1k_801",
+      "name": "1K Push R5 — breakout_mps88",
+      "strategy_id": "breakout_v1",
+      "universe_name": "global_core_10y",
+      "start_date": "2016-01-01",
+      "end_date": "2026-04-22",
+      "initial_capital_eur": 10000,
+      "notes": "1000% Push Round 5 — Konzentration + andere Ansätze",
+      "params_override": {
+        "persist_chunk_days": 4000,
+        "cancel_check_interval_days": 100,
+        "decision_log_mode": "normal",
+        "atr_position_sizing": false,
+        "trailing_stop_pct": 0.08,
+        "buy_threshold": 58.0,
+        "sell_threshold": 38.0,
+        "max_positions": 13,
+        "top_n_signals": 7,
+        "max_position_size": 0.88
+      }
+    },
+    {
+      "id": "tq_1k_802",
+      "name": "1K Push R5 — mps88_nocancel",
+      "strategy_id": "trend_quality_aggressive_v1",
+      "universe_name": "global_core_10y",
+      "start_date": "2016-01-01",
+      "end_date": "2026-04-22",
+      "initial_capital_eur": 10000,
+      "notes": "1000% Push Round 5 — Konzentration + andere Ansätze",
+      "params_override": {
+        "persist_chunk_days": 4000,
+        "cancel_check_interval_days": 9999,
+        "decision_log_mode": "normal",
+        "atr_position_sizing": false,
+        "trailing_stop_pct": 0.08,
+        "buy_threshold": 58.0,
+        "sell_threshold": 38.0,
+        "max_positions": 13,
+        "top_n_signals": 7,
+        "max_position_size": 0.88
+      }
+    },
+    {
+      "id": "tq_1k_803",
+      "name": "1K Push R5 — mps88_ts10",
+      "strategy_id": "trend_quality_aggressive_v1",
+      "universe_name": "global_core_10y",
+      "start_date": "2016-01-01",
+      "end_date": "2026-04-22",
+      "initial_capital_eur": 10000,
+      "notes": "1000% Push Round 5 — Konzentration + andere Ansätze",
+      "params_override": {
+        "persist_chunk_days": 4000,
+        "cancel_check_interval_days": 100,
+        "decision_log_mode": "normal",
+        "atr_position_sizing": false,
+        "trailing_stop_pct": 0.1,
+        "buy_threshold": 58.0,
+        "sell_threshold": 38.0,
+        "max_positions": 13,
+        "top_n_signals": 7,
+        "max_position_size": 0.88
+      }
+    },
+    {
+      "id": "tq_1k_804",
+      "name": "1K Push R6 — winners12_mps88",
+      "strategy_id": "trend_quality_aggressive_v1",
+      "universe_name": "tech_winners_12",
+      "start_date": "2016-01-01",
+      "end_date": "2026-04-22",
+      "initial_capital_eur": 10000,
+      "notes": "1000% Push Round 6 — fokussiertes Universe auf Top-Performer",
+      "params_override": {
+        "persist_chunk_days": 4000,
+        "cancel_check_interval_days": 100,
+        "decision_log_mode": "normal",
+        "atr_position_sizing": false,
+        "trailing_stop_pct": 0.08,
+        "buy_threshold": 58.0,
+        "sell_threshold": 38.0,
+        "max_positions": 13,
+        "top_n_signals": 7,
+        "max_position_size": 0.88
+      }
+    },
+    {
+      "id": "tq_1k_805",
+      "name": "1K Push R6 — winners12_mps70",
+      "strategy_id": "trend_quality_aggressive_v1",
+      "universe_name": "tech_winners_12",
+      "start_date": "2016-01-01",
+      "end_date": "2026-04-22",
+      "initial_capital_eur": 10000,
+      "notes": "1000% Push Round 6 — fokussiertes Universe auf Top-Performer",
+      "params_override": {
+        "persist_chunk_days": 4000,
+        "cancel_check_interval_days": 100,
+        "decision_log_mode": "normal",
+        "atr_position_sizing": false,
+        "trailing_stop_pct": 0.08,
+        "buy_threshold": 58.0,
+        "sell_threshold": 38.0,
+        "max_positions": 13,
+        "top_n_signals": 7,
+        "max_position_size": 0.7
+      }
+    },
+    {
+      "id": "tq_1k_806",
+      "name": "1K Push R6 — winners12_mps88_pos5",
+      "strategy_id": "trend_quality_aggressive_v1",
+      "universe_name": "tech_winners_12",
+      "start_date": "2016-01-01",
+      "end_date": "2026-04-22",
+      "initial_capital_eur": 10000,
+      "notes": "1000% Push Round 6 — fokussiertes Universe auf Top-Performer",
+      "params_override": {
+        "persist_chunk_days": 4000,
+        "cancel_check_interval_days": 100,
+        "decision_log_mode": "normal",
+        "atr_position_sizing": false,
+        "trailing_stop_pct": 0.08,
+        "buy_threshold": 58.0,
+        "sell_threshold": 38.0,
+        "max_positions": 5,
+        "top_n_signals": 3,
+        "max_position_size": 0.88
+      }
+    },
+    {
+      "id": "tq_1k_807",
+      "name": "1K Push R6 — usgrowth_mps88",
+      "strategy_id": "trend_quality_aggressive_v1",
+      "universe_name": "us_growth",
+      "start_date": "2016-01-01",
+      "end_date": "2026-04-22",
+      "initial_capital_eur": 10000,
+      "notes": "1000% Push Round 6 — fokussiertes Universe auf Top-Performer",
+      "params_override": {
+        "persist_chunk_days": 4000,
+        "cancel_check_interval_days": 100,
+        "decision_log_mode": "normal",
+        "atr_position_sizing": false,
+        "trailing_stop_pct": 0.08,
+        "buy_threshold": 58.0,
+        "sell_threshold": 38.0,
+        "max_positions": 13,
+        "top_n_signals": 7,
+        "max_position_size": 0.88
+      }
+    },
+    {
+      "id": "tq_1k_808",
+      "name": "1K Push R6 — usgrowth_mps88_pos4",
+      "strategy_id": "trend_quality_aggressive_v1",
+      "universe_name": "us_growth",
+      "start_date": "2016-01-01",
+      "end_date": "2026-04-22",
+      "initial_capital_eur": 10000,
+      "notes": "1000% Push Round 6 — fokussiertes Universe auf Top-Performer",
+      "params_override": {
+        "persist_chunk_days": 4000,
+        "cancel_check_interval_days": 100,
+        "decision_log_mode": "normal",
+        "atr_position_sizing": false,
+        "trailing_stop_pct": 0.08,
+        "buy_threshold": 58.0,
+        "sell_threshold": 38.0,
+        "max_positions": 4,
+        "top_n_signals": 3,
+        "max_position_size": 0.88
+      }
+    },
+    {
+      "id": "tq_1k_809",
+      "name": "1K Push R6 — winners12_mps88_ts9",
+      "strategy_id": "trend_quality_aggressive_v1",
+      "universe_name": "tech_winners_12",
+      "start_date": "2016-01-01",
+      "end_date": "2026-04-22",
+      "initial_capital_eur": 10000,
+      "notes": "1000% Push Round 6 — fokussiertes Universe auf Top-Performer",
+      "params_override": {
+        "persist_chunk_days": 4000,
+        "cancel_check_interval_days": 100,
+        "decision_log_mode": "normal",
+        "atr_position_sizing": false,
+        "trailing_stop_pct": 0.09,
+        "buy_threshold": 58.0,
+        "sell_threshold": 38.0,
+        "max_positions": 13,
+        "top_n_signals": 7,
+        "max_position_size": 0.88
+      }
+    },
+    {
+      "id": "tq_1k_810",
+      "name": "1K Push R6 — winners12_mps88_bt52",
+      "strategy_id": "trend_quality_aggressive_v1",
+      "universe_name": "tech_winners_12",
+      "start_date": "2016-01-01",
+      "end_date": "2026-04-22",
+      "initial_capital_eur": 10000,
+      "notes": "1000% Push Round 6 — fokussiertes Universe auf Top-Performer",
+      "params_override": {
+        "persist_chunk_days": 4000,
+        "cancel_check_interval_days": 100,
+        "decision_log_mode": "normal",
+        "atr_position_sizing": false,
+        "trailing_stop_pct": 0.08,
+        "buy_threshold": 52.0,
+        "sell_threshold": 38.0,
+        "max_positions": 13,
+        "top_n_signals": 7,
+        "max_position_size": 0.88
+      }
+    },
+    {
+      "id": "tq_1k_811",
+      "name": "1K Push R6 — usgrowth_mps99_pos2",
+      "strategy_id": "trend_quality_aggressive_v1",
+      "universe_name": "us_growth",
+      "start_date": "2016-01-01",
+      "end_date": "2026-04-22",
+      "initial_capital_eur": 10000,
+      "notes": "1000% Push Round 6 — fokussiertes Universe auf Top-Performer",
+      "params_override": {
+        "persist_chunk_days": 4000,
+        "cancel_check_interval_days": 100,
+        "decision_log_mode": "normal",
+        "atr_position_sizing": false,
+        "trailing_stop_pct": 0.08,
+        "buy_threshold": 58.0,
+        "sell_threshold": 38.0,
+        "max_positions": 2,
+        "top_n_signals": 2,
+        "max_position_size": 0.99
+      }
+    },
+    {
+      "id": "tq_1k_812",
+      "name": "1K Push R7 — usg_mps99_pos3",
+      "strategy_id": "trend_quality_aggressive_v1",
+      "universe_name": "us_growth",
+      "start_date": "2016-01-01",
+      "end_date": "2026-04-22",
+      "initial_capital_eur": 10000,
+      "notes": "1000% Push Round 7 — us_growth finetuning, +989% war Basis",
+      "params_override": {
+        "persist_chunk_days": 4000,
+        "cancel_check_interval_days": 100,
+        "decision_log_mode": "normal",
+        "atr_position_sizing": false,
+        "trailing_stop_pct": 0.08,
+        "buy_threshold": 58.0,
+        "sell_threshold": 38.0,
+        "max_positions": 3,
+        "top_n_signals": 3,
+        "max_position_size": 0.99
+      }
+    },
+    {
+      "id": "tq_1k_813",
+      "name": "1K Push R7 — usg_mps99_ts8.5",
+      "strategy_id": "trend_quality_aggressive_v1",
+      "universe_name": "us_growth",
+      "start_date": "2016-01-01",
+      "end_date": "2026-04-22",
+      "initial_capital_eur": 10000,
+      "notes": "1000% Push Round 7 — us_growth finetuning, +989% war Basis",
+      "params_override": {
+        "persist_chunk_days": 4000,
+        "cancel_check_interval_days": 100,
+        "decision_log_mode": "normal",
+        "atr_position_sizing": false,
+        "trailing_stop_pct": 0.085,
+        "buy_threshold": 58.0,
+        "sell_threshold": 38.0,
+        "max_positions": 2,
+        "top_n_signals": 2,
+        "max_position_size": 0.99
+      }
+    },
+    {
+      "id": "tq_1k_814",
+      "name": "1K Push R7 — usg_mps99_ts7.5",
+      "strategy_id": "trend_quality_aggressive_v1",
+      "universe_name": "us_growth",
+      "start_date": "2016-01-01",
+      "end_date": "2026-04-22",
+      "initial_capital_eur": 10000,
+      "notes": "1000% Push Round 7 — us_growth finetuning, +989% war Basis",
+      "params_override": {
+        "persist_chunk_days": 4000,
+        "cancel_check_interval_days": 100,
+        "decision_log_mode": "normal",
+        "atr_position_sizing": false,
+        "trailing_stop_pct": 0.075,
+        "buy_threshold": 58.0,
+        "sell_threshold": 38.0,
+        "max_positions": 2,
+        "top_n_signals": 2,
+        "max_position_size": 0.99
+      }
+    },
+    {
+      "id": "tq_1k_815",
+      "name": "1K Push R7 — usg_mps99_bt55",
+      "strategy_id": "trend_quality_aggressive_v1",
+      "universe_name": "us_growth",
+      "start_date": "2016-01-01",
+      "end_date": "2026-04-22",
+      "initial_capital_eur": 10000,
+      "notes": "1000% Push Round 7 — us_growth finetuning, +989% war Basis",
+      "params_override": {
+        "persist_chunk_days": 4000,
+        "cancel_check_interval_days": 100,
+        "decision_log_mode": "normal",
+        "atr_position_sizing": false,
+        "trailing_stop_pct": 0.08,
+        "buy_threshold": 55.0,
+        "sell_threshold": 38.0,
+        "max_positions": 2,
+        "top_n_signals": 2,
+        "max_position_size": 0.99
+      }
+    },
+    {
+      "id": "tq_1k_816",
+      "name": "1K Push R7 — usg_mps99_bt52",
+      "strategy_id": "trend_quality_aggressive_v1",
+      "universe_name": "us_growth",
+      "start_date": "2016-01-01",
+      "end_date": "2026-04-22",
+      "initial_capital_eur": 10000,
+      "notes": "1000% Push Round 7 — us_growth finetuning, +989% war Basis",
+      "params_override": {
+        "persist_chunk_days": 4000,
+        "cancel_check_interval_days": 100,
+        "decision_log_mode": "normal",
+        "atr_position_sizing": false,
+        "trailing_stop_pct": 0.08,
+        "buy_threshold": 52.0,
+        "sell_threshold": 38.0,
+        "max_positions": 2,
+        "top_n_signals": 2,
+        "max_position_size": 0.99
+      }
+    },
+    {
+      "id": "tq_1k_817",
+      "name": "1K Push R7 — usg_mps99_st30",
+      "strategy_id": "trend_quality_aggressive_v1",
+      "universe_name": "us_growth",
+      "start_date": "2016-01-01",
+      "end_date": "2026-04-22",
+      "initial_capital_eur": 10000,
+      "notes": "1000% Push Round 7 — us_growth finetuning, +989% war Basis",
+      "params_override": {
+        "persist_chunk_days": 4000,
+        "cancel_check_interval_days": 100,
+        "decision_log_mode": "normal",
+        "atr_position_sizing": false,
+        "trailing_stop_pct": 0.08,
+        "buy_threshold": 58.0,
+        "sell_threshold": 30.0,
+        "max_positions": 2,
+        "top_n_signals": 2,
+        "max_position_size": 0.99
+      }
+    },
+    {
+      "id": "tq_1k_818",
+      "name": "1K Push R7 — usg_mps95_pos2",
+      "strategy_id": "trend_quality_aggressive_v1",
+      "universe_name": "us_growth",
+      "start_date": "2016-01-01",
+      "end_date": "2026-04-22",
+      "initial_capital_eur": 10000,
+      "notes": "1000% Push Round 7 — us_growth finetuning, +989% war Basis",
+      "params_override": {
+        "persist_chunk_days": 4000,
+        "cancel_check_interval_days": 100,
+        "decision_log_mode": "normal",
+        "atr_position_sizing": false,
+        "trailing_stop_pct": 0.08,
+        "buy_threshold": 58.0,
+        "sell_threshold": 38.0,
+        "max_positions": 2,
+        "top_n_signals": 2,
+        "max_position_size": 0.95
+      }
+    },
+    {
+      "id": "tq_1k_819",
+      "name": "1K Push R7 — usg_mps99_bt55_st30",
+      "strategy_id": "trend_quality_aggressive_v1",
+      "universe_name": "us_growth",
+      "start_date": "2016-01-01",
+      "end_date": "2026-04-22",
+      "initial_capital_eur": 10000,
+      "notes": "1000% Push Round 7 — us_growth finetuning, +989% war Basis",
+      "params_override": {
+        "persist_chunk_days": 4000,
+        "cancel_check_interval_days": 100,
+        "decision_log_mode": "normal",
+        "atr_position_sizing": false,
+        "trailing_stop_pct": 0.08,
+        "buy_threshold": 55.0,
+        "sell_threshold": 30.0,
+        "max_positions": 2,
+        "top_n_signals": 2,
+        "max_position_size": 0.99
+      }
+    },
+    {
+      "id": "tq_notech_820",
+      "name": "No US Tech — notech_mps88",
+      "strategy_id": "trend_quality_aggressive_v1",
+      "universe_name": "no_us_tech",
+      "start_date": "2016-01-01",
+      "end_date": "2026-04-22",
+      "initial_capital_eur": 10000,
+      "notes": "Test ohne US Tech — zeigt wie robust die Strategie wirklich ist",
+      "params_override": {
+        "persist_chunk_days": 4000,
+        "cancel_check_interval_days": 100,
+        "decision_log_mode": "normal",
+        "atr_position_sizing": false,
+        "trailing_stop_pct": 0.08,
+        "buy_threshold": 58.0,
+        "sell_threshold": 38.0,
+        "max_positions": 13,
+        "top_n_signals": 7,
+        "max_position_size": 0.88
+      }
+    },
+    {
+      "id": "tq_notech_821",
+      "name": "No US Tech — notech_mps70",
+      "strategy_id": "trend_quality_aggressive_v1",
+      "universe_name": "no_us_tech",
+      "start_date": "2016-01-01",
+      "end_date": "2026-04-22",
+      "initial_capital_eur": 10000,
+      "notes": "Test ohne US Tech — zeigt wie robust die Strategie wirklich ist",
+      "params_override": {
+        "persist_chunk_days": 4000,
+        "cancel_check_interval_days": 100,
+        "decision_log_mode": "normal",
+        "atr_position_sizing": false,
+        "trailing_stop_pct": 0.08,
+        "buy_threshold": 58.0,
+        "sell_threshold": 38.0,
+        "max_positions": 13,
+        "top_n_signals": 7,
+        "max_position_size": 0.7
+      }
+    },
+    {
+      "id": "tq_notech_822",
+      "name": "No US Tech — notech_mps40",
+      "strategy_id": "trend_quality_aggressive_v1",
+      "universe_name": "no_us_tech",
+      "start_date": "2016-01-01",
+      "end_date": "2026-04-22",
+      "initial_capital_eur": 10000,
+      "notes": "Test ohne US Tech — zeigt wie robust die Strategie wirklich ist",
+      "params_override": {
+        "persist_chunk_days": 4000,
+        "cancel_check_interval_days": 100,
+        "decision_log_mode": "normal",
+        "atr_position_sizing": false,
+        "trailing_stop_pct": 0.08,
+        "buy_threshold": 58.0,
+        "sell_threshold": 38.0,
+        "max_positions": 13,
+        "top_n_signals": 7,
+        "max_position_size": 0.4
+      }
+    },
+    {
+      "id": "tq_notech_823",
+      "name": "No US Tech — notech_pos2_mps95",
+      "strategy_id": "trend_quality_aggressive_v1",
+      "universe_name": "no_us_tech",
+      "start_date": "2016-01-01",
+      "end_date": "2026-04-22",
+      "initial_capital_eur": 10000,
+      "notes": "Test ohne US Tech — zeigt wie robust die Strategie wirklich ist",
+      "params_override": {
+        "persist_chunk_days": 4000,
+        "cancel_check_interval_days": 100,
+        "decision_log_mode": "normal",
+        "atr_position_sizing": false,
+        "trailing_stop_pct": 0.08,
+        "buy_threshold": 58.0,
+        "sell_threshold": 38.0,
+        "max_positions": 2,
+        "top_n_signals": 2,
+        "max_position_size": 0.95
+      }
+    },
+    {
+      "id": "wf_in_824",
+      "name": "WF In-Sample 2016-21 — mps40",
+      "strategy_id": "trend_quality_aggressive_v1",
+      "universe_name": "global_core_10y",
+      "start_date": "2016-01-01",
+      "end_date": "2021-12-31",
+      "initial_capital_eur": 10000,
+      "notes": "Walk-Forward In-Sample",
+      "params_override": {
+        "persist_chunk_days": 4000,
+        "cancel_check_interval_days": 100,
+        "decision_log_mode": "normal",
+        "atr_position_sizing": false,
+        "trailing_stop_pct": 0.08,
+        "buy_threshold": 58.0,
+        "sell_threshold": 38.0,
+        "max_positions": 13,
+        "top_n_signals": 7,
+        "max_position_size": 0.4
+      }
+    },
+    {
+      "id": "wf_out_825",
+      "name": "WF Out-of-Sample 2022-26 — mps40",
+      "strategy_id": "trend_quality_aggressive_v1",
+      "universe_name": "global_core_10y",
+      "start_date": "2022-01-01",
+      "end_date": "2026-04-22",
+      "initial_capital_eur": 10000,
+      "notes": "Walk-Forward Out-of-Sample (blind test)",
+      "params_override": {
+        "persist_chunk_days": 4000,
+        "cancel_check_interval_days": 100,
+        "decision_log_mode": "normal",
+        "atr_position_sizing": false,
+        "trailing_stop_pct": 0.08,
+        "buy_threshold": 58.0,
+        "sell_threshold": 38.0,
+        "max_positions": 13,
+        "top_n_signals": 7,
+        "max_position_size": 0.4
+      }
+    },
+    {
+      "id": "wf_in_826",
+      "name": "WF In-Sample 2016-21 — mps70",
+      "strategy_id": "trend_quality_aggressive_v1",
+      "universe_name": "global_core_10y",
+      "start_date": "2016-01-01",
+      "end_date": "2021-12-31",
+      "initial_capital_eur": 10000,
+      "notes": "Walk-Forward In-Sample",
+      "params_override": {
+        "persist_chunk_days": 4000,
+        "cancel_check_interval_days": 100,
+        "decision_log_mode": "normal",
+        "atr_position_sizing": false,
+        "trailing_stop_pct": 0.08,
+        "buy_threshold": 58.0,
+        "sell_threshold": 38.0,
+        "max_positions": 13,
+        "top_n_signals": 7,
+        "max_position_size": 0.7
+      }
+    },
+    {
+      "id": "wf_out_827",
+      "name": "WF Out-of-Sample 2022-26 — mps70",
+      "strategy_id": "trend_quality_aggressive_v1",
+      "universe_name": "global_core_10y",
+      "start_date": "2022-01-01",
+      "end_date": "2026-04-22",
+      "initial_capital_eur": 10000,
+      "notes": "Walk-Forward Out-of-Sample (blind test)",
+      "params_override": {
+        "persist_chunk_days": 4000,
+        "cancel_check_interval_days": 100,
+        "decision_log_mode": "normal",
+        "atr_position_sizing": false,
+        "trailing_stop_pct": 0.08,
+        "buy_threshold": 58.0,
+        "sell_threshold": 38.0,
+        "max_positions": 13,
+        "top_n_signals": 7,
+        "max_position_size": 0.7
+      }
+    },
+    {
+      "id": "wf_in_828",
+      "name": "WF In-Sample 2016-21 — mps88",
+      "strategy_id": "trend_quality_aggressive_v1",
+      "universe_name": "global_core_10y",
+      "start_date": "2016-01-01",
+      "end_date": "2021-12-31",
+      "initial_capital_eur": 10000,
+      "notes": "Walk-Forward In-Sample",
+      "params_override": {
+        "persist_chunk_days": 4000,
+        "cancel_check_interval_days": 100,
+        "decision_log_mode": "normal",
+        "atr_position_sizing": false,
+        "trailing_stop_pct": 0.08,
+        "buy_threshold": 58.0,
+        "sell_threshold": 38.0,
+        "max_positions": 13,
+        "top_n_signals": 7,
+        "max_position_size": 0.88
+      }
+    },
+    {
+      "id": "wf_out_829",
+      "name": "WF Out-of-Sample 2022-26 — mps88",
+      "strategy_id": "trend_quality_aggressive_v1",
+      "universe_name": "global_core_10y",
+      "start_date": "2022-01-01",
+      "end_date": "2026-04-22",
+      "initial_capital_eur": 10000,
+      "notes": "Walk-Forward Out-of-Sample (blind test)",
+      "params_override": {
+        "persist_chunk_days": 4000,
+        "cancel_check_interval_days": 100,
+        "decision_log_mode": "normal",
+        "atr_position_sizing": false,
+        "trailing_stop_pct": 0.08,
+        "buy_threshold": 58.0,
+        "sell_threshold": 38.0,
+        "max_positions": 13,
+        "top_n_signals": 7,
+        "max_position_size": 0.88
+      }
+    },
+    {
+      "id": "wf_in_830",
+      "name": "WF In-Sample 2016-21 — mps88_ts6",
+      "strategy_id": "trend_quality_aggressive_v1",
+      "universe_name": "global_core_10y",
+      "start_date": "2016-01-01",
+      "end_date": "2021-12-31",
+      "initial_capital_eur": 10000,
+      "notes": "Walk-Forward In-Sample",
+      "params_override": {
+        "persist_chunk_days": 4000,
+        "cancel_check_interval_days": 100,
+        "decision_log_mode": "normal",
+        "atr_position_sizing": false,
+        "trailing_stop_pct": 0.06,
+        "buy_threshold": 58.0,
+        "sell_threshold": 38.0,
+        "max_positions": 13,
+        "top_n_signals": 7,
+        "max_position_size": 0.88
+      }
+    },
+    {
+      "id": "wf_out_831",
+      "name": "WF Out-of-Sample 2022-26 — mps88_ts6",
+      "strategy_id": "trend_quality_aggressive_v1",
+      "universe_name": "global_core_10y",
+      "start_date": "2022-01-01",
+      "end_date": "2026-04-22",
+      "initial_capital_eur": 10000,
+      "notes": "Walk-Forward Out-of-Sample (blind test)",
+      "params_override": {
+        "persist_chunk_days": 4000,
+        "cancel_check_interval_days": 100,
+        "decision_log_mode": "normal",
+        "atr_position_sizing": false,
+        "trailing_stop_pct": 0.06,
+        "buy_threshold": 58.0,
+        "sell_threshold": 38.0,
+        "max_positions": 13,
+        "top_n_signals": 7,
+        "max_position_size": 0.88
+      }
+    },
+    {
+      "id": "rf_mps40_nofilter",
+      "name": "mps=40% (Baseline, kein Filter)",
+      "strategy_id": "trend_quality_aggressive_v1",
+      "universe_name": "global_core_10y",
+      "start_date": "2016-01-01",
+      "end_date": "2026-04-22",
+      "initial_capital_eur": 10000,
+      "notes": "Market Regime Filter Test: mps=40% (Baseline, kein Filter)",
+      "params_override": {
+        "persist_chunk_days": 4000,
+        "cancel_check_interval_days": 100,
+        "decision_log_mode": "minimal",
+        "trailing_stop_pct": 0.08,
+        "atr_position_sizing": false,
+        "max_positions": 13,
+        "top_n_signals": 7,
+        "buy_threshold": 58.0,
+        "sell_threshold": 38.0,
+        "require_price_above_ema_fast": true,
+        "require_ema_fast_above_slow": true,
+        "require_macd_above_signal": true,
+        "max_position_size": 0.4
+      }
+    },
+    {
+      "id": "rf_mps40_filter",
+      "name": "mps=40% + Regime-Filter SPY/SMA200",
+      "strategy_id": "trend_quality_aggressive_v1",
+      "universe_name": "global_core_10y",
+      "start_date": "2016-01-01",
+      "end_date": "2026-04-22",
+      "initial_capital_eur": 10000,
+      "notes": "Market Regime Filter Test: mps=40% + Regime-Filter SPY/SMA200",
+      "params_override": {
+        "persist_chunk_days": 4000,
+        "cancel_check_interval_days": 100,
+        "decision_log_mode": "minimal",
+        "trailing_stop_pct": 0.08,
+        "atr_position_sizing": false,
+        "max_positions": 13,
+        "top_n_signals": 7,
+        "buy_threshold": 58.0,
+        "sell_threshold": 38.0,
+        "require_price_above_ema_fast": true,
+        "require_ema_fast_above_slow": true,
+        "require_macd_above_signal": true,
+        "max_position_size": 0.4,
+        "market_regime_filter": true,
+        "regime_filter_symbol": "SPY",
+        "regime_filter_period": 200
+      }
+    },
+    {
+      "id": "rf_mps70_filter",
+      "name": "mps=70% + Regime-Filter SPY/SMA200",
+      "strategy_id": "trend_quality_aggressive_v1",
+      "universe_name": "global_core_10y",
+      "start_date": "2016-01-01",
+      "end_date": "2026-04-22",
+      "initial_capital_eur": 10000,
+      "notes": "Market Regime Filter Test: mps=70% + Regime-Filter SPY/SMA200",
+      "params_override": {
+        "persist_chunk_days": 4000,
+        "cancel_check_interval_days": 100,
+        "decision_log_mode": "minimal",
+        "trailing_stop_pct": 0.08,
+        "atr_position_sizing": false,
+        "max_positions": 13,
+        "top_n_signals": 7,
+        "buy_threshold": 58.0,
+        "sell_threshold": 38.0,
+        "require_price_above_ema_fast": true,
+        "require_ema_fast_above_slow": true,
+        "require_macd_above_signal": true,
+        "max_position_size": 0.7,
+        "market_regime_filter": true,
+        "regime_filter_symbol": "SPY",
+        "regime_filter_period": 200
+      }
+    },
+    {
+      "id": "rf_mps88_filter",
+      "name": "mps=88% + Regime-Filter SPY/SMA200",
+      "strategy_id": "trend_quality_aggressive_v1",
+      "universe_name": "global_core_10y",
+      "start_date": "2016-01-01",
+      "end_date": "2026-04-22",
+      "initial_capital_eur": 10000,
+      "notes": "Market Regime Filter Test: mps=88% + Regime-Filter SPY/SMA200",
+      "params_override": {
+        "persist_chunk_days": 4000,
+        "cancel_check_interval_days": 100,
+        "decision_log_mode": "minimal",
+        "trailing_stop_pct": 0.08,
+        "atr_position_sizing": false,
+        "max_positions": 13,
+        "top_n_signals": 7,
+        "buy_threshold": 58.0,
+        "sell_threshold": 38.0,
+        "require_price_above_ema_fast": true,
+        "require_ema_fast_above_slow": true,
+        "require_macd_above_signal": true,
+        "max_position_size": 0.88,
+        "market_regime_filter": true,
+        "regime_filter_symbol": "SPY",
+        "regime_filter_period": 200
+      }
+    },
+    {
+      "id": "rf_mps88_nofilter",
+      "name": "mps=88% (Baseline, kein Filter)",
+      "strategy_id": "trend_quality_aggressive_v1",
+      "universe_name": "global_core_10y",
+      "start_date": "2016-01-01",
+      "end_date": "2026-04-22",
+      "initial_capital_eur": 10000,
+      "notes": "Market Regime Filter Test: mps=88% (Baseline, kein Filter)",
+      "params_override": {
+        "persist_chunk_days": 4000,
+        "cancel_check_interval_days": 100,
+        "decision_log_mode": "minimal",
+        "trailing_stop_pct": 0.08,
+        "atr_position_sizing": false,
+        "max_positions": 13,
+        "top_n_signals": 7,
+        "buy_threshold": 58.0,
+        "sell_threshold": 38.0,
+        "require_price_above_ema_fast": true,
+        "require_ema_fast_above_slow": true,
+        "require_macd_above_signal": true,
+        "max_position_size": 0.88
+      }
     }
   ],
   "scenario_batches": [
@@ -15758,6 +17410,1035 @@
         }
       ],
       "finished_at": "2026-04-25T13:23:13.858664+00:00"
+    },
+    {
+      "id": "batch_mom100_first",
+      "name": "Momentum 100 — Erster Test",
+      "scenario_ids": [
+        "mom100_763"
+      ],
+      "status": "completed",
+      "started_at": "2026-04-25T14:06:12.573935+00:00",
+      "error": null,
+      "current_index": 1,
+      "run_ids": [
+        905
+      ],
+      "results": [
+        {
+          "scenario_id": "mom100_763",
+          "run_id": 905,
+          "status": "completed",
+          "final_equity_eur": 29976.45,
+          "total_return_pct": 199.76,
+          "max_drawdown_pct": 28.62,
+          "sharpe_ratio": 0.6486
+        }
+      ],
+      "finished_at": "2026-04-25T14:07:14.028947+00:00"
+    },
+    {
+      "id": "batch_new_sweep",
+      "name": "New Sweep — GC + MOM100",
+      "scenario_ids": [
+        "tq_gc_mps_764",
+        "tq_gc_mps_765",
+        "tq_gc_mps_766",
+        "tq_mom100_767",
+        "tq_mom100_768",
+        "tq_mom100_769",
+        "tq_gc_topn_770",
+        "tq_gc_topn_771"
+      ],
+      "status": "completed",
+      "started_at": "2026-04-25T15:44:50.431710+00:00",
+      "error": null,
+      "current_index": 8,
+      "run_ids": [
+        906,
+        907,
+        908,
+        909,
+        910,
+        911,
+        912,
+        913
+      ],
+      "results": [
+        {
+          "scenario_id": "tq_gc_mps_764",
+          "run_id": 906,
+          "status": "completed",
+          "final_equity_eur": 71120.75,
+          "total_return_pct": 611.21,
+          "max_drawdown_pct": 30.07,
+          "sharpe_ratio": 0.9894
+        },
+        {
+          "scenario_id": "tq_gc_mps_765",
+          "run_id": 907,
+          "status": "completed",
+          "final_equity_eur": 44022.21,
+          "total_return_pct": 340.22,
+          "max_drawdown_pct": 36.63,
+          "sharpe_ratio": 0.7506
+        },
+        {
+          "scenario_id": "tq_gc_mps_766",
+          "run_id": 908,
+          "status": "completed",
+          "final_equity_eur": 80781.61,
+          "total_return_pct": 707.82,
+          "max_drawdown_pct": 38.98,
+          "sharpe_ratio": 0.9996
+        },
+        {
+          "scenario_id": "tq_mom100_767",
+          "run_id": 909,
+          "status": "completed",
+          "final_equity_eur": 27374.2,
+          "total_return_pct": 173.74,
+          "max_drawdown_pct": 32.28,
+          "sharpe_ratio": 0.5501
+        },
+        {
+          "scenario_id": "tq_mom100_768",
+          "run_id": 910,
+          "status": "completed",
+          "final_equity_eur": 31384.7,
+          "total_return_pct": 213.85,
+          "max_drawdown_pct": 35.18,
+          "sharpe_ratio": 0.5896
+        },
+        {
+          "scenario_id": "tq_mom100_769",
+          "run_id": 911,
+          "status": "completed",
+          "final_equity_eur": 31930.7,
+          "total_return_pct": 219.31,
+          "max_drawdown_pct": 35.13,
+          "sharpe_ratio": 0.5729
+        },
+        {
+          "scenario_id": "tq_gc_topn_770",
+          "run_id": 912,
+          "status": "completed",
+          "final_equity_eur": 52888.58,
+          "total_return_pct": 428.89,
+          "max_drawdown_pct": 28.89,
+          "sharpe_ratio": 0.8852
+        },
+        {
+          "scenario_id": "tq_gc_topn_771",
+          "run_id": 913,
+          "status": "completed",
+          "final_equity_eur": 73354.17,
+          "total_return_pct": 633.54,
+          "max_drawdown_pct": 25.77,
+          "sharpe_ratio": 1.0485
+        }
+      ],
+      "finished_at": "2026-04-25T15:49:25.761037+00:00"
+    },
+    {
+      "id": "batch_1k_push2",
+      "name": "1000% Push — Round 2",
+      "scenario_ids": [
+        "tq_1k_772",
+        "tq_1k_773",
+        "tq_1k_774",
+        "tq_1k_775",
+        "tq_1k_776",
+        "tq_1k_777",
+        "tq_1k_778",
+        "tq_1k_779"
+      ],
+      "status": "completed",
+      "started_at": "2026-04-25T15:54:11.970171+00:00",
+      "error": null,
+      "current_index": 8,
+      "run_ids": [
+        914,
+        915,
+        916,
+        917,
+        918,
+        919,
+        920,
+        921
+      ],
+      "results": [
+        {
+          "scenario_id": "tq_1k_772",
+          "run_id": 914,
+          "status": "completed",
+          "final_equity_eur": 54373.57,
+          "total_return_pct": 443.74,
+          "max_drawdown_pct": 37.85,
+          "sharpe_ratio": 0.8196
+        },
+        {
+          "scenario_id": "tq_1k_773",
+          "run_id": 915,
+          "status": "completed",
+          "final_equity_eur": 39700.79,
+          "total_return_pct": 297.01,
+          "max_drawdown_pct": 33.7,
+          "sharpe_ratio": 0.6757
+        },
+        {
+          "scenario_id": "tq_1k_774",
+          "run_id": 916,
+          "status": "completed",
+          "final_equity_eur": 75927.23,
+          "total_return_pct": 659.27,
+          "max_drawdown_pct": 32.44,
+          "sharpe_ratio": 0.9513
+        },
+        {
+          "scenario_id": "tq_1k_775",
+          "run_id": 917,
+          "status": "completed",
+          "final_equity_eur": 98139.64,
+          "total_return_pct": 881.4,
+          "max_drawdown_pct": 39.98,
+          "sharpe_ratio": 1.0464
+        },
+        {
+          "scenario_id": "tq_1k_776",
+          "run_id": 918,
+          "status": "completed",
+          "final_equity_eur": 63874.28,
+          "total_return_pct": 538.74,
+          "max_drawdown_pct": 33.83,
+          "sharpe_ratio": 0.8064
+        },
+        {
+          "scenario_id": "tq_1k_777",
+          "run_id": 919,
+          "status": "completed",
+          "final_equity_eur": 54375.54,
+          "total_return_pct": 443.76,
+          "max_drawdown_pct": 33.63,
+          "sharpe_ratio": 0.7917
+        },
+        {
+          "scenario_id": "tq_1k_778",
+          "run_id": 920,
+          "status": "completed",
+          "final_equity_eur": 80781.61,
+          "total_return_pct": 707.82,
+          "max_drawdown_pct": 38.98,
+          "sharpe_ratio": 0.9996
+        },
+        {
+          "scenario_id": "tq_1k_779",
+          "run_id": 921,
+          "status": "completed",
+          "final_equity_eur": 55215.36,
+          "total_return_pct": 452.15,
+          "max_drawdown_pct": 37.85,
+          "sharpe_ratio": 0.8285
+        }
+      ],
+      "finished_at": "2026-04-25T15:56:27.621129+00:00"
+    },
+    {
+      "id": "batch_1k_push3",
+      "name": "1000% Push — Round 3",
+      "scenario_ids": [
+        "tq_1k_780",
+        "tq_1k_781",
+        "tq_1k_782",
+        "tq_1k_783",
+        "tq_1k_784",
+        "tq_1k_785",
+        "tq_1k_786",
+        "tq_1k_787"
+      ],
+      "status": "completed",
+      "started_at": "2026-04-25T15:59:04.218589+00:00",
+      "error": null,
+      "current_index": 8,
+      "run_ids": [
+        922,
+        923,
+        924,
+        925,
+        926,
+        927,
+        928,
+        929
+      ],
+      "results": [
+        {
+          "scenario_id": "tq_1k_780",
+          "run_id": 922,
+          "status": "completed",
+          "final_equity_eur": 58642.25,
+          "total_return_pct": 486.42,
+          "max_drawdown_pct": 34.81,
+          "sharpe_ratio": 0.8252
+        },
+        {
+          "scenario_id": "tq_1k_781",
+          "run_id": 923,
+          "status": "completed",
+          "final_equity_eur": 48447.19,
+          "total_return_pct": 384.47,
+          "max_drawdown_pct": 33.77,
+          "sharpe_ratio": 0.7374
+        },
+        {
+          "scenario_id": "tq_1k_782",
+          "run_id": 924,
+          "status": "completed",
+          "final_equity_eur": 57906.04,
+          "total_return_pct": 479.06,
+          "max_drawdown_pct": 32.78,
+          "sharpe_ratio": 0.8309
+        },
+        {
+          "scenario_id": "tq_1k_783",
+          "run_id": 925,
+          "status": "completed",
+          "final_equity_eur": 98139.64,
+          "total_return_pct": 881.4,
+          "max_drawdown_pct": 39.98,
+          "sharpe_ratio": 1.0464
+        },
+        {
+          "scenario_id": "tq_1k_784",
+          "run_id": 926,
+          "status": "completed",
+          "final_equity_eur": 98139.64,
+          "total_return_pct": 881.4,
+          "max_drawdown_pct": 39.98,
+          "sharpe_ratio": 1.0464
+        },
+        {
+          "scenario_id": "tq_1k_785",
+          "run_id": 927,
+          "status": "completed",
+          "final_equity_eur": 58642.25,
+          "total_return_pct": 486.42,
+          "max_drawdown_pct": 34.81,
+          "sharpe_ratio": 0.8252
+        },
+        {
+          "scenario_id": "tq_1k_786",
+          "run_id": 928,
+          "status": "completed",
+          "final_equity_eur": 82011.95,
+          "total_return_pct": 720.12,
+          "max_drawdown_pct": 39.35,
+          "sharpe_ratio": 0.9915
+        },
+        {
+          "scenario_id": "tq_1k_787",
+          "run_id": 929,
+          "status": "completed",
+          "final_equity_eur": 91196.95,
+          "total_return_pct": 811.97,
+          "max_drawdown_pct": 40.11,
+          "sharpe_ratio": 1.0191
+        }
+      ],
+      "finished_at": "2026-04-25T16:00:59.960831+00:00"
+    },
+    {
+      "id": "batch_1k_push4",
+      "name": "1000% Push — Round 4",
+      "scenario_ids": [
+        "tq_1k_788",
+        "tq_1k_789",
+        "tq_1k_790",
+        "tq_1k_791",
+        "tq_1k_792",
+        "tq_1k_793",
+        "tq_1k_794",
+        "tq_1k_795"
+      ],
+      "status": "completed",
+      "started_at": "2026-04-25T16:01:54.165255+00:00",
+      "error": null,
+      "current_index": 8,
+      "run_ids": [
+        930,
+        931,
+        932,
+        933,
+        934,
+        935,
+        936,
+        937
+      ],
+      "results": [
+        {
+          "scenario_id": "tq_1k_788",
+          "run_id": 930,
+          "status": "completed",
+          "final_equity_eur": 59848.27,
+          "total_return_pct": 498.48,
+          "max_drawdown_pct": 40.45,
+          "sharpe_ratio": 0.8286
+        },
+        {
+          "scenario_id": "tq_1k_789",
+          "run_id": 931,
+          "status": "completed",
+          "final_equity_eur": 58266.1,
+          "total_return_pct": 482.66,
+          "max_drawdown_pct": 34.9,
+          "sharpe_ratio": 0.8003
+        },
+        {
+          "scenario_id": "tq_1k_790",
+          "run_id": 932,
+          "status": "completed",
+          "final_equity_eur": 97547.21,
+          "total_return_pct": 875.47,
+          "max_drawdown_pct": 39.98,
+          "sharpe_ratio": 1.0438
+        },
+        {
+          "scenario_id": "tq_1k_791",
+          "run_id": 933,
+          "status": "completed",
+          "final_equity_eur": 97547.21,
+          "total_return_pct": 875.47,
+          "max_drawdown_pct": 39.98,
+          "sharpe_ratio": 1.0438
+        },
+        {
+          "scenario_id": "tq_1k_792",
+          "run_id": 934,
+          "status": "completed",
+          "final_equity_eur": 97547.21,
+          "total_return_pct": 875.47,
+          "max_drawdown_pct": 39.98,
+          "sharpe_ratio": 1.0438
+        },
+        {
+          "scenario_id": "tq_1k_793",
+          "run_id": 935,
+          "status": "completed",
+          "final_equity_eur": 98139.64,
+          "total_return_pct": 881.4,
+          "max_drawdown_pct": 39.98,
+          "sharpe_ratio": 1.0464
+        },
+        {
+          "scenario_id": "tq_1k_794",
+          "run_id": 936,
+          "status": "completed",
+          "final_equity_eur": 59538.63,
+          "total_return_pct": 495.39,
+          "max_drawdown_pct": 40.45,
+          "sharpe_ratio": 0.8282
+        },
+        {
+          "scenario_id": "tq_1k_795",
+          "run_id": 937,
+          "status": "completed",
+          "final_equity_eur": 57954.64,
+          "total_return_pct": 479.55,
+          "max_drawdown_pct": 34.9,
+          "sharpe_ratio": 0.798
+        }
+      ],
+      "finished_at": "2026-04-25T16:03:48.939362+00:00"
+    },
+    {
+      "id": "batch_1k_push5",
+      "name": "1000% Push — Round 5",
+      "scenario_ids": [
+        "tq_1k_796",
+        "tq_1k_797",
+        "tq_1k_798",
+        "tq_1k_799",
+        "tq_1k_800",
+        "tq_1k_801",
+        "tq_1k_802",
+        "tq_1k_803"
+      ],
+      "status": "completed",
+      "started_at": "2026-04-25T16:05:16.017377+00:00",
+      "error": null,
+      "current_index": 8,
+      "run_ids": [
+        938,
+        939,
+        940,
+        941,
+        942,
+        943,
+        944,
+        945
+      ],
+      "results": [
+        {
+          "scenario_id": "tq_1k_796",
+          "run_id": 938,
+          "status": "completed",
+          "final_equity_eur": 36130.36,
+          "total_return_pct": 261.3,
+          "max_drawdown_pct": 61.09,
+          "sharpe_ratio": 0.5356
+        },
+        {
+          "scenario_id": "tq_1k_797",
+          "run_id": 939,
+          "status": "completed",
+          "final_equity_eur": 42075.63,
+          "total_return_pct": 320.76,
+          "max_drawdown_pct": 30.34,
+          "sharpe_ratio": 0.6696
+        },
+        {
+          "scenario_id": "tq_1k_798",
+          "run_id": 940,
+          "status": "completed",
+          "final_equity_eur": 35130.31,
+          "total_return_pct": 251.3,
+          "max_drawdown_pct": 36.31,
+          "sharpe_ratio": 0.6258
+        },
+        {
+          "scenario_id": "tq_1k_799",
+          "run_id": 941,
+          "status": "completed",
+          "final_equity_eur": 97547.21,
+          "total_return_pct": 875.47,
+          "max_drawdown_pct": 39.98,
+          "sharpe_ratio": 1.0438
+        },
+        {
+          "scenario_id": "tq_1k_800",
+          "run_id": 942,
+          "status": "completed",
+          "final_equity_eur": 97547.21,
+          "total_return_pct": 875.47,
+          "max_drawdown_pct": 39.98,
+          "sharpe_ratio": 1.0438
+        },
+        {
+          "scenario_id": "tq_1k_801",
+          "run_id": 943,
+          "status": "completed",
+          "final_equity_eur": 28384.86,
+          "total_return_pct": 183.85,
+          "max_drawdown_pct": 21.51,
+          "sharpe_ratio": 0.5804
+        },
+        {
+          "scenario_id": "tq_1k_802",
+          "run_id": 944,
+          "status": "completed",
+          "final_equity_eur": 98139.64,
+          "total_return_pct": 881.4,
+          "max_drawdown_pct": 39.98,
+          "sharpe_ratio": 1.0464
+        },
+        {
+          "scenario_id": "tq_1k_803",
+          "run_id": 945,
+          "status": "completed",
+          "final_equity_eur": 48558.61,
+          "total_return_pct": 385.59,
+          "max_drawdown_pct": 35.51,
+          "sharpe_ratio": 0.7547
+        }
+      ],
+      "finished_at": "2026-04-25T16:07:08.893997+00:00"
+    },
+    {
+      "id": "batch_1k_push6",
+      "name": "1000% Push — Round 6 (Tech Winners)",
+      "scenario_ids": [
+        "tq_1k_804",
+        "tq_1k_805",
+        "tq_1k_806",
+        "tq_1k_807",
+        "tq_1k_808",
+        "tq_1k_809",
+        "tq_1k_810",
+        "tq_1k_811"
+      ],
+      "status": "completed",
+      "started_at": "2026-04-25T16:12:22.638652+00:00",
+      "error": null,
+      "current_index": 8,
+      "run_ids": [
+        946,
+        947,
+        948,
+        949,
+        950,
+        951,
+        952,
+        953
+      ],
+      "results": [
+        {
+          "scenario_id": "tq_1k_804",
+          "run_id": 946,
+          "status": "completed",
+          "final_equity_eur": 42054.2,
+          "total_return_pct": 320.54,
+          "max_drawdown_pct": 32.86,
+          "sharpe_ratio": 0.6492
+        },
+        {
+          "scenario_id": "tq_1k_805",
+          "run_id": 947,
+          "status": "completed",
+          "final_equity_eur": 68073.73,
+          "total_return_pct": 580.74,
+          "max_drawdown_pct": 26.54,
+          "sharpe_ratio": 0.9605
+        },
+        {
+          "scenario_id": "tq_1k_806",
+          "run_id": 948,
+          "status": "completed",
+          "final_equity_eur": 57265.84,
+          "total_return_pct": 472.66,
+          "max_drawdown_pct": 34.34,
+          "sharpe_ratio": 0.7679
+        },
+        {
+          "scenario_id": "tq_1k_807",
+          "run_id": 949,
+          "status": "completed",
+          "final_equity_eur": 89154.07,
+          "total_return_pct": 791.54,
+          "max_drawdown_pct": 33.15,
+          "sharpe_ratio": 0.8691
+        },
+        {
+          "scenario_id": "tq_1k_808",
+          "run_id": 950,
+          "status": "completed",
+          "final_equity_eur": 97110.44,
+          "total_return_pct": 871.1,
+          "max_drawdown_pct": 33.63,
+          "sharpe_ratio": 0.9114
+        },
+        {
+          "scenario_id": "tq_1k_809",
+          "run_id": 951,
+          "status": "completed",
+          "final_equity_eur": 63211.52,
+          "total_return_pct": 532.12,
+          "max_drawdown_pct": 29.69,
+          "sharpe_ratio": 0.8002
+        },
+        {
+          "scenario_id": "tq_1k_810",
+          "run_id": 952,
+          "status": "completed",
+          "final_equity_eur": 42054.2,
+          "total_return_pct": 320.54,
+          "max_drawdown_pct": 32.86,
+          "sharpe_ratio": 0.6492
+        },
+        {
+          "scenario_id": "tq_1k_811",
+          "run_id": 953,
+          "status": "completed",
+          "final_equity_eur": 108932.48,
+          "total_return_pct": 989.32,
+          "max_drawdown_pct": 35.26,
+          "sharpe_ratio": 0.9057
+        }
+      ],
+      "finished_at": "2026-04-25T16:13:22.885203+00:00"
+    },
+    {
+      "id": "batch_1k_push7",
+      "name": "1000% Push — Round 7 (us_growth finetuning)",
+      "scenario_ids": [
+        "tq_1k_812",
+        "tq_1k_813",
+        "tq_1k_814",
+        "tq_1k_815",
+        "tq_1k_816",
+        "tq_1k_817",
+        "tq_1k_818",
+        "tq_1k_819"
+      ],
+      "status": "completed",
+      "started_at": "2026-04-25T16:16:56.443038+00:00",
+      "error": null,
+      "current_index": 8,
+      "run_ids": [
+        954,
+        955,
+        956,
+        957,
+        958,
+        959,
+        960,
+        961
+      ],
+      "results": [
+        {
+          "scenario_id": "tq_1k_812",
+          "run_id": 954,
+          "status": "completed",
+          "final_equity_eur": 63030.75,
+          "total_return_pct": 530.31,
+          "max_drawdown_pct": 36.07,
+          "sharpe_ratio": 0.6884
+        },
+        {
+          "scenario_id": "tq_1k_813",
+          "run_id": 955,
+          "status": "completed",
+          "final_equity_eur": 104164.03,
+          "total_return_pct": 941.64,
+          "max_drawdown_pct": 30.35,
+          "sharpe_ratio": 0.8771
+        },
+        {
+          "scenario_id": "tq_1k_814",
+          "run_id": 956,
+          "status": "completed",
+          "final_equity_eur": 92448.83,
+          "total_return_pct": 824.49,
+          "max_drawdown_pct": 34.03,
+          "sharpe_ratio": 0.841
+        },
+        {
+          "scenario_id": "tq_1k_815",
+          "run_id": 957,
+          "status": "completed",
+          "final_equity_eur": 108932.48,
+          "total_return_pct": 989.32,
+          "max_drawdown_pct": 35.26,
+          "sharpe_ratio": 0.9057
+        },
+        {
+          "scenario_id": "tq_1k_816",
+          "run_id": 958,
+          "status": "completed",
+          "final_equity_eur": 108932.48,
+          "total_return_pct": 989.32,
+          "max_drawdown_pct": 35.26,
+          "sharpe_ratio": 0.9057
+        },
+        {
+          "scenario_id": "tq_1k_817",
+          "run_id": 959,
+          "status": "completed",
+          "final_equity_eur": 108932.48,
+          "total_return_pct": 989.32,
+          "max_drawdown_pct": 35.26,
+          "sharpe_ratio": 0.9057
+        },
+        {
+          "scenario_id": "tq_1k_818",
+          "run_id": 960,
+          "status": "completed",
+          "final_equity_eur": 110396.34,
+          "total_return_pct": 1003.96,
+          "max_drawdown_pct": 31.11,
+          "sharpe_ratio": 0.9188
+        },
+        {
+          "scenario_id": "tq_1k_819",
+          "run_id": 961,
+          "status": "completed",
+          "final_equity_eur": 108932.48,
+          "total_return_pct": 989.32,
+          "max_drawdown_pct": 35.26,
+          "sharpe_ratio": 0.9057
+        }
+      ],
+      "finished_at": "2026-04-25T16:17:49.563616+00:00"
+    },
+    {
+      "id": "batch_notech",
+      "name": "Strategie ohne US Tech",
+      "scenario_ids": [
+        "tq_notech_820",
+        "tq_notech_821",
+        "tq_notech_822",
+        "tq_notech_823"
+      ],
+      "status": "completed",
+      "started_at": "2026-04-25T16:20:23.948236+00:00",
+      "error": null,
+      "current_index": 4,
+      "run_ids": [
+        962,
+        963,
+        964,
+        965
+      ],
+      "results": [
+        {
+          "scenario_id": "tq_notech_820",
+          "run_id": 962,
+          "status": "completed",
+          "final_equity_eur": 33966.65,
+          "total_return_pct": 239.67,
+          "max_drawdown_pct": 30.22,
+          "sharpe_ratio": 0.614
+        },
+        {
+          "scenario_id": "tq_notech_821",
+          "run_id": 963,
+          "status": "completed",
+          "final_equity_eur": 34999.22,
+          "total_return_pct": 249.99,
+          "max_drawdown_pct": 27.89,
+          "sharpe_ratio": 0.7046
+        },
+        {
+          "scenario_id": "tq_notech_822",
+          "run_id": 964,
+          "status": "completed",
+          "final_equity_eur": 28307.27,
+          "total_return_pct": 183.07,
+          "max_drawdown_pct": 21.32,
+          "sharpe_ratio": 0.7431
+        },
+        {
+          "scenario_id": "tq_notech_823",
+          "run_id": 965,
+          "status": "completed",
+          "final_equity_eur": 17246.83,
+          "total_return_pct": 72.47,
+          "max_drawdown_pct": 45.06,
+          "sharpe_ratio": 0.2991
+        }
+      ],
+      "finished_at": "2026-04-25T16:21:14.352664+00:00"
+    },
+    {
+      "id": "batch_walkforward",
+      "name": "Walk-Forward Validation",
+      "scenario_ids": [
+        "wf_in_824",
+        "wf_out_825",
+        "wf_in_826",
+        "wf_out_827",
+        "wf_in_828",
+        "wf_out_829",
+        "wf_in_830",
+        "wf_out_831"
+      ],
+      "status": "completed",
+      "started_at": "2026-04-25T18:18:34.951287+00:00",
+      "error": null,
+      "current_index": 8,
+      "run_ids": [
+        966,
+        967,
+        968,
+        969,
+        970,
+        971,
+        972,
+        973
+      ],
+      "results": [
+        {
+          "scenario_id": "wf_in_824",
+          "run_id": 966,
+          "status": "completed",
+          "final_equity_eur": 19903.97,
+          "total_return_pct": 99.04,
+          "max_drawdown_pct": 17.35,
+          "sharpe_ratio": 0.8751
+        },
+        {
+          "scenario_id": "wf_out_825",
+          "run_id": 967,
+          "status": "completed",
+          "final_equity_eur": 15470.29,
+          "total_return_pct": 54.7,
+          "max_drawdown_pct": 26.49,
+          "sharpe_ratio": 0.6902
+        },
+        {
+          "scenario_id": "wf_in_826",
+          "run_id": 968,
+          "status": "completed",
+          "final_equity_eur": 18776.66,
+          "total_return_pct": 87.77,
+          "max_drawdown_pct": 16.22,
+          "sharpe_ratio": 0.6686
+        },
+        {
+          "scenario_id": "wf_out_827",
+          "run_id": 969,
+          "status": "completed",
+          "final_equity_eur": 13761.72,
+          "total_return_pct": 37.62,
+          "max_drawdown_pct": 41.21,
+          "sharpe_ratio": 0.4326
+        },
+        {
+          "scenario_id": "wf_in_828",
+          "run_id": 970,
+          "status": "completed",
+          "final_equity_eur": 22609.59,
+          "total_return_pct": 126.1,
+          "max_drawdown_pct": 23.38,
+          "sharpe_ratio": 0.7403
+        },
+        {
+          "scenario_id": "wf_out_829",
+          "run_id": 971,
+          "status": "completed",
+          "final_equity_eur": 15850.22,
+          "total_return_pct": 58.5,
+          "max_drawdown_pct": 41.35,
+          "sharpe_ratio": 0.5129
+        },
+        {
+          "scenario_id": "wf_in_830",
+          "run_id": 972,
+          "status": "completed",
+          "final_equity_eur": 23551.21,
+          "total_return_pct": 135.51,
+          "max_drawdown_pct": 33.05,
+          "sharpe_ratio": 0.784
+        },
+        {
+          "scenario_id": "wf_out_831",
+          "run_id": 973,
+          "status": "completed",
+          "final_equity_eur": 13139.12,
+          "total_return_pct": 31.39,
+          "max_drawdown_pct": 41.03,
+          "sharpe_ratio": 0.3252
+        }
+      ],
+      "finished_at": "2026-04-25T18:19:50.756638+00:00"
+    },
+    {
+      "id": "batch_regime_filter",
+      "name": "Market Regime Filter — Vergleich",
+      "scenario_ids": [
+        "rf_mps40_nofilter",
+        "rf_mps40_filter",
+        "rf_mps70_filter",
+        "rf_mps88_filter",
+        "rf_mps88_nofilter"
+      ],
+      "status": "completed",
+      "started_at": "2026-04-25T19:04:16.585893+00:00",
+      "error": null,
+      "current_index": 5,
+      "run_ids": [
+        974,
+        975,
+        976,
+        977,
+        978,
+        979,
+        980,
+        981,
+        982,
+        983
+      ],
+      "results": [
+        {
+          "scenario_id": "rf_mps40_nofilter",
+          "run_id": 974,
+          "status": "completed",
+          "final_equity_eur": 63903.8,
+          "total_return_pct": 539.04,
+          "max_drawdown_pct": 21.59,
+          "sharpe_ratio": 1.2078
+        },
+        {
+          "scenario_id": "rf_mps40_filter",
+          "run_id": 975,
+          "status": "completed",
+          "final_equity_eur": 63903.8,
+          "total_return_pct": 539.04,
+          "max_drawdown_pct": 21.59,
+          "sharpe_ratio": 1.2078
+        },
+        {
+          "scenario_id": "rf_mps70_filter",
+          "run_id": 976,
+          "status": "completed",
+          "final_equity_eur": 72036.47,
+          "total_return_pct": 620.36,
+          "max_drawdown_pct": 25.83,
+          "sharpe_ratio": 1.0249
+        },
+        {
+          "scenario_id": "rf_mps88_filter",
+          "run_id": 977,
+          "status": "completed",
+          "final_equity_eur": 98139.64,
+          "total_return_pct": 881.4,
+          "max_drawdown_pct": 39.98,
+          "sharpe_ratio": 1.0464
+        },
+        {
+          "scenario_id": "rf_mps88_nofilter",
+          "run_id": 978,
+          "status": "completed",
+          "final_equity_eur": 98139.64,
+          "total_return_pct": 881.4,
+          "max_drawdown_pct": 39.98,
+          "sharpe_ratio": 1.0464
+        },
+        {
+          "scenario_id": "rf_mps40_nofilter",
+          "run_id": 979,
+          "status": "completed",
+          "final_equity_eur": 63903.8,
+          "total_return_pct": 539.04,
+          "max_drawdown_pct": 21.59,
+          "sharpe_ratio": 1.2078
+        },
+        {
+          "scenario_id": "rf_mps40_filter",
+          "run_id": 980,
+          "status": "completed",
+          "final_equity_eur": 48255.92,
+          "total_return_pct": 382.56,
+          "max_drawdown_pct": 21.95,
+          "sharpe_ratio": 1.0838
+        },
+        {
+          "scenario_id": "rf_mps70_filter",
+          "run_id": 981,
+          "status": "completed",
+          "final_equity_eur": 39524.61,
+          "total_return_pct": 295.25,
+          "max_drawdown_pct": 26.27,
+          "sharpe_ratio": 0.7719
+        },
+        {
+          "scenario_id": "rf_mps88_filter",
+          "run_id": 982,
+          "status": "completed",
+          "final_equity_eur": 59993.83,
+          "total_return_pct": 499.94,
+          "max_drawdown_pct": 27.48,
+          "sharpe_ratio": 0.8721
+        },
+        {
+          "scenario_id": "rf_mps88_nofilter",
+          "run_id": 983,
+          "status": "completed",
+          "final_equity_eur": 98139.64,
+          "total_return_pct": 881.4,
+          "max_drawdown_pct": 39.98,
+          "sharpe_ratio": 1.0464
+        }
+      ],
+      "finished_at": "2026-04-25T19:05:29.729376+00:00"
     }
   ]
 }
