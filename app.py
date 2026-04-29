@@ -34,6 +34,7 @@ def create_app():
     app.config['SECRET_KEY'] = config.SECRET_KEY
     app.config['SQLALCHEMY_DATABASE_URI'] = config.SQLALCHEMY_DATABASE_URI
     app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+    app.config['SEND_FILE_MAX_AGE_DEFAULT'] = 0
     app.config['SQLALCHEMY_ENGINE_OPTIONS'] = {
         'connect_args': {
             'connect_timeout': 10,

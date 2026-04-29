@@ -1,0 +1,18 @@
+[Unit]
+Description=Interactive Brokers Gateway (Paper Trading)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=martin
+ExecStart=/home/martin/ibgateway/run_gateway.sh
+Restart=on-failure
+RestartSec=60
+StandardOutput=journal
+StandardError=journal
+KillSignal=SIGTERM
+TimeoutStopSec=30
+
+[Install]
+WantedBy=multi-user.target

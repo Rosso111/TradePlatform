@@ -92,3 +92,65 @@ export function addLogEntry(msg) {
   log.prepend(entry);
   while (log.children.length > 50) log.removeChild(log.lastChild);
 }
+
+const SPLIT_STORAGE_KEY = 'tp_split_sizes';
+
+function saveSplitSizes() {
+  const sizes = {};
+  document.querySelectorAll('.split-handle').forEach(handle => {
+    const prevId = handle.dataset.prev;
+    if (!prevId) return;
+    const prev = document.getElementById(prevId);
+    if (!prev) return;
+    const isV = handle.classList.contains('split-v');
+    sizes[prevId] = isV ? prev.offsetHeight : prev.offsetWidth;
+  });
+  localStorage.setItem(SPLIT_STORAGE_KEY, JSON.stringify(sizes));
+}
+
+function restoreSplitSizes() {
+  let sizes;
+  try { sizes = JSON.parse(localStorage.getItem(SPLIT_STORAGE_KEY) || '{}'); } catch { return; }
+  Object.entries(sizes).forEach(([id, size]) => {
+    const el = document.getElementById(id);
+    if (el && size > 0) el.style.flex = `0 0 ${size}px`;
+  });
+}
+
+export function initSplitPanes() {
+  restoreSplitSizes();
+
+  document.querySelectorAll('.split-handle').forEach(handle => {
+    handle.addEventListener('mousedown', e => {
+      e.preventDefault();
+      const isV = handle.classList.contains('split-v');
+      const prevId = handle.dataset.prev;
+      const prev = prevId ? document.getElementById(prevId) : handle.previousElementSibling;
+      if (!prev) return;
+
+      handle.classList.add('dragging');
+      const startPos = isV ? e.clientY : e.clientX;
+      const startSize = isV ? prev.offsetHeight : prev.offsetWidth;
+
+      const onMove = ev => {
+        const delta = (isV ? ev.clientY : ev.clientX) - startPos;
+        const newSize = Math.max(100, startSize + delta);
+        prev.style.flex = `0 0 ${newSize}px`;
+      };
+
+      const onUp = () => {
+        handle.classList.remove('dragging');
+        document.body.style.cursor = '';
+        document.body.style.userSelect = '';
+        document.removeEventListener('mousemove', onMove);
+        document.removeEventListener('mouseup', onUp);
+        saveSplitSizes();
+      };
+
+      document.body.style.cursor = isV ? 'row-resize' : 'col-resize';
+      document.body.style.userSelect = 'none';
+      document.addEventListener('mousemove', onMove);
+      document.addEventListener('mouseup', onUp);
+    });
+  });
+}

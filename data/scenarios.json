@@ -1,87 +1,28 @@
 {
   "scenarios": [
     {
-      "id": "resume_288_trend_quality_defensive_v1",
-      "name": "Trend Quality Defensive — filters_012 — 040",
-      "strategy_id": "trend_quality_defensive_v1",
-      "universe_name": "global_core_10y",
-      "start_date": "2016-01-01",
-      "end_date": "2026-04-22",
-      "initial_capital_eur": 10000,
-      "notes": "Resume sweep for Trend Quality Defensive",
-      "params_override": {
-        "persist_chunk_days": 4000,
-        "cancel_check_interval_days": 100,
-        "decision_log_mode": "normal",
-        "min_rsi": 52.0,
-        "max_rsi": 65.0,
-        "min_sector_score": 55.0,
-        "require_price_above_ema_fast": false,
-        "require_ema_fast_above_slow": true,
-        "require_macd_above_signal": true
-      }
-    },
-    {
-      "id": "resume_289_trend_quality_defensive_v1",
-      "name": "Trend Quality Defensive — filters_013 — 041",
-      "strategy_id": "trend_quality_defensive_v1",
-      "universe_name": "global_core_10y",
-      "start_date": "2016-01-01",
-      "end_date": "2026-04-22",
-      "initial_capital_eur": 10000,
-      "notes": "Resume sweep for Trend Quality Defensive",
-      "params_override": {
-        "persist_chunk_days": 4000,
-        "cancel_check_interval_days": 100,
-        "decision_log_mode": "normal",
-        "min_rsi": 52.0,
-        "max_rsi": 69.0,
-        "min_sector_score": 58.0,
-        "require_price_above_ema_fast": true,
-        "require_ema_fast_above_slow": true,
-        "require_macd_above_signal": true
-      }
-    },
-    {
-      "id": "resume_290_trend_quality_defensive_v1",
-      "name": "Trend Quality Defensive — filters_014 — 042",
-      "strategy_id": "trend_quality_defensive_v1",
-      "universe_name": "global_core_10y",
-      "start_date": "2016-01-01",
-      "end_date": "2026-04-22",
-      "initial_capital_eur": 10000,
-      "notes": "Resume sweep for Trend Quality Defensive",
-      "params_override": {
-        "persist_chunk_days": 4000,
-        "cancel_check_interval_days": 100,
-        "decision_log_mode": "normal",
-        "min_rsi": 52.0,
-        "max_rsi": 73.0,
-        "min_sector_score": 61.0,
-        "require_price_above_ema_fast": true,
-        "require_ema_fast_above_slow": true,
-        "require_macd_above_signal": false
-      }
-    },
-    {
       "id": "resume_291_trend_quality_defensive_v1",
       "name": "Trend Quality Defensive — filters_015 — 043",
-      "strategy_id": "trend_quality_defensive_v1",
-      "universe_name": "global_core_10y",
       "start_date": "2016-01-01",
       "end_date": "2026-04-22",
-      "initial_capital_eur": 10000,
+      "initial_capital_eur": 100000,
+      "strategy_id": "cross_sectional_momentum_v1",
+      "universe_name": "no_us_tech",
       "notes": "Resume sweep for Trend Quality Defensive",
       "params_override": {
-        "persist_chunk_days": 4000,
+        "buy_threshold": 67,
         "cancel_check_interval_days": 100,
         "decision_log_mode": "normal",
-        "min_rsi": 52.0,
-        "max_rsi": 77.0,
-        "min_sector_score": 64.0,
+        "max_positions": 13,
+        "max_rsi": 65,
+        "min_rsi": 48,
+        "min_sector_score": 58,
+        "persist_chunk_days": 4000,
+        "require_ema_fast_above_slow": true,
+        "require_macd_above_signal": true,
         "require_price_above_ema_fast": true,
-        "require_ema_fast_above_slow": false,
-        "require_macd_above_signal": true
+        "sell_threshold": 31,
+        "trailing_stop_pct": 0.08
       }
     },
     {
@@ -11496,6 +11437,1895 @@
         "require_macd_above_signal": true,
         "max_position_size": 0.88
       }
+    },
+    {
+      "strategy_id": "cross_sectional_momentum_v1",
+      "universe_name": "global_core_10y",
+      "start_date": "2016-01-01",
+      "end_date": "2026-04-22",
+      "initial_capital_eur": 10000,
+      "params_override": {
+        "persist_chunk_days": 4000,
+        "cancel_check_interval_days": 100,
+        "decision_log_mode": "minimal",
+        "momentum_lookback_days": 252,
+        "momentum_skip_days": 21,
+        "min_momentum_threshold": 0.0,
+        "trailing_stop_pct": 0.08,
+        "max_positions": 13,
+        "atr_position_sizing": false,
+        "top_n_signals": 5,
+        "max_position_size": 0.22
+      },
+      "id": "csm_top5",
+      "name": "CSM Top-5  (global_core_10y)",
+      "notes": "Cross-Sectional Momentum, top_n=5"
+    },
+    {
+      "strategy_id": "cross_sectional_momentum_v1",
+      "universe_name": "global_core_10y",
+      "start_date": "2016-01-01",
+      "end_date": "2026-04-22",
+      "initial_capital_eur": 10000,
+      "params_override": {
+        "persist_chunk_days": 4000,
+        "cancel_check_interval_days": 100,
+        "decision_log_mode": "minimal",
+        "momentum_lookback_days": 252,
+        "momentum_skip_days": 21,
+        "min_momentum_threshold": 0.0,
+        "trailing_stop_pct": 0.08,
+        "max_positions": 13,
+        "atr_position_sizing": false,
+        "top_n_signals": 10,
+        "max_position_size": 0.15
+      },
+      "id": "csm_top10",
+      "name": "CSM Top-10 (global_core_10y)",
+      "notes": "Cross-Sectional Momentum, top_n=10"
+    },
+    {
+      "strategy_id": "cross_sectional_momentum_v1",
+      "universe_name": "global_core_10y",
+      "start_date": "2016-01-01",
+      "end_date": "2026-04-22",
+      "initial_capital_eur": 10000,
+      "params_override": {
+        "persist_chunk_days": 4000,
+        "cancel_check_interval_days": 100,
+        "decision_log_mode": "minimal",
+        "momentum_lookback_days": 252,
+        "momentum_skip_days": 21,
+        "min_momentum_threshold": 0.0,
+        "trailing_stop_pct": 0.08,
+        "max_positions": 13,
+        "atr_position_sizing": false,
+        "top_n_signals": 15,
+        "max_position_size": 0.12
+      },
+      "id": "csm_top15",
+      "name": "CSM Top-15 (global_core_10y)",
+      "notes": "Cross-Sectional Momentum, top_n=15"
+    },
+    {
+      "strategy_id": "cross_sectional_momentum_v1",
+      "universe_name": "global_core_10y",
+      "start_date": "2016-01-01",
+      "end_date": "2026-04-22",
+      "initial_capital_eur": 10000,
+      "params_override": {
+        "persist_chunk_days": 4000,
+        "cancel_check_interval_days": 100,
+        "decision_log_mode": "minimal",
+        "momentum_lookback_days": 252,
+        "momentum_skip_days": 21,
+        "min_momentum_threshold": 0.05,
+        "trailing_stop_pct": 0.08,
+        "max_positions": 13,
+        "atr_position_sizing": false,
+        "top_n_signals": 10,
+        "max_position_size": 0.15
+      },
+      "id": "csm_top10_pos_mom",
+      "name": "CSM Top-10 + positives Momentum (global_core_10y)",
+      "notes": "Cross-Sectional Momentum, top_n=10, nur positive Momentum-Aktien"
+    },
+    {
+      "strategy_id": "cross_sectional_momentum_v1",
+      "universe_name": "global_core_10y",
+      "start_date": "2016-01-01",
+      "end_date": "2026-04-22",
+      "initial_capital_eur": 10000,
+      "params_override": {
+        "persist_chunk_days": 4000,
+        "cancel_check_interval_days": 100,
+        "decision_log_mode": "minimal",
+        "momentum_lookback_days": 252,
+        "momentum_skip_days": 21,
+        "min_momentum_threshold": 0.0,
+        "trailing_stop_pct": 0.05,
+        "max_positions": 13,
+        "atr_position_sizing": false,
+        "top_n_signals": 10,
+        "max_position_size": 0.15
+      },
+      "id": "csm_top10_tight_stop",
+      "name": "CSM Top-10 + enger Stop (global_core_10y)",
+      "notes": "Cross-Sectional Momentum, top_n=10, trailing_stop=5%"
+    },
+    {
+      "id": "dual_mom_baseline",
+      "name": "Dual Momentum Baseline (global_core_10y)",
+      "strategy_id": "dual_momentum_v1",
+      "universe_name": "global_core_10y",
+      "start_date": "2016-01-01",
+      "end_date": "2026-04-22",
+      "initial_capital_eur": 10000,
+      "notes": "Dual Momentum Baseline für CSM-Vergleich",
+      "params_override": {
+        "persist_chunk_days": 4000,
+        "cancel_check_interval_days": 100,
+        "decision_log_mode": "minimal",
+        "momentum_lookback_days": 252,
+        "absolute_momentum_threshold": 0.0,
+        "top_n_signals": 7,
+        "max_positions": 13,
+        "trailing_stop_pct": 0.08,
+        "atr_position_sizing": false,
+        "max_position_size": 0.15
+      }
+    },
+    {
+      "strategy_id": "cross_sectional_momentum_v1",
+      "universe_name": "momentum_100",
+      "start_date": "2016-01-01",
+      "end_date": "2026-04-22",
+      "initial_capital_eur": 10000,
+      "params_override": {
+        "persist_chunk_days": 4000,
+        "cancel_check_interval_days": 100,
+        "decision_log_mode": "minimal",
+        "momentum_lookback_days": 252,
+        "momentum_skip_days": 21,
+        "min_momentum_threshold": 0.0,
+        "trailing_stop_pct": 0.08,
+        "max_positions": 13,
+        "atr_position_sizing": false,
+        "top_n_signals": 5,
+        "max_position_size": 0.22
+      },
+      "id": "csm100_top5",
+      "name": "CSM Top-5  (momentum_100)",
+      "notes": "CSM auf 100-Aktien-Universum, top_n=5"
+    },
+    {
+      "strategy_id": "cross_sectional_momentum_v1",
+      "universe_name": "momentum_100",
+      "start_date": "2016-01-01",
+      "end_date": "2026-04-22",
+      "initial_capital_eur": 10000,
+      "params_override": {
+        "persist_chunk_days": 4000,
+        "cancel_check_interval_days": 100,
+        "decision_log_mode": "minimal",
+        "momentum_lookback_days": 252,
+        "momentum_skip_days": 21,
+        "min_momentum_threshold": 0.0,
+        "trailing_stop_pct": 0.08,
+        "max_positions": 13,
+        "atr_position_sizing": false,
+        "top_n_signals": 10,
+        "max_position_size": 0.15
+      },
+      "id": "csm100_top10",
+      "name": "CSM Top-10 (momentum_100)",
+      "notes": "CSM auf 100-Aktien-Universum, top_n=10"
+    },
+    {
+      "strategy_id": "cross_sectional_momentum_v1",
+      "universe_name": "momentum_100",
+      "start_date": "2016-01-01",
+      "end_date": "2026-04-22",
+      "initial_capital_eur": 10000,
+      "params_override": {
+        "persist_chunk_days": 4000,
+        "cancel_check_interval_days": 100,
+        "decision_log_mode": "minimal",
+        "momentum_lookback_days": 252,
+        "momentum_skip_days": 21,
+        "min_momentum_threshold": 0.0,
+        "trailing_stop_pct": 0.08,
+        "max_positions": 13,
+        "atr_position_sizing": false,
+        "top_n_signals": 15,
+        "max_position_size": 0.12
+      },
+      "id": "csm100_top15",
+      "name": "CSM Top-15 (momentum_100)",
+      "notes": "CSM auf 100-Aktien-Universum, top_n=15"
+    },
+    {
+      "strategy_id": "cross_sectional_momentum_v1",
+      "universe_name": "momentum_100",
+      "start_date": "2016-01-01",
+      "end_date": "2026-04-22",
+      "initial_capital_eur": 10000,
+      "params_override": {
+        "persist_chunk_days": 4000,
+        "cancel_check_interval_days": 100,
+        "decision_log_mode": "minimal",
+        "momentum_lookback_days": 252,
+        "momentum_skip_days": 21,
+        "min_momentum_threshold": 0.0,
+        "trailing_stop_pct": 0.08,
+        "max_positions": 13,
+        "atr_position_sizing": false,
+        "top_n_signals": 20,
+        "max_position_size": 0.1
+      },
+      "id": "csm100_top20",
+      "name": "CSM Top-20 (momentum_100)",
+      "notes": "CSM auf 100-Aktien-Universum, top_n=20"
+    },
+    {
+      "id": "dual_mom100_baseline",
+      "name": "Dual Momentum Baseline (momentum_100)",
+      "strategy_id": "dual_momentum_v1",
+      "universe_name": "momentum_100",
+      "start_date": "2016-01-01",
+      "end_date": "2026-04-22",
+      "initial_capital_eur": 10000,
+      "notes": "Dual Momentum Baseline auf momentum_100",
+      "params_override": {
+        "persist_chunk_days": 4000,
+        "cancel_check_interval_days": 100,
+        "decision_log_mode": "minimal",
+        "momentum_lookback_days": 252,
+        "absolute_momentum_threshold": 0.0,
+        "top_n_signals": 7,
+        "max_positions": 13,
+        "trailing_stop_pct": 0.08,
+        "atr_position_sizing": false,
+        "max_position_size": 0.15
+      }
+    },
+    {
+      "strategy_id": "monthly_rotation_at_v1",
+      "universe_name": "global_core_10y",
+      "start_date": "2016-01-01",
+      "end_date": "2026-04-22",
+      "initial_capital_eur": 10000,
+      "id": "mr_top10",
+      "name": "Monthly Rotation AT — Top-10",
+      "notes": "Monthly Rotation: top_n=10, stop=10%, 10€/Trade, KeSt 27.5%",
+      "params_override": {
+        "persist_chunk_days": 4000,
+        "cancel_check_interval_days": 100,
+        "decision_log_mode": "minimal",
+        "momentum_lookback_days": 252,
+        "momentum_skip_days": 21,
+        "min_momentum_threshold": 0.0,
+        "trailing_stop_pct": 0.1,
+        "trim_position_above_eur": 4000,
+        "trim_fraction": 0.5,
+        "commission_eur": 10.0,
+        "commission_rate": 0.001,
+        "whole_shares_only": true,
+        "t1_execution": true,
+        "capital_gains_tax_rate": 0.275,
+        "tax_loss_harvest_threshold": -0.05,
+        "atr_position_sizing": false,
+        "max_positions": 20,
+        "max_position_size": 0.1,
+        "min_position_size": 0.03,
+        "top_n_signals": 10
+      }
+    },
+    {
+      "strategy_id": "monthly_rotation_at_v1",
+      "universe_name": "global_core_10y",
+      "start_date": "2016-01-01",
+      "end_date": "2026-04-22",
+      "initial_capital_eur": 10000,
+      "id": "mr_top15",
+      "name": "Monthly Rotation AT — Top-15",
+      "notes": "Monthly Rotation: top_n=15, stop=10%, 10€/Trade, KeSt 27.5%",
+      "params_override": {
+        "persist_chunk_days": 4000,
+        "cancel_check_interval_days": 100,
+        "decision_log_mode": "minimal",
+        "momentum_lookback_days": 252,
+        "momentum_skip_days": 21,
+        "min_momentum_threshold": 0.0,
+        "trailing_stop_pct": 0.1,
+        "trim_position_above_eur": 4000,
+        "trim_fraction": 0.5,
+        "commission_eur": 10.0,
+        "commission_rate": 0.001,
+        "whole_shares_only": true,
+        "t1_execution": true,
+        "capital_gains_tax_rate": 0.275,
+        "tax_loss_harvest_threshold": -0.05,
+        "atr_position_sizing": false,
+        "max_positions": 20,
+        "max_position_size": 0.1,
+        "min_position_size": 0.03,
+        "top_n_signals": 15
+      }
+    },
+    {
+      "strategy_id": "monthly_rotation_at_v1",
+      "universe_name": "global_core_10y",
+      "start_date": "2016-01-01",
+      "end_date": "2026-04-22",
+      "initial_capital_eur": 10000,
+      "id": "mr_top20",
+      "name": "Monthly Rotation AT — Top-20",
+      "notes": "Monthly Rotation: top_n=20, stop=10%, 10€/Trade, KeSt 27.5%",
+      "params_override": {
+        "persist_chunk_days": 4000,
+        "cancel_check_interval_days": 100,
+        "decision_log_mode": "minimal",
+        "momentum_lookback_days": 252,
+        "momentum_skip_days": 21,
+        "min_momentum_threshold": 0.0,
+        "trailing_stop_pct": 0.1,
+        "trim_position_above_eur": 4000,
+        "trim_fraction": 0.5,
+        "commission_eur": 10.0,
+        "commission_rate": 0.001,
+        "whole_shares_only": true,
+        "t1_execution": true,
+        "capital_gains_tax_rate": 0.275,
+        "tax_loss_harvest_threshold": -0.05,
+        "atr_position_sizing": false,
+        "max_positions": 20,
+        "max_position_size": 0.1,
+        "min_position_size": 0.03,
+        "top_n_signals": 20
+      }
+    },
+    {
+      "strategy_id": "monthly_rotation_at_v1",
+      "universe_name": "global_core_10y",
+      "start_date": "2016-01-01",
+      "end_date": "2026-04-22",
+      "initial_capital_eur": 10000,
+      "id": "mr_top15_notax",
+      "name": "Monthly Rotation AT — Top-15 (ohne KeSt)",
+      "notes": "Monthly Rotation: top_n=15, kein Steuer-Abzug (Vergleich)",
+      "params_override": {
+        "persist_chunk_days": 4000,
+        "cancel_check_interval_days": 100,
+        "decision_log_mode": "minimal",
+        "momentum_lookback_days": 252,
+        "momentum_skip_days": 21,
+        "min_momentum_threshold": 0.0,
+        "trailing_stop_pct": 0.1,
+        "trim_position_above_eur": 4000,
+        "trim_fraction": 0.5,
+        "commission_eur": 10.0,
+        "commission_rate": 0.001,
+        "whole_shares_only": true,
+        "t1_execution": true,
+        "capital_gains_tax_rate": 0.0,
+        "tax_loss_harvest_threshold": -0.05,
+        "atr_position_sizing": false,
+        "max_positions": 20,
+        "max_position_size": 0.1,
+        "min_position_size": 0.03,
+        "top_n_signals": 15
+      }
+    },
+    {
+      "id": "tqa_m100_baseline",
+      "name": "TQ Aggressive — Momentum 100 — kein AT",
+      "strategy_id": "trend_quality_aggressive_v1",
+      "universe_name": "momentum_100",
+      "start_date": "2016-01-01",
+      "end_date": "2026-04-22",
+      "initial_capital_eur": 10000,
+      "notes": "Baseline ohne AT-Features zum Vergleich",
+      "params_override": {
+        "persist_chunk_days": 4000,
+        "cancel_check_interval_days": 100,
+        "decision_log_mode": "minimal"
+      }
+    },
+    {
+      "id": "tqa_m100_at",
+      "name": "TQ Aggressive — Momentum 100 — AT KeSt+10€",
+      "strategy_id": "trend_quality_aggressive_v1",
+      "universe_name": "momentum_100",
+      "start_date": "2016-01-01",
+      "end_date": "2026-04-22",
+      "initial_capital_eur": 10000,
+      "notes": "AT Features: 10€ Flat-Provision, ganze Aktien, T+1, KeSt 27,5%",
+      "params_override": {
+        "persist_chunk_days": 4000,
+        "cancel_check_interval_days": 100,
+        "decision_log_mode": "minimal",
+        "commission_eur": 10.0,
+        "commission_rate": 0.001,
+        "whole_shares_only": true,
+        "t1_execution": true,
+        "capital_gains_tax_rate": 0.275
+      }
+    },
+    {
+      "id": "dualmom_m100_at",
+      "name": "Dual Momentum — Momentum 100 — AT KeSt+10€",
+      "strategy_id": "dual_momentum_v1",
+      "universe_name": "momentum_100",
+      "start_date": "2016-01-01",
+      "end_date": "2026-04-22",
+      "initial_capital_eur": 10000,
+      "notes": "Dual Momentum mit AT Features: 10€ Provision, KeSt 27,5%",
+      "params_override": {
+        "persist_chunk_days": 4000,
+        "cancel_check_interval_days": 100,
+        "decision_log_mode": "minimal",
+        "commission_eur": 10.0,
+        "commission_rate": 0.001,
+        "whole_shares_only": true,
+        "t1_execution": true,
+        "capital_gains_tax_rate": 0.275
+      }
+    },
+    {
+      "id": "csm_m100_at",
+      "name": "CSM Top-5 — Momentum 100 — AT KeSt+10€",
+      "strategy_id": "cross_sectional_momentum_v1",
+      "universe_name": "momentum_100",
+      "start_date": "2016-01-01",
+      "end_date": "2026-04-22",
+      "initial_capital_eur": 10000,
+      "notes": "CSM Top-5 mit AT Features: 10€ Provision, KeSt 27,5%",
+      "params_override": {
+        "persist_chunk_days": 4000,
+        "cancel_check_interval_days": 100,
+        "decision_log_mode": "minimal",
+        "commission_eur": 10.0,
+        "commission_rate": 0.001,
+        "whole_shares_only": true,
+        "t1_execution": true,
+        "capital_gains_tax_rate": 0.275,
+        "top_n_signals": 5
+      }
+    },
+    {
+      "id": "resume_291_trend_quality_defensive_v1_NOUS",
+      "name": "Trend Quality Defensive — filters_015 — 043",
+      "start_date": "2016-01-01",
+      "end_date": "2026-04-22",
+      "initial_capital_eur": 10000,
+      "strategy_id": "trend_quality_defensive_v1",
+      "universe_name": "no_us_tech",
+      "notes": "Resume sweep for Trend Quality Defensive",
+      "params_override": {
+        "cancel_check_interval_days": 100,
+        "decision_log_mode": "normal",
+        "max_rsi": 77,
+        "min_rsi": 52,
+        "min_sector_score": 64,
+        "persist_chunk_days": 4000,
+        "require_ema_fast_above_slow": false,
+        "require_macd_above_signal": true,
+        "require_price_above_ema_fast": true,
+        "buy_threshold": 72,
+        "sell_threshold": 42,
+        "max_positions": 5,
+        "trailing_stop_pct": 0.04
+      }
+    },
+    {
+      "id": "tqa_m100_at_50k",
+      "name": "TQ Aggressive — 50k — AT KeSt+10€",
+      "strategy_id": "trend_quality_aggressive_v1",
+      "universe_name": "momentum_100",
+      "start_date": "2016-01-01",
+      "end_date": "2026-04-22",
+      "initial_capital_eur": 50000,
+      "notes": "AT Features mit 50.000€ Startkapital",
+      "params_override": {
+        "persist_chunk_days": 4000,
+        "cancel_check_interval_days": 100,
+        "decision_log_mode": "minimal",
+        "commission_eur": 10.0,
+        "commission_rate": 0.001,
+        "whole_shares_only": true,
+        "t1_execution": true,
+        "capital_gains_tax_rate": 0.275
+      }
+    },
+    {
+      "id": "dualmom_m100_at_50k",
+      "name": "Dual Momentum — 50k — AT KeSt+10€",
+      "strategy_id": "dual_momentum_v1",
+      "universe_name": "momentum_100",
+      "start_date": "2016-01-01",
+      "end_date": "2026-04-22",
+      "initial_capital_eur": 50000,
+      "notes": "Dual Momentum AT Features mit 50.000€",
+      "params_override": {
+        "persist_chunk_days": 4000,
+        "cancel_check_interval_days": 100,
+        "decision_log_mode": "minimal",
+        "commission_eur": 10.0,
+        "commission_rate": 0.001,
+        "whole_shares_only": true,
+        "t1_execution": true,
+        "capital_gains_tax_rate": 0.275
+      }
+    },
+    {
+      "id": "tqa_m100_at_100k",
+      "name": "TQ Aggressive — 100k — AT KeSt+10€",
+      "strategy_id": "trend_quality_aggressive_v1",
+      "universe_name": "momentum_100",
+      "start_date": "2016-01-01",
+      "end_date": "2026-04-22",
+      "initial_capital_eur": 100000,
+      "notes": "AT Features mit 100.000€ Startkapital",
+      "params_override": {
+        "persist_chunk_days": 4000,
+        "cancel_check_interval_days": 100,
+        "decision_log_mode": "minimal",
+        "commission_eur": 10.0,
+        "commission_rate": 0.001,
+        "whole_shares_only": true,
+        "t1_execution": true,
+        "capital_gains_tax_rate": 0.275
+      }
+    },
+    {
+      "id": "dualmom_m100_at_100k",
+      "name": "Dual Momentum — 100k — AT KeSt+10€",
+      "strategy_id": "dual_momentum_v1",
+      "universe_name": "momentum_100",
+      "start_date": "2016-01-01",
+      "end_date": "2026-04-22",
+      "initial_capital_eur": 100000,
+      "notes": "Dual Momentum AT Features mit 100.000€",
+      "params_override": {
+        "persist_chunk_days": 4000,
+        "cancel_check_interval_days": 100,
+        "decision_log_mode": "minimal",
+        "commission_eur": 10.0,
+        "commission_rate": 0.001,
+        "whole_shares_only": true,
+        "t1_execution": true,
+        "capital_gains_tax_rate": 0.275
+      }
+    },
+    {
+      "strategy_id": "trend_quality_aggressive_v1",
+      "universe_name": "momentum_100",
+      "start_date": "2016-01-01",
+      "end_date": "2026-04-22",
+      "initial_capital_eur": 10000,
+      "params_override": {
+        "persist_chunk_days": 4000,
+        "cancel_check_interval_days": 100,
+        "decision_log_mode": "minimal",
+        "min_hold_days": 10
+      },
+      "id": "tqa_hold10",
+      "name": "TQ Aggressive — min_hold 10 Tage"
+    },
+    {
+      "strategy_id": "trend_quality_aggressive_v1",
+      "universe_name": "momentum_100",
+      "start_date": "2016-01-01",
+      "end_date": "2026-04-22",
+      "initial_capital_eur": 10000,
+      "params_override": {
+        "persist_chunk_days": 4000,
+        "cancel_check_interval_days": 100,
+        "decision_log_mode": "minimal",
+        "min_hold_days": 20
+      },
+      "id": "tqa_hold20",
+      "name": "TQ Aggressive — min_hold 20 Tage"
+    },
+    {
+      "strategy_id": "trend_quality_aggressive_v1",
+      "universe_name": "momentum_100",
+      "start_date": "2016-01-01",
+      "end_date": "2026-04-22",
+      "initial_capital_eur": 10000,
+      "params_override": {
+        "persist_chunk_days": 4000,
+        "cancel_check_interval_days": 100,
+        "decision_log_mode": "minimal",
+        "min_hold_days": 30
+      },
+      "id": "tqa_hold30",
+      "name": "TQ Aggressive — min_hold 30 Tage"
+    },
+    {
+      "id": "tqa_hold10_at_50k",
+      "name": "TQ Aggr — hold10 — AT 50k",
+      "strategy_id": "trend_quality_aggressive_v1",
+      "universe_name": "momentum_100",
+      "start_date": "2016-01-01",
+      "end_date": "2026-04-22",
+      "initial_capital_eur": 50000,
+      "params_override": {
+        "persist_chunk_days": 4000,
+        "cancel_check_interval_days": 100,
+        "decision_log_mode": "minimal",
+        "commission_eur": 10.0,
+        "commission_rate": 0.001,
+        "whole_shares_only": true,
+        "t1_execution": true,
+        "capital_gains_tax_rate": 0.275,
+        "min_hold_days": 10
+      }
+    },
+    {
+      "id": "tqa_hold20_at_50k",
+      "name": "TQ Aggr — hold20 — AT 50k",
+      "strategy_id": "trend_quality_aggressive_v1",
+      "universe_name": "momentum_100",
+      "start_date": "2016-01-01",
+      "end_date": "2026-04-22",
+      "initial_capital_eur": 50000,
+      "params_override": {
+        "persist_chunk_days": 4000,
+        "cancel_check_interval_days": 100,
+        "decision_log_mode": "minimal",
+        "commission_eur": 10.0,
+        "commission_rate": 0.001,
+        "whole_shares_only": true,
+        "t1_execution": true,
+        "capital_gains_tax_rate": 0.275,
+        "min_hold_days": 20
+      }
+    },
+    {
+      "id": "tqa_hold30_at_50k",
+      "name": "TQ Aggr — hold30 — AT 50k",
+      "strategy_id": "trend_quality_aggressive_v1",
+      "universe_name": "momentum_100",
+      "start_date": "2016-01-01",
+      "end_date": "2026-04-22",
+      "initial_capital_eur": 50000,
+      "params_override": {
+        "persist_chunk_days": 4000,
+        "cancel_check_interval_days": 100,
+        "decision_log_mode": "minimal",
+        "commission_eur": 10.0,
+        "commission_rate": 0.001,
+        "whole_shares_only": true,
+        "t1_execution": true,
+        "capital_gains_tax_rate": 0.275,
+        "min_hold_days": 30
+      }
+    },
+    {
+      "id": "dualmom_hold30_at_50k",
+      "name": "Dual Mom — hold30 — AT 50k",
+      "strategy_id": "dual_momentum_v1",
+      "universe_name": "momentum_100",
+      "start_date": "2016-01-01",
+      "end_date": "2026-04-22",
+      "initial_capital_eur": 50000,
+      "params_override": {
+        "persist_chunk_days": 4000,
+        "cancel_check_interval_days": 100,
+        "decision_log_mode": "minimal",
+        "commission_eur": 10.0,
+        "commission_rate": 0.001,
+        "whole_shares_only": true,
+        "t1_execution": true,
+        "capital_gains_tax_rate": 0.275,
+        "min_hold_days": 30
+      }
+    },
+    {
+      "id": "sharpe_mom_100_at_50k",
+      "name": "Sharpe Momentum — momentum_100 — AT 50k",
+      "strategy_id": "sharpe_momentum_v1",
+      "universe_name": "momentum_100",
+      "start_date": "2016-01-01",
+      "end_date": "2026-04-22",
+      "initial_capital_eur": 50000,
+      "params_override": {
+        "persist_chunk_days": 4000,
+        "cancel_check_interval_days": 100,
+        "decision_log_mode": "minimal"
+      }
+    },
+    {
+      "id": "multi_mom_100_at_50k",
+      "name": "Multi-Period Momentum — momentum_100 — AT 50k",
+      "strategy_id": "multi_momentum_v1",
+      "universe_name": "momentum_100",
+      "start_date": "2016-01-01",
+      "end_date": "2026-04-22",
+      "initial_capital_eur": 50000,
+      "params_override": {
+        "persist_chunk_days": 4000,
+        "cancel_check_interval_days": 100,
+        "decision_log_mode": "minimal"
+      }
+    },
+    {
+      "id": "mean_rev_100_at_50k",
+      "name": "Mean Reversion im Trend — momentum_100 — AT 50k",
+      "strategy_id": "mean_reversion_v1",
+      "universe_name": "momentum_100",
+      "start_date": "2016-01-01",
+      "end_date": "2026-04-22",
+      "initial_capital_eur": 50000,
+      "params_override": {
+        "persist_chunk_days": 4000,
+        "cancel_check_interval_days": 100,
+        "decision_log_mode": "minimal"
+      }
+    },
+    {
+      "id": "dualmom_baseline_at_50k",
+      "name": "Dual Momentum Baseline — momentum_100 — AT 50k",
+      "strategy_id": "dual_momentum_v1",
+      "universe_name": "momentum_100",
+      "start_date": "2016-01-01",
+      "end_date": "2026-04-22",
+      "initial_capital_eur": 50000,
+      "params_override": {
+        "persist_chunk_days": 4000,
+        "cancel_check_interval_days": 100,
+        "decision_log_mode": "minimal",
+        "commission_eur": 10.0,
+        "commission_rate": 0.001,
+        "whole_shares_only": true,
+        "t1_execution": true,
+        "capital_gains_tax_rate": 0.275,
+        "min_hold_days": 30
+      }
+    },
+    {
+      "id": "dualmom_rf_at_50k",
+      "name": "Dual Momentum + Regime-Filter — momentum_100 — AT 50k",
+      "strategy_id": "dual_momentum_rf_v1",
+      "universe_name": "momentum_100",
+      "start_date": "2016-01-01",
+      "end_date": "2026-04-22",
+      "initial_capital_eur": 50000,
+      "params_override": {
+        "persist_chunk_days": 4000,
+        "cancel_check_interval_days": 100,
+        "decision_log_mode": "minimal"
+      }
+    },
+    {
+      "id": "conc_mom_at_50k",
+      "name": "Concentrated Momentum Top-3 — momentum_100 — AT 50k",
+      "strategy_id": "concentrated_momentum_v1",
+      "universe_name": "momentum_100",
+      "start_date": "2016-01-01",
+      "end_date": "2026-04-22",
+      "initial_capital_eur": 50000,
+      "params_override": {
+        "persist_chunk_days": 4000,
+        "cancel_check_interval_days": 100,
+        "decision_log_mode": "minimal"
+      }
+    },
+    {
+      "id": "conc_mom_top5_at_50k",
+      "name": "Concentrated Momentum Top-5 — momentum_100 — AT 50k",
+      "strategy_id": "concentrated_momentum_v1",
+      "universe_name": "momentum_100",
+      "start_date": "2016-01-01",
+      "end_date": "2026-04-22",
+      "initial_capital_eur": 50000,
+      "params_override": {
+        "persist_chunk_days": 4000,
+        "cancel_check_interval_days": 100,
+        "decision_log_mode": "minimal",
+        "top_n_signals": 5,
+        "max_positions": 6,
+        "min_position_size": 0.12,
+        "max_position_size": 0.25
+      }
+    },
+    {
+      "id": "conc_top3_no_rf_at_50k",
+      "name": "Concentrated Top-3 KEIN Regime-Filter — AT 50k",
+      "strategy_id": "concentrated_momentum_v1",
+      "universe_name": "momentum_100",
+      "start_date": "2016-01-01",
+      "end_date": "2026-04-22",
+      "initial_capital_eur": 50000,
+      "params_override": {
+        "persist_chunk_days": 4000,
+        "cancel_check_interval_days": 100,
+        "decision_log_mode": "minimal",
+        "market_regime_filter": false
+      }
+    },
+    {
+      "id": "conc_top3_ts15_at_50k",
+      "name": "Concentrated Top-3 Trailing-Stop 15% — AT 50k",
+      "strategy_id": "concentrated_momentum_v1",
+      "universe_name": "momentum_100",
+      "start_date": "2016-01-01",
+      "end_date": "2026-04-22",
+      "initial_capital_eur": 50000,
+      "params_override": {
+        "persist_chunk_days": 4000,
+        "cancel_check_interval_days": 100,
+        "decision_log_mode": "minimal",
+        "trailing_stop_pct": 0.15
+      }
+    },
+    {
+      "id": "conc_top3_ts20_at_50k",
+      "name": "Concentrated Top-3 Trailing-Stop 20% — AT 50k",
+      "strategy_id": "concentrated_momentum_v1",
+      "universe_name": "momentum_100",
+      "start_date": "2016-01-01",
+      "end_date": "2026-04-22",
+      "initial_capital_eur": 50000,
+      "params_override": {
+        "persist_chunk_days": 4000,
+        "cancel_check_interval_days": 100,
+        "decision_log_mode": "minimal",
+        "trailing_stop_pct": 0.2
+      }
+    },
+    {
+      "id": "conc_top2_at_50k",
+      "name": "Concentrated Top-2 — AT 50k",
+      "strategy_id": "concentrated_momentum_v1",
+      "universe_name": "momentum_100",
+      "start_date": "2016-01-01",
+      "end_date": "2026-04-22",
+      "initial_capital_eur": 50000,
+      "params_override": {
+        "persist_chunk_days": 4000,
+        "cancel_check_interval_days": 100,
+        "decision_log_mode": "minimal",
+        "top_n_signals": 2,
+        "max_positions": 3,
+        "min_position_size": 0.3,
+        "max_position_size": 0.5
+      }
+    },
+    {
+      "id": "conc_top3_norf_ts15_at_50k",
+      "name": "Concentrated Top-3 KEIN RF + Stop 15% — AT 50k",
+      "strategy_id": "concentrated_momentum_v1",
+      "universe_name": "momentum_100",
+      "start_date": "2016-01-01",
+      "end_date": "2026-04-22",
+      "initial_capital_eur": 50000,
+      "params_override": {
+        "persist_chunk_days": 4000,
+        "cancel_check_interval_days": 100,
+        "decision_log_mode": "minimal",
+        "market_regime_filter": false,
+        "trailing_stop_pct": 0.15
+      }
+    },
+    {
+      "id": "conc_top3_norf_ts20_at_50k",
+      "name": "Concentrated Top-3 KEIN RF + Stop 20% — AT 50k",
+      "strategy_id": "concentrated_momentum_v1",
+      "universe_name": "momentum_100",
+      "start_date": "2016-01-01",
+      "end_date": "2026-04-22",
+      "initial_capital_eur": 50000,
+      "params_override": {
+        "persist_chunk_days": 4000,
+        "cancel_check_interval_days": 100,
+        "decision_log_mode": "minimal",
+        "market_regime_filter": false,
+        "trailing_stop_pct": 0.2
+      }
+    },
+    {
+      "strategy_id": "concentrated_momentum_v2",
+      "universe_name": "momentum_100",
+      "start_date": "2016-01-01",
+      "end_date": "2026-04-22",
+      "initial_capital_eur": 50000,
+      "id": "v2_hold20",
+      "name": "v2 hold20",
+      "params_override": {
+        "persist_chunk_days": 4000,
+        "cancel_check_interval_days": 100,
+        "decision_log_mode": "minimal",
+        "min_hold_days": 20
+      }
+    },
+    {
+      "strategy_id": "concentrated_momentum_v2",
+      "universe_name": "momentum_100",
+      "start_date": "2016-01-01",
+      "end_date": "2026-04-22",
+      "initial_capital_eur": 50000,
+      "id": "v2_hold45",
+      "name": "v2 hold45",
+      "params_override": {
+        "persist_chunk_days": 4000,
+        "cancel_check_interval_days": 100,
+        "decision_log_mode": "minimal",
+        "min_hold_days": 45
+      }
+    },
+    {
+      "strategy_id": "concentrated_momentum_v2",
+      "universe_name": "momentum_100",
+      "start_date": "2016-01-01",
+      "end_date": "2026-04-22",
+      "initial_capital_eur": 50000,
+      "id": "v2_hold60",
+      "name": "v2 hold60",
+      "params_override": {
+        "persist_chunk_days": 4000,
+        "cancel_check_interval_days": 100,
+        "decision_log_mode": "minimal",
+        "min_hold_days": 60
+      }
+    },
+    {
+      "strategy_id": "concentrated_momentum_v2",
+      "universe_name": "momentum_100",
+      "start_date": "2016-01-01",
+      "end_date": "2026-04-22",
+      "initial_capital_eur": 50000,
+      "id": "v2_lb6m",
+      "name": "v2 lookback 6M",
+      "params_override": {
+        "persist_chunk_days": 4000,
+        "cancel_check_interval_days": 100,
+        "decision_log_mode": "minimal",
+        "momentum_lookback_days": 126
+      }
+    },
+    {
+      "strategy_id": "concentrated_momentum_v2",
+      "universe_name": "momentum_100",
+      "start_date": "2016-01-01",
+      "end_date": "2026-04-22",
+      "initial_capital_eur": 50000,
+      "id": "v2_lb9m",
+      "name": "v2 lookback 9M",
+      "params_override": {
+        "persist_chunk_days": 4000,
+        "cancel_check_interval_days": 100,
+        "decision_log_mode": "minimal",
+        "momentum_lookback_days": 189
+      }
+    },
+    {
+      "strategy_id": "concentrated_momentum_v2",
+      "universe_name": "momentum_100",
+      "start_date": "2016-01-01",
+      "end_date": "2026-04-22",
+      "initial_capital_eur": 50000,
+      "id": "v2_lb15m",
+      "name": "v2 lookback 15M",
+      "params_override": {
+        "persist_chunk_days": 4000,
+        "cancel_check_interval_days": 100,
+        "decision_log_mode": "minimal",
+        "momentum_lookback_days": 315
+      }
+    },
+    {
+      "strategy_id": "concentrated_momentum_v2",
+      "universe_name": "momentum_100",
+      "start_date": "2016-01-01",
+      "end_date": "2026-04-22",
+      "initial_capital_eur": 50000,
+      "id": "v2_skip0",
+      "name": "v2 skip=0 (kein Skip)",
+      "params_override": {
+        "persist_chunk_days": 4000,
+        "cancel_check_interval_days": 100,
+        "decision_log_mode": "minimal",
+        "momentum_skip_days": 0
+      }
+    },
+    {
+      "strategy_id": "concentrated_momentum_v2",
+      "universe_name": "momentum_100",
+      "start_date": "2016-01-01",
+      "end_date": "2026-04-22",
+      "initial_capital_eur": 50000,
+      "id": "v2_hold90",
+      "name": "v2 hold90",
+      "params_override": {
+        "persist_chunk_days": 4000,
+        "cancel_check_interval_days": 100,
+        "decision_log_mode": "minimal",
+        "min_hold_days": 90
+      }
+    },
+    {
+      "strategy_id": "concentrated_momentum_v2",
+      "universe_name": "momentum_100",
+      "start_date": "2016-01-01",
+      "end_date": "2026-04-22",
+      "initial_capital_eur": 50000,
+      "id": "v2_hold120",
+      "name": "v2 hold120",
+      "params_override": {
+        "persist_chunk_days": 4000,
+        "cancel_check_interval_days": 100,
+        "decision_log_mode": "minimal",
+        "min_hold_days": 120
+      }
+    },
+    {
+      "strategy_id": "concentrated_momentum_v2",
+      "universe_name": "momentum_100",
+      "start_date": "2016-01-01",
+      "end_date": "2026-04-22",
+      "initial_capital_eur": 50000,
+      "id": "v2_hold60_lb6m",
+      "name": "v2 hold60 + lookback 6M",
+      "params_override": {
+        "persist_chunk_days": 4000,
+        "cancel_check_interval_days": 100,
+        "decision_log_mode": "minimal",
+        "min_hold_days": 60,
+        "momentum_lookback_days": 126
+      }
+    },
+    {
+      "strategy_id": "concentrated_momentum_v2",
+      "universe_name": "momentum_100",
+      "start_date": "2016-01-01",
+      "end_date": "2026-04-22",
+      "initial_capital_eur": 50000,
+      "id": "v2_hold90_lb6m",
+      "name": "v2 hold90 + lookback 6M",
+      "params_override": {
+        "persist_chunk_days": 4000,
+        "cancel_check_interval_days": 100,
+        "decision_log_mode": "minimal",
+        "min_hold_days": 90,
+        "momentum_lookback_days": 126
+      }
+    },
+    {
+      "strategy_id": "concentrated_momentum_v2",
+      "universe_name": "momentum_100",
+      "start_date": "2016-01-01",
+      "end_date": "2026-04-22",
+      "initial_capital_eur": 50000,
+      "id": "v2_hold120_lb6m",
+      "name": "v2 hold120 + lookback 6M",
+      "params_override": {
+        "persist_chunk_days": 4000,
+        "cancel_check_interval_days": 100,
+        "decision_log_mode": "minimal",
+        "min_hold_days": 120,
+        "momentum_lookback_days": 126
+      }
+    },
+    {
+      "id": "smc_top3_hold60_lb6m",
+      "name": "SmallMid Top-3 hold60 lb6M — AT 50k",
+      "strategy_id": "concentrated_momentum_v2",
+      "universe_name": "small_mid_momentum",
+      "start_date": "2016-01-01",
+      "end_date": "2026-04-22",
+      "initial_capital_eur": 50000,
+      "params_override": {
+        "persist_chunk_days": 4000,
+        "cancel_check_interval_days": 100,
+        "decision_log_mode": "minimal",
+        "min_hold_days": 60,
+        "momentum_lookback_days": 126
+      }
+    },
+    {
+      "id": "smc_top3_hold90_lb6m",
+      "name": "SmallMid Top-3 hold90 lb6M — AT 50k",
+      "strategy_id": "concentrated_momentum_v2",
+      "universe_name": "small_mid_momentum",
+      "start_date": "2016-01-01",
+      "end_date": "2026-04-22",
+      "initial_capital_eur": 50000,
+      "params_override": {
+        "persist_chunk_days": 4000,
+        "cancel_check_interval_days": 100,
+        "decision_log_mode": "minimal",
+        "min_hold_days": 90,
+        "momentum_lookback_days": 126
+      }
+    },
+    {
+      "id": "smc_top3_hold120_lb6m",
+      "name": "SmallMid Top-3 hold120 lb6M — AT 50k",
+      "strategy_id": "concentrated_momentum_v2",
+      "universe_name": "small_mid_momentum",
+      "start_date": "2016-01-01",
+      "end_date": "2026-04-22",
+      "initial_capital_eur": 50000,
+      "params_override": {
+        "persist_chunk_days": 4000,
+        "cancel_check_interval_days": 100,
+        "decision_log_mode": "minimal",
+        "min_hold_days": 120,
+        "momentum_lookback_days": 126
+      }
+    },
+    {
+      "id": "smc_top3_hold120_lb12m",
+      "name": "SmallMid Top-3 hold120 lb12M — AT 50k",
+      "strategy_id": "concentrated_momentum_v2",
+      "universe_name": "small_mid_momentum",
+      "start_date": "2016-01-01",
+      "end_date": "2026-04-22",
+      "initial_capital_eur": 50000,
+      "params_override": {
+        "persist_chunk_days": 4000,
+        "cancel_check_interval_days": 100,
+        "decision_log_mode": "minimal",
+        "min_hold_days": 120
+      }
+    },
+    {
+      "strategy_id": "concentrated_momentum_v2",
+      "universe_name": "momentum_100",
+      "start_date": "2016-01-01",
+      "end_date": "2026-04-22",
+      "initial_capital_eur": 50000,
+      "id": "v2_hold150",
+      "name": "v2 hold150",
+      "params_override": {
+        "persist_chunk_days": 4000,
+        "cancel_check_interval_days": 100,
+        "decision_log_mode": "minimal",
+        "min_hold_days": 150
+      }
+    },
+    {
+      "strategy_id": "concentrated_momentum_v2",
+      "universe_name": "momentum_100",
+      "start_date": "2016-01-01",
+      "end_date": "2026-04-22",
+      "initial_capital_eur": 50000,
+      "id": "v2_hold180",
+      "name": "v2 hold180",
+      "params_override": {
+        "persist_chunk_days": 4000,
+        "cancel_check_interval_days": 100,
+        "decision_log_mode": "minimal",
+        "min_hold_days": 180
+      }
+    },
+    {
+      "strategy_id": "concentrated_momentum_v2",
+      "universe_name": "momentum_100",
+      "start_date": "2016-01-01",
+      "end_date": "2026-04-22",
+      "initial_capital_eur": 50000,
+      "id": "v2_hold150_lb6m",
+      "name": "v2 hold150 + lb6M",
+      "params_override": {
+        "persist_chunk_days": 4000,
+        "cancel_check_interval_days": 100,
+        "decision_log_mode": "minimal",
+        "min_hold_days": 150,
+        "momentum_lookback_days": 126
+      }
+    },
+    {
+      "strategy_id": "concentrated_momentum_v2",
+      "universe_name": "momentum_100",
+      "start_date": "2016-01-01",
+      "end_date": "2026-04-22",
+      "initial_capital_eur": 50000,
+      "id": "v2_hold180_lb6m",
+      "name": "v2 hold180 + lb6M",
+      "params_override": {
+        "persist_chunk_days": 4000,
+        "cancel_check_interval_days": 100,
+        "decision_log_mode": "minimal",
+        "min_hold_days": 180,
+        "momentum_lookback_days": 126
+      }
+    },
+    {
+      "strategy_id": "concentrated_momentum_v2",
+      "universe_name": "momentum_100",
+      "start_date": "2016-01-01",
+      "end_date": "2026-04-22",
+      "initial_capital_eur": 50000,
+      "id": "v2_h120_pos40",
+      "name": "v2 hold120 + pos40%",
+      "params_override": {
+        "persist_chunk_days": 4000,
+        "cancel_check_interval_days": 100,
+        "decision_log_mode": "minimal",
+        "min_hold_days": 120,
+        "max_position_size": 0.4,
+        "min_position_size": 0.25
+      }
+    },
+    {
+      "strategy_id": "concentrated_momentum_v2",
+      "universe_name": "momentum_100",
+      "start_date": "2016-01-01",
+      "end_date": "2026-04-22",
+      "initial_capital_eur": 50000,
+      "id": "v2_h120_lb6m_pos40",
+      "name": "v2 hold120 + lb6M + pos40%",
+      "params_override": {
+        "persist_chunk_days": 4000,
+        "cancel_check_interval_days": 100,
+        "decision_log_mode": "minimal",
+        "min_hold_days": 120,
+        "momentum_lookback_days": 126,
+        "max_position_size": 0.4,
+        "min_position_size": 0.25
+      }
+    },
+    {
+      "strategy_id": "concentrated_momentum_v2",
+      "universe_name": "momentum_100",
+      "start_date": "2016-01-01",
+      "end_date": "2026-04-22",
+      "initial_capital_eur": 50000,
+      "id": "v2_h150_lb6m_pos40",
+      "name": "v2 hold150 + lb6M + pos40%",
+      "params_override": {
+        "persist_chunk_days": 4000,
+        "cancel_check_interval_days": 100,
+        "decision_log_mode": "minimal",
+        "min_hold_days": 150,
+        "momentum_lookback_days": 126,
+        "max_position_size": 0.4,
+        "min_position_size": 0.25
+      }
+    },
+    {
+      "strategy_id": "concentrated_momentum_v3",
+      "universe_name": "momentum_100",
+      "start_date": "2016-01-01",
+      "end_date": "2026-04-22",
+      "initial_capital_eur": 50000,
+      "id": "v3_ts18",
+      "name": "v3 TS 18%",
+      "params_override": {
+        "persist_chunk_days": 4000,
+        "cancel_check_interval_days": 100,
+        "decision_log_mode": "minimal",
+        "trailing_stop_pct": 0.18
+      }
+    },
+    {
+      "strategy_id": "concentrated_momentum_v3",
+      "universe_name": "momentum_100",
+      "start_date": "2016-01-01",
+      "end_date": "2026-04-22",
+      "initial_capital_eur": 50000,
+      "id": "v3_ts20",
+      "name": "v3 TS 20%",
+      "params_override": {
+        "persist_chunk_days": 4000,
+        "cancel_check_interval_days": 100,
+        "decision_log_mode": "minimal",
+        "trailing_stop_pct": 0.2
+      }
+    },
+    {
+      "strategy_id": "concentrated_momentum_v3",
+      "universe_name": "momentum_100",
+      "start_date": "2016-01-01",
+      "end_date": "2026-04-22",
+      "initial_capital_eur": 50000,
+      "id": "v3_ts25",
+      "name": "v3 TS 25%",
+      "params_override": {
+        "persist_chunk_days": 4000,
+        "cancel_check_interval_days": 100,
+        "decision_log_mode": "minimal",
+        "trailing_stop_pct": 0.25
+      }
+    },
+    {
+      "strategy_id": "concentrated_momentum_v3",
+      "universe_name": "momentum_100",
+      "start_date": "2016-01-01",
+      "end_date": "2026-04-22",
+      "initial_capital_eur": 50000,
+      "id": "v3_amt5",
+      "name": "v3 abs_threshold 5%",
+      "params_override": {
+        "persist_chunk_days": 4000,
+        "cancel_check_interval_days": 100,
+        "decision_log_mode": "minimal",
+        "absolute_momentum_threshold": 0.05
+      }
+    },
+    {
+      "strategy_id": "concentrated_momentum_v3",
+      "universe_name": "momentum_100",
+      "start_date": "2016-01-01",
+      "end_date": "2026-04-22",
+      "initial_capital_eur": 50000,
+      "id": "v3_amt10",
+      "name": "v3 abs_threshold 10%",
+      "params_override": {
+        "persist_chunk_days": 4000,
+        "cancel_check_interval_days": 100,
+        "decision_log_mode": "minimal",
+        "absolute_momentum_threshold": 0.1
+      }
+    },
+    {
+      "strategy_id": "concentrated_momentum_v3",
+      "universe_name": "momentum_100",
+      "start_date": "2016-01-01",
+      "end_date": "2026-04-22",
+      "initial_capital_eur": 50000,
+      "id": "v3_top2_pos50",
+      "name": "v3 Top-2 pos50%",
+      "params_override": {
+        "persist_chunk_days": 4000,
+        "cancel_check_interval_days": 100,
+        "decision_log_mode": "minimal",
+        "top_n_signals": 2,
+        "max_positions": 3,
+        "min_position_size": 0.35,
+        "max_position_size": 0.5
+      }
+    },
+    {
+      "strategy_id": "concentrated_momentum_v3",
+      "universe_name": "momentum_100",
+      "start_date": "2016-01-01",
+      "end_date": "2026-04-22",
+      "initial_capital_eur": 50000,
+      "id": "v3_lb3m",
+      "name": "v3 lookback 3M",
+      "params_override": {
+        "persist_chunk_days": 4000,
+        "cancel_check_interval_days": 100,
+        "decision_log_mode": "minimal",
+        "momentum_lookback_days": 63
+      }
+    },
+    {
+      "strategy_id": "concentrated_momentum_v3",
+      "universe_name": "momentum_100",
+      "start_date": "2016-01-01",
+      "end_date": "2026-04-22",
+      "initial_capital_eur": 50000,
+      "id": "v3_ts20_amt5",
+      "name": "v3 TS 20% + threshold 5%",
+      "params_override": {
+        "persist_chunk_days": 4000,
+        "cancel_check_interval_days": 100,
+        "decision_log_mode": "minimal",
+        "trailing_stop_pct": 0.2,
+        "absolute_momentum_threshold": 0.05
+      }
+    },
+    {
+      "strategy_id": "concentrated_momentum_v4",
+      "universe_name": "momentum_100",
+      "start_date": "2016-01-01",
+      "end_date": "2026-04-22",
+      "initial_capital_eur": 50000,
+      "id": "v4_ts16",
+      "name": "v4 TS 16%",
+      "params_override": {
+        "persist_chunk_days": 4000,
+        "cancel_check_interval_days": 100,
+        "decision_log_mode": "minimal",
+        "trailing_stop_pct": 0.16
+      }
+    },
+    {
+      "strategy_id": "concentrated_momentum_v4",
+      "universe_name": "momentum_100",
+      "start_date": "2016-01-01",
+      "end_date": "2026-04-22",
+      "initial_capital_eur": 50000,
+      "id": "v4_ts17",
+      "name": "v4 TS 17%",
+      "params_override": {
+        "persist_chunk_days": 4000,
+        "cancel_check_interval_days": 100,
+        "decision_log_mode": "minimal",
+        "trailing_stop_pct": 0.17
+      }
+    },
+    {
+      "strategy_id": "concentrated_momentum_v4",
+      "universe_name": "momentum_100",
+      "start_date": "2016-01-01",
+      "end_date": "2026-04-22",
+      "initial_capital_eur": 50000,
+      "id": "v4_ts19",
+      "name": "v4 TS 19%",
+      "params_override": {
+        "persist_chunk_days": 4000,
+        "cancel_check_interval_days": 100,
+        "decision_log_mode": "minimal",
+        "trailing_stop_pct": 0.19
+      }
+    },
+    {
+      "strategy_id": "concentrated_momentum_v4",
+      "universe_name": "momentum_100",
+      "start_date": "2016-01-01",
+      "end_date": "2026-04-22",
+      "initial_capital_eur": 50000,
+      "id": "v4_hold150",
+      "name": "v4 MinHold 150d",
+      "params_override": {
+        "persist_chunk_days": 4000,
+        "cancel_check_interval_days": 100,
+        "decision_log_mode": "minimal",
+        "min_hold_days": 150
+      }
+    },
+    {
+      "strategy_id": "concentrated_momentum_v4",
+      "universe_name": "momentum_100",
+      "start_date": "2016-01-01",
+      "end_date": "2026-04-22",
+      "initial_capital_eur": 50000,
+      "id": "v4_hold180",
+      "name": "v4 MinHold 180d",
+      "params_override": {
+        "persist_chunk_days": 4000,
+        "cancel_check_interval_days": 100,
+        "decision_log_mode": "minimal",
+        "min_hold_days": 180
+      }
+    },
+    {
+      "strategy_id": "concentrated_momentum_v4",
+      "universe_name": "momentum_100",
+      "start_date": "2016-01-01",
+      "end_date": "2026-04-22",
+      "initial_capital_eur": 50000,
+      "id": "v4_lb105",
+      "name": "v4 Lookback 5M (105d)",
+      "params_override": {
+        "persist_chunk_days": 4000,
+        "cancel_check_interval_days": 100,
+        "decision_log_mode": "minimal",
+        "momentum_lookback_days": 105
+      }
+    },
+    {
+      "strategy_id": "concentrated_momentum_v4",
+      "universe_name": "momentum_100",
+      "start_date": "2016-01-01",
+      "end_date": "2026-04-22",
+      "initial_capital_eur": 50000,
+      "id": "v5_ts19_amt2",
+      "name": "v5 TS 19% + AMT 2%",
+      "params_override": {
+        "persist_chunk_days": 4000,
+        "cancel_check_interval_days": 100,
+        "decision_log_mode": "minimal",
+        "trailing_stop_pct": 0.19,
+        "absolute_momentum_threshold": 0.02
+      }
+    },
+    {
+      "strategy_id": "concentrated_momentum_v4",
+      "universe_name": "momentum_100",
+      "start_date": "2016-01-01",
+      "end_date": "2026-04-22",
+      "initial_capital_eur": 50000,
+      "id": "v5_ts19_top1_50",
+      "name": "v5 TS 19% + Top1=50%",
+      "params_override": {
+        "persist_chunk_days": 4000,
+        "cancel_check_interval_days": 100,
+        "decision_log_mode": "minimal",
+        "trailing_stop_pct": 0.19,
+        "top1_max_position_size": 0.5
+      }
+    },
+    {
+      "strategy_id": "concentrated_momentum_v4",
+      "universe_name": "momentum_100",
+      "start_date": "2016-01-01",
+      "end_date": "2026-04-22",
+      "initial_capital_eur": 50000,
+      "id": "v5_ts19_top1_70",
+      "name": "v5 TS 19% + Top1=70%",
+      "params_override": {
+        "persist_chunk_days": 4000,
+        "cancel_check_interval_days": 100,
+        "decision_log_mode": "minimal",
+        "trailing_stop_pct": 0.19,
+        "top1_max_position_size": 0.7
+      }
+    },
+    {
+      "strategy_id": "concentrated_momentum_v4",
+      "universe_name": "momentum_100",
+      "start_date": "2016-01-01",
+      "end_date": "2026-04-22",
+      "initial_capital_eur": 50000,
+      "id": "v5_ts18_amt3",
+      "name": "v5 TS 18% + AMT 3%",
+      "params_override": {
+        "persist_chunk_days": 4000,
+        "cancel_check_interval_days": 100,
+        "decision_log_mode": "minimal",
+        "absolute_momentum_threshold": 0.03
+      }
+    },
+    {
+      "strategy_id": "concentrated_momentum_v4",
+      "universe_name": "momentum_100",
+      "start_date": "2016-01-01",
+      "end_date": "2026-04-22",
+      "initial_capital_eur": 50000,
+      "id": "v5_combo",
+      "name": "v5 TS 19% + AMT 2% + Top1=50%",
+      "params_override": {
+        "persist_chunk_days": 4000,
+        "cancel_check_interval_days": 100,
+        "decision_log_mode": "minimal",
+        "trailing_stop_pct": 0.19,
+        "absolute_momentum_threshold": 0.02,
+        "top1_max_position_size": 0.5
+      }
+    },
+    {
+      "strategy_id": "concentrated_momentum_v4",
+      "universe_name": "momentum_100",
+      "initial_capital_eur": 50000,
+      "start_date": "2014-01-01",
+      "end_date": "2026-04-22",
+      "id": "v5_2014_ts19",
+      "name": "v5 Start 2014 + TS 19%",
+      "params_override": {
+        "persist_chunk_days": 4000,
+        "cancel_check_interval_days": 100,
+        "decision_log_mode": "minimal",
+        "trailing_stop_pct": 0.19
+      }
+    },
+    {
+      "strategy_id": "concentrated_momentum_v4",
+      "universe_name": "momentum_100",
+      "initial_capital_eur": 50000,
+      "start_date": "2014-01-01",
+      "end_date": "2026-04-22",
+      "id": "v5_2014_base",
+      "name": "v5 Start 2014 (Basis)",
+      "params_override": {
+        "persist_chunk_days": 4000,
+        "cancel_check_interval_days": 100,
+        "decision_log_mode": "minimal"
+      }
+    },
+    {
+      "strategy_id": "concentrated_momentum_v4",
+      "universe_name": "momentum_100",
+      "initial_capital_eur": 50000,
+      "start_date": "2016-01-01",
+      "end_date": "2026-04-22",
+      "id": "v5_ts20",
+      "name": "v5 TS 20%",
+      "params_override": {
+        "persist_chunk_days": 4000,
+        "cancel_check_interval_days": 100,
+        "decision_log_mode": "minimal",
+        "trailing_stop_pct": 0.2
+      }
+    },
+    {
+      "strategy_id": "concentrated_momentum_v4",
+      "universe_name": "momentum_100",
+      "initial_capital_eur": 50000,
+      "start_date": "2016-01-01",
+      "end_date": "2026-04-22",
+      "id": "v5_ts21",
+      "name": "v5 TS 21%",
+      "params_override": {
+        "persist_chunk_days": 4000,
+        "cancel_check_interval_days": 100,
+        "decision_log_mode": "minimal",
+        "trailing_stop_pct": 0.21
+      }
+    },
+    {
+      "strategy_id": "concentrated_momentum_v4",
+      "universe_name": "momentum_100",
+      "initial_capital_eur": 50000,
+      "start_date": "2016-01-01",
+      "end_date": "2026-04-22",
+      "id": "v5_ts22",
+      "name": "v5 TS 22%",
+      "params_override": {
+        "persist_chunk_days": 4000,
+        "cancel_check_interval_days": 100,
+        "decision_log_mode": "minimal",
+        "trailing_stop_pct": 0.22
+      }
+    },
+    {
+      "strategy_id": "concentrated_momentum_v4",
+      "universe_name": "momentum_100",
+      "initial_capital_eur": 50000,
+      "start_date": "2016-01-01",
+      "end_date": "2026-04-22",
+      "id": "v5_lb168",
+      "name": "v5 Lookback 8M (168d)",
+      "params_override": {
+        "persist_chunk_days": 4000,
+        "cancel_check_interval_days": 100,
+        "decision_log_mode": "minimal",
+        "momentum_lookback_days": 168
+      }
+    },
+    {
+      "strategy_id": "concentrated_momentum_v4",
+      "universe_name": "legacy_champions",
+      "start_date": "2000-01-01",
+      "end_date": "2026-04-22",
+      "initial_capital_eur": 50000,
+      "id": "legacy_v4_ts18",
+      "name": "Legacy Champions 2000–2026 TS 18%",
+      "params_override": {
+        "persist_chunk_days": 4000,
+        "cancel_check_interval_days": 100,
+        "decision_log_mode": "minimal"
+      }
+    },
+    {
+      "strategy_id": "concentrated_momentum_v4",
+      "universe_name": "legacy_champions",
+      "start_date": "2000-01-01",
+      "end_date": "2026-04-22",
+      "initial_capital_eur": 50000,
+      "id": "legacy_v4_ts19",
+      "name": "Legacy Champions 2000–2026 TS 19%",
+      "params_override": {
+        "persist_chunk_days": 4000,
+        "cancel_check_interval_days": 100,
+        "decision_log_mode": "minimal",
+        "trailing_stop_pct": 0.19
+      }
+    },
+    {
+      "strategy_id": "concentrated_momentum_v4",
+      "universe_name": "legacy_champions",
+      "start_date": "2016-01-01",
+      "end_date": "2026-04-22",
+      "initial_capital_eur": 50000,
+      "id": "legacy_v4_2016",
+      "name": "Legacy Champions 2016–2026 (Vergleich)",
+      "params_override": {
+        "persist_chunk_days": 4000,
+        "cancel_check_interval_days": 100,
+        "decision_log_mode": "minimal"
+      }
+    },
+    {
+      "id": "v6_us_growth_conc",
+      "name": "v6 US Growth Concentrated — Top-3 TS19%",
+      "strategy_id": "concentrated_momentum_v4",
+      "universe_name": "us_growth",
+      "start_date": "2016-01-01",
+      "end_date": "2026-04-22",
+      "initial_capital_eur": 50000,
+      "notes": "Concentrated Momentum v4 auf kompaktem US-Growth Universe (7 Titel: AAPL/MSFT/GOOGL/AMZN/NVDA/META/TSLA). Hohe Konzentration = maximaler Fokus auf Top-3.",
+      "params_override": {
+        "persist_chunk_days": 4000,
+        "cancel_check_interval_days": 100,
+        "decision_log_mode": "minimal",
+        "trailing_stop_pct": 0.19
+      }
+    },
+    {
+      "id": "v6_multi_mom_conc",
+      "name": "v6 Multi-Period Momentum — Top-3 TS19%",
+      "strategy_id": "multi_momentum_v1",
+      "universe_name": "momentum_100",
+      "start_date": "2016-01-01",
+      "end_date": "2026-04-22",
+      "initial_capital_eur": 50000,
+      "notes": "Multi-Period Composite (12M×0.4 + 6M×0.35 + 3M×0.25) statt reinem 12M-Momentum. Konzentriert: Top-3 mit 25-40% Position. Ziel: bessere Einstiegstimings in laufende Trends.",
+      "params_override": {
+        "persist_chunk_days": 4000,
+        "cancel_check_interval_days": 100,
+        "decision_log_mode": "minimal",
+        "trailing_stop_pct": 0.19,
+        "top_n_signals": 3,
+        "max_positions": 4,
+        "min_position_size": 0.25,
+        "max_position_size": 0.4,
+        "min_hold_days": 120,
+        "atr_position_sizing": false,
+        "momentum_lookback_days": 252,
+        "momentum_6m_days": 126,
+        "momentum_3m_days": 63,
+        "absolute_momentum_threshold": 0.0,
+        "capital_gains_tax_rate": 0.275,
+        "commission_eur": 10.0,
+        "commission_rate": 0.001,
+        "whole_shares_only": true,
+        "t1_execution": true,
+        "market_regime_filter": false
+      }
+    },
+    {
+      "id": "v6_sharpe_mom_conc",
+      "name": "v6 Sharpe-Momentum Concentrated — Top-3 TS19%",
+      "strategy_id": "sharpe_momentum_v1",
+      "universe_name": "momentum_100",
+      "start_date": "2016-01-01",
+      "end_date": "2026-04-22",
+      "initial_capital_eur": 50000,
+      "notes": "Sharpe-Momentum (Return/Vola) statt reinem Return-Ranking. Volatilitätsbereinigte Selektion bevorzugt Titel mit besserer Risk-Adjusted-Performance. Konzentriert: Top-3 Positionen.",
+      "params_override": {
+        "persist_chunk_days": 4000,
+        "cancel_check_interval_days": 100,
+        "decision_log_mode": "minimal",
+        "trailing_stop_pct": 0.19,
+        "top_n_signals": 3,
+        "max_positions": 4,
+        "min_position_size": 0.25,
+        "max_position_size": 0.4,
+        "min_hold_days": 120,
+        "atr_position_sizing": false,
+        "momentum_lookback_days": 126,
+        "momentum_skip_days": 21,
+        "absolute_momentum_threshold": 0.0,
+        "capital_gains_tax_rate": 0.275,
+        "commission_eur": 10.0,
+        "commission_rate": 0.001,
+        "whole_shares_only": true,
+        "t1_execution": true,
+        "market_regime_filter": false
+      }
+    },
+    {
+      "id": "v6_ts19_max_hold",
+      "name": "v6 TS19% + Max-Hold 365d",
+      "strategy_id": "concentrated_momentum_v4",
+      "universe_name": "momentum_100",
+      "start_date": "2016-01-01",
+      "end_date": "2026-04-22",
+      "initial_capital_eur": 50000,
+      "notes": "v4-Basis mit MaxHold 365d: erzwingt jährlichen Reset auch wenn kein Trailing-Stop ausgelöst wird. Idee: veraltete Positionen werden frühzeitig gegen frische Top-Momentum-Titel ausgetauscht.",
+      "params_override": {
+        "persist_chunk_days": 4000,
+        "cancel_check_interval_days": 100,
+        "decision_log_mode": "minimal",
+        "trailing_stop_pct": 0.19,
+        "max_hold_days": 365
+      }
+    },
+    {
+      "id": "v6_tech12_conc",
+      "name": "v6 Tech Winners 12 — Top-2 TS19%",
+      "strategy_id": "concentrated_momentum_v4",
+      "universe_name": "tech_winners_12",
+      "start_date": "2016-01-01",
+      "end_date": "2026-04-22",
+      "initial_capital_eur": 50000,
+      "notes": "Concentrated Momentum v4 auf tech_winners_12 (12 Mega-Tech: NVDA/MSFT/AAPL/GOOGL/AMZN/META/ASML etc). Top-2 Selektion: 40-50% pro Position für maximale Konzentration auf absoluten Gewinnern.",
+      "params_override": {
+        "persist_chunk_days": 4000,
+        "cancel_check_interval_days": 100,
+        "decision_log_mode": "minimal",
+        "trailing_stop_pct": 0.19,
+        "top_n_signals": 2,
+        "max_positions": 3,
+        "min_position_size": 0.35,
+        "max_position_size": 0.5
+      }
+    },
+    {
+      "id": "v7_no_tlh",
+      "name": "v7 Kein TLH — TS19% (2016-2026)",
+      "strategy_id": "concentrated_momentum_v4",
+      "universe_name": "momentum_100",
+      "start_date": "2016-01-01",
+      "end_date": "2026-04-22",
+      "initial_capital_eur": 50000,
+      "batch_id": "batch_3000_v4",
+      "notes": "v4_ts19 Champion ohne Tax-Loss-Harvesting. TLH hat im Original -53k EUR gekostet (6 Trades, avg -18%). Referenztest: wie viel bringt TLH-Deaktivierung?",
+      "params_override": {
+        "persist_chunk_days": 4000,
+        "cancel_check_interval_days": 100,
+        "decision_log_mode": "minimal",
+        "trailing_stop_pct": 0.19,
+        "tax_loss_harvest_threshold": -1.0
+      }
+    },
+    {
+      "id": "v7_no_tlh_rf",
+      "name": "v7 Kein TLH + Regime Filter (2016-2026)",
+      "strategy_id": "concentrated_momentum_v4",
+      "universe_name": "momentum_100",
+      "start_date": "2016-01-01",
+      "end_date": "2026-04-22",
+      "initial_capital_eur": 50000,
+      "batch_id": "batch_3000_v4",
+      "notes": "v4_ts19 + TLH off + SPY SMA200 Regime Filter. Erste Kombination beider Verbesserungen auf dem bekannten 10J-Fenster. Referenz bevor wir auf 26 Jahre gehen.",
+      "params_override": {
+        "persist_chunk_days": 4000,
+        "cancel_check_interval_days": 100,
+        "decision_log_mode": "minimal",
+        "trailing_stop_pct": 0.19,
+        "tax_loss_harvest_threshold": -1.0,
+        "market_regime_filter": true
+      }
+    },
+    {
+      "id": "legacy_rf_no_tlh_ts19",
+      "name": "Legacy 26J — Regime Filter + kein TLH — TS19%",
+      "strategy_id": "concentrated_momentum_v4",
+      "universe_name": "legacy_champions",
+      "start_date": "2000-01-01",
+      "end_date": "2026-04-22",
+      "initial_capital_eur": 50000,
+      "batch_id": "batch_3000_v4",
+      "notes": "DER GROSSE TEST: 26 Jahre (2000-2026) auf legacy_champions. Regime Filter vermeidet Dotcom-Crash 2000-2002 (-78% NASDAQ) und Finanzkrise 2008 (-55%). TLH deaktiviert. Ziel: 20000%+.",
+      "params_override": {
+        "persist_chunk_days": 4000,
+        "cancel_check_interval_days": 100,
+        "decision_log_mode": "minimal",
+        "trailing_stop_pct": 0.19,
+        "tax_loss_harvest_threshold": -1.0,
+        "market_regime_filter": true
+      }
+    },
+    {
+      "id": "legacy_rf_no_tlh_ts19_top2",
+      "name": "Legacy 26J — Regime Filter + kein TLH — TS19% Top-2",
+      "strategy_id": "concentrated_momentum_v4",
+      "universe_name": "legacy_champions",
+      "start_date": "2000-01-01",
+      "end_date": "2026-04-22",
+      "initial_capital_eur": 50000,
+      "batch_id": "batch_3000_v4",
+      "notes": "Wie legacy_rf_no_tlh_ts19 aber noch konzentrierter: Top-2 Positionen mit je 40-50%. 28 Kandidaten → 2 beste. Bei Regime-Schutz kann man sich höhere Konzentration leisten.",
+      "params_override": {
+        "persist_chunk_days": 4000,
+        "cancel_check_interval_days": 100,
+        "decision_log_mode": "minimal",
+        "trailing_stop_pct": 0.19,
+        "tax_loss_harvest_threshold": -1.0,
+        "market_regime_filter": true,
+        "top_n_signals": 2,
+        "max_positions": 3,
+        "min_position_size": 0.4,
+        "max_position_size": 0.5
+      }
+    },
+    {
+      "id": "legacy_rf_no_tlh_ts25",
+      "name": "Legacy 26J — Regime Filter + kein TLH — TS25% (weiter laufen lassen)",
+      "strategy_id": "concentrated_momentum_v4",
+      "universe_name": "legacy_champions",
+      "start_date": "2000-01-01",
+      "end_date": "2026-04-22",
+      "initial_capital_eur": 50000,
+      "batch_id": "batch_3000_v4",
+      "notes": "Wie legacy_rf aber TS 25%: mit Regime-Filter als Absicherung kann man sich erlauben, Positionen viel länger laufen zu lassen. AAPL 2016-2021, NVDA 2023-2025 würden nicht vorzeitig gestoppt.",
+      "params_override": {
+        "persist_chunk_days": 4000,
+        "cancel_check_interval_days": 100,
+        "decision_log_mode": "minimal",
+        "trailing_stop_pct": 0.25,
+        "tax_loss_harvest_threshold": -1.0,
+        "market_regime_filter": true
+      }
     }
   ],
   "scenario_batches": [
@@ -18439,6 +20269,1679 @@
         }
       ],
       "finished_at": "2026-04-25T19:05:29.729376+00:00"
+    },
+    {
+      "id": "batch_csm_test",
+      "name": "Cross-Sectional Momentum — Vergleich",
+      "scenario_ids": [
+        "csm_top5",
+        "csm_top10",
+        "csm_top15",
+        "csm_top10_pos_mom",
+        "csm_top10_tight_stop",
+        "dual_mom_baseline"
+      ],
+      "status": "completed",
+      "created_at": "2026-04-26T00:00:00+00:00",
+      "started_at": "2026-04-26T08:11:12.586018+00:00",
+      "finished_at": "2026-04-26T08:12:27.260769+00:00",
+      "current_index": 6,
+      "run_ids": [
+        984,
+        985,
+        986,
+        987,
+        988,
+        989
+      ],
+      "results": [
+        {
+          "scenario_id": "csm_top5",
+          "run_id": 984,
+          "status": "completed",
+          "final_equity_eur": 16695.25,
+          "total_return_pct": 66.95,
+          "max_drawdown_pct": 22.31,
+          "sharpe_ratio": 0.4576
+        },
+        {
+          "scenario_id": "csm_top10",
+          "run_id": 985,
+          "status": "completed",
+          "final_equity_eur": 17698.15,
+          "total_return_pct": 76.98,
+          "max_drawdown_pct": 21.88,
+          "sharpe_ratio": 0.5512
+        },
+        {
+          "scenario_id": "csm_top15",
+          "run_id": 986,
+          "status": "completed",
+          "final_equity_eur": 17883.12,
+          "total_return_pct": 78.83,
+          "max_drawdown_pct": 20.75,
+          "sharpe_ratio": 0.5987
+        },
+        {
+          "scenario_id": "csm_top10_pos_mom",
+          "run_id": 987,
+          "status": "completed",
+          "final_equity_eur": 16944.48,
+          "total_return_pct": 69.44,
+          "max_drawdown_pct": 23.92,
+          "sharpe_ratio": 0.5135
+        },
+        {
+          "scenario_id": "csm_top10_tight_stop",
+          "run_id": 988,
+          "status": "completed",
+          "final_equity_eur": 14964.81,
+          "total_return_pct": 49.65,
+          "max_drawdown_pct": 22.97,
+          "sharpe_ratio": 0.4174
+        },
+        {
+          "scenario_id": "dual_mom_baseline",
+          "run_id": 989,
+          "status": "completed",
+          "final_equity_eur": 24069.63,
+          "total_return_pct": 140.7,
+          "max_drawdown_pct": 22.65,
+          "sharpe_ratio": 0.7021
+        }
+      ],
+      "error": null
+    },
+    {
+      "id": "batch_csm100_test",
+      "name": "Cross-Sectional Momentum — momentum_100",
+      "scenario_ids": [
+        "csm100_top5",
+        "csm100_top10",
+        "csm100_top15",
+        "csm100_top20",
+        "dual_mom100_baseline"
+      ],
+      "status": "completed",
+      "created_at": "2026-04-26T00:00:00+00:00",
+      "started_at": "2026-04-26T08:15:52.218024+00:00",
+      "finished_at": "2026-04-26T08:19:09.287862+00:00",
+      "current_index": 5,
+      "run_ids": [
+        990,
+        991,
+        992,
+        993,
+        994
+      ],
+      "results": [
+        {
+          "scenario_id": "csm100_top5",
+          "run_id": 990,
+          "status": "completed",
+          "final_equity_eur": 61885.77,
+          "total_return_pct": 518.86,
+          "max_drawdown_pct": 39.6,
+          "sharpe_ratio": 0.9773
+        },
+        {
+          "scenario_id": "csm100_top10",
+          "run_id": 991,
+          "status": "completed",
+          "final_equity_eur": 41332.74,
+          "total_return_pct": 313.33,
+          "max_drawdown_pct": 35.43,
+          "sharpe_ratio": 0.8169
+        },
+        {
+          "scenario_id": "csm100_top15",
+          "run_id": 992,
+          "status": "completed",
+          "final_equity_eur": 36807.86,
+          "total_return_pct": 268.08,
+          "max_drawdown_pct": 30.72,
+          "sharpe_ratio": 0.797
+        },
+        {
+          "scenario_id": "csm100_top20",
+          "run_id": 993,
+          "status": "completed",
+          "final_equity_eur": 32655.81,
+          "total_return_pct": 226.56,
+          "max_drawdown_pct": 29.65,
+          "sharpe_ratio": 0.7895
+        },
+        {
+          "scenario_id": "dual_mom100_baseline",
+          "run_id": 994,
+          "status": "completed",
+          "final_equity_eur": 77276.58,
+          "total_return_pct": 672.77,
+          "max_drawdown_pct": 34.93,
+          "sharpe_ratio": 0.9431
+        }
+      ],
+      "error": null
+    },
+    {
+      "id": "batch_monthly_rotation",
+      "name": "Monthly Rotation AT — Erster Test",
+      "scenario_ids": [
+        "mr_top10",
+        "mr_top15",
+        "mr_top20",
+        "mr_top15_notax"
+      ],
+      "status": "completed",
+      "created_at": "2026-04-26T00:00:00+00:00",
+      "started_at": "2026-04-26T08:46:49.419077+00:00",
+      "finished_at": "2026-04-26T08:47:51.574179+00:00",
+      "current_index": 4,
+      "run_ids": [
+        999,
+        1000,
+        1001,
+        1002
+      ],
+      "results": [
+        {
+          "scenario_id": "mr_top10",
+          "run_id": 999,
+          "status": "completed",
+          "final_equity_eur": 7599.78,
+          "total_return_pct": -24.0,
+          "max_drawdown_pct": 39.69,
+          "sharpe_ratio": -0.218
+        },
+        {
+          "scenario_id": "mr_top15",
+          "run_id": 1000,
+          "status": "completed",
+          "final_equity_eur": 7577.38,
+          "total_return_pct": -24.23,
+          "max_drawdown_pct": 41.68,
+          "sharpe_ratio": -0.1992
+        },
+        {
+          "scenario_id": "mr_top20",
+          "run_id": 1001,
+          "status": "completed",
+          "final_equity_eur": 7433.73,
+          "total_return_pct": -25.66,
+          "max_drawdown_pct": 41.88,
+          "sharpe_ratio": -0.2089
+        },
+        {
+          "scenario_id": "mr_top15_notax",
+          "run_id": 1002,
+          "status": "completed",
+          "final_equity_eur": 11199.77,
+          "total_return_pct": 12.0,
+          "max_drawdown_pct": 33.99,
+          "sharpe_ratio": 0.141
+        }
+      ],
+      "error": null
+    },
+    {
+      "id": "batch_at_features",
+      "name": "AT Features — Realer Kostenvergleich ohne Monthly Rotation",
+      "scenario_ids": [
+        "tqa_m100_baseline",
+        "tqa_m100_at",
+        "dualmom_m100_at",
+        "csm_m100_at"
+      ],
+      "status": "completed",
+      "created_at": "2026-04-26T00:00:00+00:00",
+      "started_at": "2026-04-26T09:04:29.397713+00:00",
+      "finished_at": "2026-04-26T09:08:27.280470+00:00",
+      "current_index": 4,
+      "run_ids": [
+        1003,
+        1004,
+        1005,
+        1006
+      ],
+      "results": [
+        {
+          "scenario_id": "tqa_m100_baseline",
+          "run_id": 1003,
+          "status": "completed",
+          "final_equity_eur": 25108.63,
+          "total_return_pct": 151.09,
+          "max_drawdown_pct": 25.93,
+          "sharpe_ratio": 0.6123
+        },
+        {
+          "scenario_id": "tqa_m100_at",
+          "run_id": 1004,
+          "status": "completed",
+          "final_equity_eur": 305.96,
+          "total_return_pct": -96.94,
+          "max_drawdown_pct": 97.01,
+          "sharpe_ratio": -1.6833
+        },
+        {
+          "scenario_id": "dualmom_m100_at",
+          "run_id": 1005,
+          "status": "completed",
+          "final_equity_eur": 309.71,
+          "total_return_pct": -96.9,
+          "max_drawdown_pct": 97.15,
+          "sharpe_ratio": -1.2075
+        },
+        {
+          "scenario_id": "csm_m100_at",
+          "run_id": 1006,
+          "status": "completed",
+          "final_equity_eur": 14547.16,
+          "total_return_pct": 45.47,
+          "max_drawdown_pct": 44.43,
+          "sharpe_ratio": 0.2618
+        }
+      ],
+      "error": null
+    },
+    {
+      "id": "batch_04a016357c",
+      "name": "Scenario Batch 2026-04-26 09:36 UTC",
+      "status": "completed",
+      "created_at": "2026-04-26T09:36:58.292914+00:00",
+      "started_at": "2026-04-26T09:37:01.007583+00:00",
+      "finished_at": "2026-04-26T09:37:12.425202+00:00",
+      "current_index": 1,
+      "scenario_ids": [
+        "mr_top15_notax"
+      ],
+      "run_ids": [
+        1008
+      ],
+      "results": [
+        {
+          "scenario_id": "mr_top15_notax",
+          "run_id": 1008,
+          "status": "completed",
+          "final_equity_eur": 3277.42,
+          "total_return_pct": -67.23,
+          "max_drawdown_pct": 69.94,
+          "sharpe_ratio": -0.8933
+        }
+      ],
+      "error": null
+    },
+    {
+      "id": "batch_9251eeb4ed",
+      "name": "Scenario Batch 2026-04-26 10:20 UTC",
+      "status": "completed",
+      "created_at": "2026-04-26T10:20:11.114431+00:00",
+      "started_at": "2026-04-26T10:21:04.292022+00:00",
+      "finished_at": "2026-04-26T10:21:22.835555+00:00",
+      "current_index": 1,
+      "scenario_ids": [
+        "resume_291_trend_quality_defensive_v1"
+      ],
+      "run_ids": [
+        1009
+      ],
+      "results": [
+        {
+          "scenario_id": "resume_291_trend_quality_defensive_v1",
+          "run_id": 1009,
+          "status": "completed",
+          "final_equity_eur": 171731.71,
+          "total_return_pct": 71.73,
+          "max_drawdown_pct": 13.05,
+          "sharpe_ratio": 0.7246
+        }
+      ],
+      "error": null
+    },
+    {
+      "id": "batch_25cbb14756",
+      "name": "Scenario Batch 2026-04-26 10:22 UTC",
+      "status": "completed",
+      "created_at": "2026-04-26T10:22:40.041037+00:00",
+      "started_at": "2026-04-26T10:22:41.675097+00:00",
+      "finished_at": "2026-04-26T10:22:53.149918+00:00",
+      "current_index": 1,
+      "scenario_ids": [
+        "resume_291_trend_quality_defensive_v1"
+      ],
+      "run_ids": [
+        1010
+      ],
+      "results": [
+        {
+          "scenario_id": "resume_291_trend_quality_defensive_v1",
+          "run_id": 1010,
+          "status": "completed",
+          "final_equity_eur": 144949.4,
+          "total_return_pct": 44.95,
+          "max_drawdown_pct": 18.71,
+          "sharpe_ratio": 0.4222
+        }
+      ],
+      "error": null
+    },
+    {
+      "id": "batch_d991e3bb0a",
+      "name": "Scenario Batch 2026-04-26 10:23 UTC",
+      "status": "completed",
+      "created_at": "2026-04-26T10:23:37.717674+00:00",
+      "started_at": "2026-04-26T10:23:38.700014+00:00",
+      "finished_at": "2026-04-26T10:23:49.501058+00:00",
+      "current_index": 1,
+      "scenario_ids": [
+        "resume_291_trend_quality_defensive_v1"
+      ],
+      "run_ids": [
+        1011
+      ],
+      "results": [
+        {
+          "scenario_id": "resume_291_trend_quality_defensive_v1",
+          "run_id": 1011,
+          "status": "completed",
+          "final_equity_eur": 144949.4,
+          "total_return_pct": 44.95,
+          "max_drawdown_pct": 18.71,
+          "sharpe_ratio": 0.4222
+        }
+      ],
+      "error": null
+    },
+    {
+      "id": "batch_at_capital",
+      "name": "AT Features — Kapitalvergleich 50k vs 100k",
+      "scenario_ids": [
+        "tqa_m100_at_50k",
+        "dualmom_m100_at_50k",
+        "tqa_m100_at_100k",
+        "dualmom_m100_at_100k"
+      ],
+      "status": "completed",
+      "created_at": "2026-04-26T00:00:00+00:00",
+      "started_at": "2026-04-26T16:26:03.953303+00:00",
+      "finished_at": "2026-04-26T16:31:00.293336+00:00",
+      "current_index": 4,
+      "run_ids": [
+        1012,
+        1013,
+        1014,
+        1015
+      ],
+      "results": [
+        {
+          "scenario_id": "tqa_m100_at_50k",
+          "run_id": 1012,
+          "status": "completed",
+          "final_equity_eur": 83972.88,
+          "total_return_pct": 67.95,
+          "max_drawdown_pct": 31.26,
+          "sharpe_ratio": 0.3676
+        },
+        {
+          "scenario_id": "dualmom_m100_at_50k",
+          "run_id": 1013,
+          "status": "completed",
+          "final_equity_eur": 161452.79,
+          "total_return_pct": 222.91,
+          "max_drawdown_pct": 38.45,
+          "sharpe_ratio": 0.57
+        },
+        {
+          "scenario_id": "tqa_m100_at_100k",
+          "run_id": 1014,
+          "status": "completed",
+          "final_equity_eur": 189813.35,
+          "total_return_pct": 89.81,
+          "max_drawdown_pct": 29.77,
+          "sharpe_ratio": 0.4405
+        },
+        {
+          "scenario_id": "dualmom_m100_at_100k",
+          "run_id": 1015,
+          "status": "completed",
+          "final_equity_eur": 368839.36,
+          "total_return_pct": 268.84,
+          "max_drawdown_pct": 37.47,
+          "sharpe_ratio": 0.625
+        }
+      ],
+      "error": null
+    },
+    {
+      "id": "batch_min_hold",
+      "name": "Mindesthaltedauer — Tradefrequenz reduzieren",
+      "scenario_ids": [
+        "tqa_hold10",
+        "tqa_hold20",
+        "tqa_hold30"
+      ],
+      "status": "completed",
+      "created_at": "2026-04-26T00:00:00+00:00",
+      "started_at": "2026-04-26T16:41:49.655966+00:00",
+      "finished_at": "2026-04-26T16:45:16.517640+00:00",
+      "current_index": 3,
+      "run_ids": [
+        1016,
+        1017,
+        1018
+      ],
+      "results": [
+        {
+          "scenario_id": "tqa_hold10",
+          "run_id": 1016,
+          "status": "completed",
+          "final_equity_eur": 25710.43,
+          "total_return_pct": 157.1,
+          "max_drawdown_pct": 31.9,
+          "sharpe_ratio": 0.6151
+        },
+        {
+          "scenario_id": "tqa_hold20",
+          "run_id": 1017,
+          "status": "completed",
+          "final_equity_eur": 32972.6,
+          "total_return_pct": 229.73,
+          "max_drawdown_pct": 26.84,
+          "sharpe_ratio": 0.7251
+        },
+        {
+          "scenario_id": "tqa_hold30",
+          "run_id": 1018,
+          "status": "completed",
+          "final_equity_eur": 49646.49,
+          "total_return_pct": 396.46,
+          "max_drawdown_pct": 35.63,
+          "sharpe_ratio": 0.9331
+        }
+      ],
+      "error": null
+    },
+    {
+      "id": "batch_hold_at_50k",
+      "name": "min_hold + AT Features — 50k Kapital",
+      "scenario_ids": [
+        "tqa_hold10_at_50k",
+        "tqa_hold20_at_50k",
+        "tqa_hold30_at_50k",
+        "dualmom_hold30_at_50k"
+      ],
+      "status": "completed",
+      "created_at": "2026-04-26T00:00:00+00:00",
+      "started_at": "2026-04-26T16:47:08.165373+00:00",
+      "finished_at": "2026-04-26T16:51:13.801712+00:00",
+      "current_index": 4,
+      "run_ids": [
+        1019,
+        1020,
+        1021,
+        1022
+      ],
+      "results": [
+        {
+          "scenario_id": "tqa_hold10_at_50k",
+          "run_id": 1019,
+          "status": "completed",
+          "final_equity_eur": 100125.83,
+          "total_return_pct": 100.25,
+          "max_drawdown_pct": 33.0,
+          "sharpe_ratio": 0.4502
+        },
+        {
+          "scenario_id": "tqa_hold20_at_50k",
+          "run_id": 1020,
+          "status": "completed",
+          "final_equity_eur": 103526.7,
+          "total_return_pct": 107.05,
+          "max_drawdown_pct": 29.83,
+          "sharpe_ratio": 0.4508
+        },
+        {
+          "scenario_id": "tqa_hold30_at_50k",
+          "run_id": 1021,
+          "status": "completed",
+          "final_equity_eur": 150437.95,
+          "total_return_pct": 200.88,
+          "max_drawdown_pct": 41.07,
+          "sharpe_ratio": 0.6307
+        },
+        {
+          "scenario_id": "dualmom_hold30_at_50k",
+          "run_id": 1022,
+          "status": "completed",
+          "final_equity_eur": 238565.74,
+          "total_return_pct": 377.13,
+          "max_drawdown_pct": 32.19,
+          "sharpe_ratio": 0.7459
+        }
+      ],
+      "error": null
+    },
+    {
+      "id": "batch_new_strat_v1",
+      "name": "Neue Strategien vs. Dual Momentum Baseline",
+      "scenario_ids": [
+        "sharpe_mom_100_at_50k",
+        "multi_mom_100_at_50k",
+        "mean_rev_100_at_50k",
+        "dualmom_baseline_at_50k"
+      ],
+      "status": "completed",
+      "created_at": "2026-04-26T17:00:00+00:00",
+      "started_at": "2026-04-26T17:07:19.904063+00:00",
+      "error": null,
+      "current_index": 4,
+      "run_ids": [
+        1023,
+        1024,
+        1025,
+        1026
+      ],
+      "results": [
+        {
+          "scenario_id": "sharpe_mom_100_at_50k",
+          "run_id": 1023,
+          "status": "completed",
+          "final_equity_eur": 118644.92,
+          "total_return_pct": 137.29,
+          "max_drawdown_pct": 24.26,
+          "sharpe_ratio": 0.5232
+        },
+        {
+          "scenario_id": "multi_mom_100_at_50k",
+          "run_id": 1024,
+          "status": "completed",
+          "final_equity_eur": 118644.92,
+          "total_return_pct": 137.29,
+          "max_drawdown_pct": 24.26,
+          "sharpe_ratio": 0.5232
+        },
+        {
+          "scenario_id": "mean_rev_100_at_50k",
+          "run_id": 1025,
+          "status": "completed",
+          "final_equity_eur": 67128.55,
+          "total_return_pct": 34.26,
+          "max_drawdown_pct": 32.09,
+          "sharpe_ratio": 0.2296
+        },
+        {
+          "scenario_id": "dualmom_baseline_at_50k",
+          "run_id": 1026,
+          "status": "completed",
+          "final_equity_eur": 238565.74,
+          "total_return_pct": 377.13,
+          "max_drawdown_pct": 32.19,
+          "sharpe_ratio": 0.7459
+        }
+      ],
+      "finished_at": "2026-04-26T17:13:50.241441+00:00"
+    },
+    {
+      "id": "batch_concentrated_v1",
+      "name": "Konzentriertes Momentum + Regime-Filter vs. Baseline",
+      "scenario_ids": [
+        "dualmom_rf_at_50k",
+        "conc_mom_at_50k",
+        "conc_mom_top5_at_50k"
+      ],
+      "status": "completed",
+      "created_at": "2026-04-26T18:00:00+00:00",
+      "started_at": "2026-04-26T18:13:45.566027+00:00",
+      "error": null,
+      "current_index": 3,
+      "run_ids": [
+        1027,
+        1028,
+        1029
+      ],
+      "results": [
+        {
+          "scenario_id": "dualmom_rf_at_50k",
+          "run_id": 1027,
+          "status": "completed",
+          "final_equity_eur": 129631.02,
+          "total_return_pct": 159.26,
+          "max_drawdown_pct": 35.95,
+          "sharpe_ratio": 0.503
+        },
+        {
+          "scenario_id": "conc_mom_at_50k",
+          "run_id": 1028,
+          "status": "completed",
+          "final_equity_eur": 343907.38,
+          "total_return_pct": 587.81,
+          "max_drawdown_pct": 43.15,
+          "sharpe_ratio": 0.7149
+        },
+        {
+          "scenario_id": "conc_mom_top5_at_50k",
+          "run_id": 1029,
+          "status": "completed",
+          "final_equity_eur": 250192.92,
+          "total_return_pct": 400.39,
+          "max_drawdown_pct": 46.65,
+          "sharpe_ratio": 0.6656
+        }
+      ],
+      "finished_at": "2026-04-26T18:17:22.135358+00:00"
+    },
+    {
+      "id": "batch_conc_sweep_v1",
+      "name": "Concentrated Momentum Sweep — RF / Trailing-Stop / Konzentration",
+      "scenario_ids": [
+        "conc_top3_no_rf_at_50k",
+        "conc_top3_ts15_at_50k",
+        "conc_top3_ts20_at_50k",
+        "conc_top2_at_50k",
+        "conc_top3_norf_ts15_at_50k",
+        "conc_top3_norf_ts20_at_50k"
+      ],
+      "status": "completed",
+      "created_at": "2026-04-26T18:30:00+00:00",
+      "started_at": "2026-04-26T18:20:15.316863+00:00",
+      "error": null,
+      "current_index": 6,
+      "run_ids": [
+        1030,
+        1031,
+        1032,
+        1033,
+        1034,
+        1035
+      ],
+      "results": [
+        {
+          "scenario_id": "conc_top3_no_rf_at_50k",
+          "run_id": 1030,
+          "status": "completed",
+          "final_equity_eur": 590025.48,
+          "total_return_pct": 1080.05,
+          "max_drawdown_pct": 40.39,
+          "sharpe_ratio": 0.8388
+        },
+        {
+          "scenario_id": "conc_top3_ts15_at_50k",
+          "run_id": 1031,
+          "status": "completed",
+          "final_equity_eur": 257233.93,
+          "total_return_pct": 414.47,
+          "max_drawdown_pct": 43.05,
+          "sharpe_ratio": 0.6214
+        },
+        {
+          "scenario_id": "conc_top3_ts20_at_50k",
+          "run_id": 1032,
+          "status": "completed",
+          "final_equity_eur": 313457.34,
+          "total_return_pct": 526.91,
+          "max_drawdown_pct": 42.21,
+          "sharpe_ratio": 0.6687
+        },
+        {
+          "scenario_id": "conc_top2_at_50k",
+          "run_id": 1033,
+          "status": "completed",
+          "final_equity_eur": 288050.95,
+          "total_return_pct": 476.1,
+          "max_drawdown_pct": 38.82,
+          "sharpe_ratio": 0.5952
+        },
+        {
+          "scenario_id": "conc_top3_norf_ts15_at_50k",
+          "run_id": 1034,
+          "status": "completed",
+          "final_equity_eur": 659113.1,
+          "total_return_pct": 1218.23,
+          "max_drawdown_pct": 41.88,
+          "sharpe_ratio": 0.8696
+        },
+        {
+          "scenario_id": "conc_top3_norf_ts20_at_50k",
+          "run_id": 1035,
+          "status": "completed",
+          "final_equity_eur": 491694.94,
+          "total_return_pct": 883.39,
+          "max_drawdown_pct": 49.26,
+          "sharpe_ratio": 0.7949
+        }
+      ],
+      "finished_at": "2026-04-26T18:25:52.601385+00:00"
+    },
+    {
+      "id": "batch_v2_finetune",
+      "name": "Concentrated v2 Feintuning — hold_days / lookback / skip",
+      "scenario_ids": [
+        "v2_hold20",
+        "v2_hold45",
+        "v2_hold60",
+        "v2_lb6m",
+        "v2_lb9m",
+        "v2_lb15m",
+        "v2_skip0"
+      ],
+      "status": "completed",
+      "created_at": "2026-04-26T19:00:00+00:00",
+      "started_at": "2026-04-26T18:34:13.526147+00:00",
+      "error": null,
+      "current_index": 7,
+      "run_ids": [
+        1036,
+        1037,
+        1038,
+        1039,
+        1040,
+        1041,
+        1042
+      ],
+      "results": [
+        {
+          "scenario_id": "v2_hold20",
+          "run_id": 1036,
+          "status": "completed",
+          "final_equity_eur": 491040.58,
+          "total_return_pct": 882.08,
+          "max_drawdown_pct": 34.47,
+          "sharpe_ratio": 0.8085
+        },
+        {
+          "scenario_id": "v2_hold45",
+          "run_id": 1037,
+          "status": "completed",
+          "final_equity_eur": 566949.81,
+          "total_return_pct": 1033.9,
+          "max_drawdown_pct": 42.8,
+          "sharpe_ratio": 0.8298
+        },
+        {
+          "scenario_id": "v2_hold60",
+          "run_id": 1038,
+          "status": "completed",
+          "final_equity_eur": 750414.45,
+          "total_return_pct": 1400.83,
+          "max_drawdown_pct": 42.54,
+          "sharpe_ratio": 0.8497
+        },
+        {
+          "scenario_id": "v2_lb6m",
+          "run_id": 1039,
+          "status": "completed",
+          "final_equity_eur": 682209.52,
+          "total_return_pct": 1264.42,
+          "max_drawdown_pct": 37.85,
+          "sharpe_ratio": 0.8752
+        },
+        {
+          "scenario_id": "v2_lb9m",
+          "run_id": 1040,
+          "status": "completed",
+          "final_equity_eur": 616166.01,
+          "total_return_pct": 1132.33,
+          "max_drawdown_pct": 41.26,
+          "sharpe_ratio": 0.8496
+        },
+        {
+          "scenario_id": "v2_lb15m",
+          "run_id": 1041,
+          "status": "completed",
+          "final_equity_eur": 680592.48,
+          "total_return_pct": 1261.18,
+          "max_drawdown_pct": 48.06,
+          "sharpe_ratio": 0.878
+        },
+        {
+          "scenario_id": "v2_skip0",
+          "run_id": 1042,
+          "status": "completed",
+          "final_equity_eur": 659113.1,
+          "total_return_pct": 1218.23,
+          "max_drawdown_pct": 41.88,
+          "sharpe_ratio": 0.8696
+        }
+      ],
+      "finished_at": "2026-04-26T18:41:05.714916+00:00"
+    },
+    {
+      "id": "batch_v2_deep",
+      "name": "Concentrated v2 Deep Sweep — hold90/120 + 6M-Kombi",
+      "scenario_ids": [
+        "v2_hold90",
+        "v2_hold120",
+        "v2_hold60_lb6m",
+        "v2_hold90_lb6m",
+        "v2_hold120_lb6m"
+      ],
+      "status": "completed",
+      "created_at": "2026-04-26T20:00:00+00:00",
+      "started_at": "2026-04-26T18:53:35.105127+00:00",
+      "error": null,
+      "current_index": 5,
+      "run_ids": [
+        1043,
+        1044,
+        1045,
+        1046,
+        1047
+      ],
+      "results": [
+        {
+          "scenario_id": "v2_hold90",
+          "run_id": 1043,
+          "status": "completed",
+          "final_equity_eur": 795114.53,
+          "total_return_pct": 1490.23,
+          "max_drawdown_pct": 48.56,
+          "sharpe_ratio": 0.8974,
+          "kest_total": 275872.22,
+          "commission_total": 14125.07,
+          "total_trades": 302
+        },
+        {
+          "scenario_id": "v2_hold120",
+          "run_id": 1044,
+          "status": "completed",
+          "final_equity_eur": 942071.69,
+          "total_return_pct": 1784.14,
+          "max_drawdown_pct": 45.21,
+          "sharpe_ratio": 0.9234,
+          "kest_total": 323354.18,
+          "commission_total": 12345.39,
+          "total_trades": 226
+        },
+        {
+          "scenario_id": "v2_hold60_lb6m",
+          "run_id": 1045,
+          "status": "completed",
+          "final_equity_eur": 709865.18,
+          "total_return_pct": 1319.73,
+          "max_drawdown_pct": 33.7,
+          "sharpe_ratio": 0.8821,
+          "kest_total": 245768.36,
+          "commission_total": 19055.74,
+          "total_trades": 425
+        },
+        {
+          "scenario_id": "v2_hold90_lb6m",
+          "run_id": 1046,
+          "status": "completed",
+          "final_equity_eur": 891928.81,
+          "total_return_pct": 1683.86,
+          "max_drawdown_pct": 34.73,
+          "sharpe_ratio": 0.9266,
+          "kest_total": 318020.26,
+          "commission_total": 17870.77,
+          "total_trades": 314
+        },
+        {
+          "scenario_id": "v2_hold120_lb6m",
+          "run_id": 1047,
+          "status": "completed",
+          "final_equity_eur": 908790.03,
+          "total_return_pct": 1717.58,
+          "max_drawdown_pct": 36.41,
+          "sharpe_ratio": 0.9157,
+          "kest_total": 305668.65,
+          "commission_total": 13406.05,
+          "total_trades": 258
+        }
+      ],
+      "finished_at": "2026-04-26T18:58:17.450478+00:00"
+    },
+    {
+      "id": "batch_smallmid_v1",
+      "name": "Small/Mid-Cap Momentum Universe — beste Parameter",
+      "scenario_ids": [
+        "smc_top3_hold60_lb6m",
+        "smc_top3_hold90_lb6m",
+        "smc_top3_hold120_lb6m",
+        "smc_top3_hold120_lb12m"
+      ],
+      "status": "completed",
+      "created_at": "2026-04-26T20:30:00+00:00",
+      "started_at": "2026-04-26T19:03:54.475774+00:00",
+      "error": null,
+      "current_index": 4,
+      "run_ids": [
+        1048,
+        1049,
+        1050,
+        1051
+      ],
+      "results": [
+        {
+          "scenario_id": "smc_top3_hold60_lb6m",
+          "run_id": 1048,
+          "status": "completed",
+          "final_equity_eur": 375611.49,
+          "total_return_pct": 651.22,
+          "max_drawdown_pct": 46.44,
+          "sharpe_ratio": 0.7264,
+          "kest_total": 102282.89,
+          "commission_total": 15263.28,
+          "total_trades": 483
+        },
+        {
+          "scenario_id": "smc_top3_hold90_lb6m",
+          "run_id": 1049,
+          "status": "completed",
+          "final_equity_eur": 257037.5,
+          "total_return_pct": 414.07,
+          "max_drawdown_pct": 46.19,
+          "sharpe_ratio": 0.6255,
+          "kest_total": 77236.02,
+          "commission_total": 8816.97,
+          "total_trades": 368
+        },
+        {
+          "scenario_id": "smc_top3_hold120_lb6m",
+          "run_id": 1050,
+          "status": "completed",
+          "final_equity_eur": 276626.36,
+          "total_return_pct": 453.25,
+          "max_drawdown_pct": 45.98,
+          "sharpe_ratio": 0.6355,
+          "kest_total": 88272.04,
+          "commission_total": 7731.88,
+          "total_trades": 310
+        },
+        {
+          "scenario_id": "smc_top3_hold120_lb12m",
+          "run_id": 1051,
+          "status": "completed",
+          "final_equity_eur": 534362.2,
+          "total_return_pct": 968.72,
+          "max_drawdown_pct": 39.72,
+          "sharpe_ratio": 0.8273,
+          "kest_total": 194401.24,
+          "commission_total": 11855.01,
+          "total_trades": 264
+        }
+      ],
+      "finished_at": "2026-04-26T19:05:59.728934+00:00"
+    },
+    {
+      "id": "batch_v2_push2000",
+      "name": "Push zur 2000% — hold150/180 + größere Positionen",
+      "scenario_ids": [
+        "v2_hold150",
+        "v2_hold180",
+        "v2_hold150_lb6m",
+        "v2_hold180_lb6m",
+        "v2_h120_pos40",
+        "v2_h120_lb6m_pos40",
+        "v2_h150_lb6m_pos40"
+      ],
+      "status": "completed",
+      "created_at": "2026-04-26T21:00:00+00:00",
+      "started_at": "2026-04-26T19:09:47.180499+00:00",
+      "error": null,
+      "current_index": 7,
+      "run_ids": [
+        1052,
+        1053,
+        1054,
+        1055,
+        1056,
+        1057,
+        1058
+      ],
+      "results": [
+        {
+          "scenario_id": "v2_hold150",
+          "run_id": 1052,
+          "status": "completed",
+          "final_equity_eur": 938115.44,
+          "total_return_pct": 1776.23,
+          "max_drawdown_pct": 48.65,
+          "sharpe_ratio": 0.8797,
+          "kest_total": 419564.12,
+          "commission_total": 13587.48,
+          "total_trades": 202
+        },
+        {
+          "scenario_id": "v2_hold180",
+          "run_id": 1053,
+          "status": "completed",
+          "final_equity_eur": 1016997.73,
+          "total_return_pct": 1934.0,
+          "max_drawdown_pct": 51.46,
+          "sharpe_ratio": 0.8407,
+          "kest_total": 424065.13,
+          "commission_total": 11438.42,
+          "total_trades": 174
+        },
+        {
+          "scenario_id": "v2_hold150_lb6m",
+          "run_id": 1054,
+          "status": "completed",
+          "final_equity_eur": 614511.05,
+          "total_return_pct": 1129.02,
+          "max_drawdown_pct": 44.64,
+          "sharpe_ratio": 0.7859,
+          "kest_total": 243222.32,
+          "commission_total": 9114.83,
+          "total_trades": 220
+        },
+        {
+          "scenario_id": "v2_hold180_lb6m",
+          "run_id": 1055,
+          "status": "completed",
+          "final_equity_eur": 588962.65,
+          "total_return_pct": 1077.93,
+          "max_drawdown_pct": 44.88,
+          "sharpe_ratio": 0.7726,
+          "kest_total": 231372.69,
+          "commission_total": 8901.92,
+          "total_trades": 204
+        },
+        {
+          "scenario_id": "v2_h120_pos40",
+          "run_id": 1056,
+          "status": "completed",
+          "final_equity_eur": 930322.33,
+          "total_return_pct": 1760.64,
+          "max_drawdown_pct": 47.45,
+          "sharpe_ratio": 0.9058,
+          "kest_total": 314895.93,
+          "commission_total": 12087.62,
+          "total_trades": 218
+        },
+        {
+          "scenario_id": "v2_h120_lb6m_pos40",
+          "run_id": 1057,
+          "status": "completed",
+          "final_equity_eur": 1145762.8,
+          "total_return_pct": 2191.53,
+          "max_drawdown_pct": 38.42,
+          "sharpe_ratio": 0.9341,
+          "kest_total": 389873.63,
+          "commission_total": 17162.05,
+          "total_trades": 254
+        },
+        {
+          "scenario_id": "v2_h150_lb6m_pos40",
+          "run_id": 1058,
+          "status": "completed",
+          "final_equity_eur": 706547.4,
+          "total_return_pct": 1313.09,
+          "max_drawdown_pct": 46.84,
+          "sharpe_ratio": 0.7935,
+          "kest_total": 284826.58,
+          "commission_total": 10754.24,
+          "total_trades": 216
+        }
+      ],
+      "finished_at": "2026-04-26T19:17:18.415074+00:00"
+    },
+    {
+      "id": "batch_v3_optimize",
+      "name": "Concentrated v3 Optimierung — TS / Threshold / Konzentration / Lookback",
+      "scenario_ids": [
+        "v3_ts18",
+        "v3_ts20",
+        "v3_ts25",
+        "v3_amt5",
+        "v3_amt10",
+        "v3_top2_pos50",
+        "v3_lb3m",
+        "v3_ts20_amt5"
+      ],
+      "status": "completed",
+      "created_at": "2026-04-26T22:00:00+00:00",
+      "started_at": "2026-04-26T19:20:26.460388+00:00",
+      "error": null,
+      "current_index": 8,
+      "run_ids": [
+        1059,
+        1060,
+        1061,
+        1062,
+        1063,
+        1064,
+        1065,
+        1066
+      ],
+      "results": [
+        {
+          "scenario_id": "v3_ts18",
+          "run_id": 1059,
+          "status": "completed",
+          "final_equity_eur": 1303482.07,
+          "total_return_pct": 2506.96,
+          "max_drawdown_pct": 41.0,
+          "sharpe_ratio": 0.9636,
+          "kest_total": 456200.02,
+          "commission_total": 19859.38,
+          "total_trades": 246
+        },
+        {
+          "scenario_id": "v3_ts20",
+          "run_id": 1060,
+          "status": "completed",
+          "final_equity_eur": 1259192.42,
+          "total_return_pct": 2418.38,
+          "max_drawdown_pct": 41.26,
+          "sharpe_ratio": 0.948,
+          "kest_total": 444158.74,
+          "commission_total": 19445.65,
+          "total_trades": 246
+        },
+        {
+          "scenario_id": "v3_ts25",
+          "run_id": 1061,
+          "status": "completed",
+          "final_equity_eur": 1021968.98,
+          "total_return_pct": 1943.94,
+          "max_drawdown_pct": 40.98,
+          "sharpe_ratio": 0.8922,
+          "kest_total": 373704.93,
+          "commission_total": 16563.05,
+          "total_trades": 249
+        },
+        {
+          "scenario_id": "v3_amt5",
+          "run_id": 1062,
+          "status": "completed",
+          "final_equity_eur": 1145762.8,
+          "total_return_pct": 2191.53,
+          "max_drawdown_pct": 38.42,
+          "sharpe_ratio": 0.9341,
+          "kest_total": 389873.63,
+          "commission_total": 17162.05,
+          "total_trades": 254
+        },
+        {
+          "scenario_id": "v3_amt10",
+          "run_id": 1063,
+          "status": "completed",
+          "final_equity_eur": 1145762.8,
+          "total_return_pct": 2191.53,
+          "max_drawdown_pct": 38.42,
+          "sharpe_ratio": 0.9341,
+          "kest_total": 389873.63,
+          "commission_total": 17162.05,
+          "total_trades": 254
+        },
+        {
+          "scenario_id": "v3_top2_pos50",
+          "run_id": 1064,
+          "status": "completed",
+          "final_equity_eur": 695082.41,
+          "total_return_pct": 1290.16,
+          "max_drawdown_pct": 43.42,
+          "sharpe_ratio": 0.7602,
+          "kest_total": 280348.98,
+          "commission_total": 15797.54,
+          "total_trades": 193
+        },
+        {
+          "scenario_id": "v3_lb3m",
+          "run_id": 1065,
+          "status": "completed",
+          "final_equity_eur": 592478.93,
+          "total_return_pct": 1084.96,
+          "max_drawdown_pct": 38.96,
+          "sharpe_ratio": 0.7847,
+          "kest_total": 177790.24,
+          "commission_total": 13489.07,
+          "total_trades": 362
+        },
+        {
+          "scenario_id": "v3_ts20_amt5",
+          "run_id": 1066,
+          "status": "completed",
+          "final_equity_eur": 1259192.42,
+          "total_return_pct": 2418.38,
+          "max_drawdown_pct": 41.26,
+          "sharpe_ratio": 0.948,
+          "kest_total": 444158.74,
+          "commission_total": 19445.65,
+          "total_trades": 246
+        }
+      ],
+      "finished_at": "2026-04-26T19:28:56.938899+00:00"
+    },
+    {
+      "id": "batch_v4_ts_finetune",
+      "name": "v4 Trailing-Stop Finetuning (16/17/19%)",
+      "status": "completed",
+      "created_at": "2026-04-26T19:39:18.625112+00:00",
+      "started_at": "2026-04-26T19:39:21.639384+00:00",
+      "finished_at": "2026-04-26T19:42:17.419273+00:00",
+      "current_index": 3,
+      "scenario_ids": [
+        "v4_ts16",
+        "v4_ts17",
+        "v4_ts19"
+      ],
+      "run_ids": [
+        1067,
+        1068,
+        1069
+      ],
+      "results": [
+        {
+          "scenario_id": "v4_ts16",
+          "run_id": 1067,
+          "status": "completed",
+          "final_equity_eur": 754454.09,
+          "total_return_pct": 1408.91,
+          "max_drawdown_pct": 40.0,
+          "sharpe_ratio": 0.8438,
+          "kest_total": 257966.63,
+          "commission_total": 14051.03,
+          "total_trades": 251
+        },
+        {
+          "scenario_id": "v4_ts17",
+          "run_id": 1068,
+          "status": "completed",
+          "final_equity_eur": 1310638.43,
+          "total_return_pct": 2521.28,
+          "max_drawdown_pct": 41.01,
+          "sharpe_ratio": 0.965,
+          "kest_total": 458603.5,
+          "commission_total": 19926.27,
+          "total_trades": 246
+        },
+        {
+          "scenario_id": "v4_ts19",
+          "run_id": 1069,
+          "status": "completed",
+          "final_equity_eur": 1327602.67,
+          "total_return_pct": 2555.21,
+          "max_drawdown_pct": 41.39,
+          "sharpe_ratio": 0.9691,
+          "kest_total": 465431.25,
+          "commission_total": 20033.98,
+          "total_trades": 246
+        }
+      ],
+      "error": null
+    },
+    {
+      "id": "batch_v4_params",
+      "name": "v4 Parameter-Sweep: MinHold + Lookback",
+      "status": "completed",
+      "created_at": "2026-04-26T19:43:47.156917+00:00",
+      "started_at": "2026-04-26T19:43:47.247233+00:00",
+      "finished_at": "2026-04-26T19:46:55.287111+00:00",
+      "current_index": 3,
+      "scenario_ids": [
+        "v4_hold150",
+        "v4_hold180",
+        "v4_lb105"
+      ],
+      "run_ids": [
+        1070,
+        1071,
+        1072
+      ],
+      "results": [
+        {
+          "scenario_id": "v4_hold150",
+          "run_id": 1070,
+          "status": "completed",
+          "final_equity_eur": 708024.43,
+          "total_return_pct": 1316.05,
+          "max_drawdown_pct": 45.89,
+          "sharpe_ratio": 0.796,
+          "kest_total": 284470.62,
+          "commission_total": 10647.3,
+          "total_trades": 214
+        },
+        {
+          "scenario_id": "v4_hold180",
+          "run_id": 1071,
+          "status": "completed",
+          "final_equity_eur": 679589.74,
+          "total_return_pct": 1259.18,
+          "max_drawdown_pct": 40.45,
+          "sharpe_ratio": 0.7957,
+          "kest_total": 266325.42,
+          "commission_total": 10111.1,
+          "total_trades": 196
+        },
+        {
+          "scenario_id": "v4_lb105",
+          "run_id": 1072,
+          "status": "completed",
+          "final_equity_eur": 657135.19,
+          "total_return_pct": 1214.27,
+          "max_drawdown_pct": 42.38,
+          "sharpe_ratio": 0.8019,
+          "kest_total": 251088.29,
+          "commission_total": 16244.73,
+          "total_trades": 286
+        }
+      ],
+      "error": null
+    },
+    {
+      "id": "batch_3000_attack",
+      "name": "3000%-Angriff: TS19 + AMT + Asymm.Sizing",
+      "status": "completed",
+      "created_at": "2026-04-26T20:13:44.153924+00:00",
+      "started_at": "2026-04-26T20:13:44.284171+00:00",
+      "finished_at": "2026-04-26T20:19:15.055980+00:00",
+      "current_index": 5,
+      "scenario_ids": [
+        "v5_ts19_amt2",
+        "v5_ts19_top1_50",
+        "v5_ts19_top1_70",
+        "v5_ts18_amt3",
+        "v5_combo"
+      ],
+      "run_ids": [
+        1073,
+        1074,
+        1075,
+        1076,
+        1077
+      ],
+      "results": [
+        {
+          "scenario_id": "v5_ts19_amt2",
+          "run_id": 1073,
+          "status": "completed",
+          "final_equity_eur": 1327602.67,
+          "total_return_pct": 2555.21,
+          "max_drawdown_pct": 41.39,
+          "sharpe_ratio": 0.9691,
+          "kest_total": 465431.25,
+          "commission_total": 20033.98,
+          "total_trades": 246
+        },
+        {
+          "scenario_id": "v5_ts19_top1_50",
+          "run_id": 1074,
+          "status": "completed",
+          "final_equity_eur": 684084.17,
+          "total_return_pct": 1268.17,
+          "max_drawdown_pct": 44.12,
+          "sharpe_ratio": 0.8003,
+          "kest_total": 249127.25,
+          "commission_total": 14316.42,
+          "total_trades": 249
+        },
+        {
+          "scenario_id": "v5_ts19_top1_70",
+          "run_id": 1075,
+          "status": "completed",
+          "final_equity_eur": 1291704.51,
+          "total_return_pct": 2483.41,
+          "max_drawdown_pct": 51.87,
+          "sharpe_ratio": 0.8722,
+          "kest_total": 466084.15,
+          "commission_total": 23565.24,
+          "total_trades": 249
+        },
+        {
+          "scenario_id": "v5_ts18_amt3",
+          "run_id": 1076,
+          "status": "completed",
+          "final_equity_eur": 1303482.07,
+          "total_return_pct": 2506.96,
+          "max_drawdown_pct": 41.0,
+          "sharpe_ratio": 0.9636,
+          "kest_total": 456200.02,
+          "commission_total": 19859.38,
+          "total_trades": 246
+        },
+        {
+          "scenario_id": "v5_combo",
+          "run_id": 1077,
+          "status": "completed",
+          "final_equity_eur": 684084.17,
+          "total_return_pct": 1268.17,
+          "max_drawdown_pct": 44.12,
+          "sharpe_ratio": 0.8003,
+          "kest_total": 249127.25,
+          "commission_total": 14316.42,
+          "total_trades": 249
+        }
+      ],
+      "error": null
+    },
+    {
+      "id": "batch_3000_v2",
+      "name": "3000%-Angriff v2: Startjahr + TS-Sweep + Lookback",
+      "status": "completed",
+      "created_at": "2026-04-26T20:20:29.374854+00:00",
+      "started_at": "2026-04-26T20:20:29.495991+00:00",
+      "finished_at": "2026-04-26T20:31:29.244966+00:00",
+      "current_index": 6,
+      "scenario_ids": [
+        "v5_2014_ts19",
+        "v5_2014_base",
+        "v5_ts20",
+        "v5_ts21",
+        "v5_ts22",
+        "v5_lb168"
+      ],
+      "run_ids": [
+        1078,
+        1079,
+        1080,
+        1081,
+        1082,
+        1083
+      ],
+      "results": [
+        {
+          "scenario_id": "v5_2014_ts19",
+          "run_id": 1078,
+          "status": "completed",
+          "final_equity_eur": 1169471.18,
+          "total_return_pct": 2238.94,
+          "max_drawdown_pct": 40.84,
+          "sharpe_ratio": 0.8625,
+          "kest_total": 407754.33,
+          "commission_total": 17796.1,
+          "total_trades": 258
+        },
+        {
+          "scenario_id": "v5_2014_base",
+          "run_id": 1079,
+          "status": "completed",
+          "final_equity_eur": 1147416.78,
+          "total_return_pct": 2194.83,
+          "max_drawdown_pct": 40.84,
+          "sharpe_ratio": 0.8573,
+          "kest_total": 399310.11,
+          "commission_total": 17635.34,
+          "total_trades": 258
+        },
+        {
+          "scenario_id": "v5_ts20",
+          "run_id": 1080,
+          "status": "completed",
+          "final_equity_eur": 1259192.42,
+          "total_return_pct": 2418.38,
+          "max_drawdown_pct": 41.26,
+          "sharpe_ratio": 0.948,
+          "kest_total": 444158.74,
+          "commission_total": 19445.65,
+          "total_trades": 246
+        },
+        {
+          "scenario_id": "v5_ts21",
+          "run_id": 1081,
+          "status": "completed",
+          "final_equity_eur": 1277641.94,
+          "total_return_pct": 2455.28,
+          "max_drawdown_pct": 41.26,
+          "sharpe_ratio": 0.9513,
+          "kest_total": 458052.15,
+          "commission_total": 19683.94,
+          "total_trades": 246
+        },
+        {
+          "scenario_id": "v5_ts22",
+          "run_id": 1082,
+          "status": "completed",
+          "final_equity_eur": 1115134.45,
+          "total_return_pct": 2130.27,
+          "max_drawdown_pct": 41.26,
+          "sharpe_ratio": 0.9172,
+          "kest_total": 429654.04,
+          "commission_total": 18592.43,
+          "total_trades": 245
+        },
+        {
+          "scenario_id": "v5_lb168",
+          "run_id": 1083,
+          "status": "completed",
+          "final_equity_eur": 858102.69,
+          "total_return_pct": 1616.21,
+          "max_drawdown_pct": 49.05,
+          "sharpe_ratio": 0.8319,
+          "kest_total": 385070.16,
+          "commission_total": 18644.41,
+          "total_trades": 252
+        }
+      ],
+      "error": null
+    },
+    {
+      "id": "batch_legacy_2000",
+      "name": "Legacy Champions: 2000–2026 Simulation",
+      "status": "running",
+      "created_at": "2026-04-26T20:39:16.200908+00:00",
+      "started_at": "2026-04-26T20:39:16.626905+00:00",
+      "finished_at": null,
+      "current_index": 1,
+      "scenario_ids": [
+        "legacy_v4_ts18",
+        "legacy_v4_ts19",
+        "legacy_v4_2016"
+      ],
+      "run_ids": [
+        1084
+      ],
+      "results": [
+        {
+          "scenario_id": "legacy_v4_ts18",
+          "run_id": 1084,
+          "status": "completed",
+          "final_equity_eur": 704484.9,
+          "total_return_pct": 1308.97,
+          "max_drawdown_pct": 58.2,
+          "sharpe_ratio": 0.4738,
+          "kest_total": 269586.07,
+          "commission_total": 31856.95,
+          "total_trades": 766
+        }
+      ],
+      "error": null
+    },
+    {
+      "id": "batch_3000_v3",
+      "name": "3000%-Angriff v3: Neue Dimensionen (Universe + Ranking)",
+      "status": "pending",
+      "created_at": "2026-04-27T06:00:00.000000+00:00",
+      "started_at": null,
+      "finished_at": null,
+      "current_index": 0,
+      "scenario_ids": [
+        "v6_us_growth_conc",
+        "v6_multi_mom_conc",
+        "v6_sharpe_mom_conc",
+        "v6_ts19_max_hold",
+        "v6_tech12_conc"
+      ],
+      "run_ids": [],
+      "results": [],
+      "error": null
+    },
+    {
+      "id": "batch_3000_v4",
+      "name": "3000%-Angriff v4: TLH-Off + Regime Filter + 26-Jahres-Test",
+      "status": "completed",
+      "scenario_ids": [
+        "v7_no_tlh",
+        "v7_no_tlh_rf",
+        "legacy_rf_no_tlh_ts19",
+        "legacy_rf_no_tlh_ts19_top2",
+        "legacy_rf_no_tlh_ts25"
+      ],
+      "run_ids": [
+        1086,
+        1087,
+        1088,
+        1089,
+        1090
+      ],
+      "results": [
+        {
+          "scenario_id": "v7_no_tlh",
+          "run_id": 1086,
+          "status": "completed",
+          "final_equity_eur": 968902.13,
+          "total_return_pct": 1837.8,
+          "max_drawdown_pct": 45.01,
+          "sharpe_ratio": 0.9084,
+          "kest_total": 377605.59,
+          "commission_total": 14952.7,
+          "total_trades": 241
+        },
+        {
+          "scenario_id": "v7_no_tlh_rf",
+          "run_id": 1087,
+          "status": "completed",
+          "final_equity_eur": 1282822.19,
+          "total_return_pct": 2465.64,
+          "max_drawdown_pct": 49.68,
+          "sharpe_ratio": 0.9261,
+          "kest_total": 588806.35,
+          "commission_total": 24755.07,
+          "total_trades": 225
+        },
+        {
+          "scenario_id": "legacy_rf_no_tlh_ts19",
+          "run_id": 1088,
+          "status": "completed",
+          "final_equity_eur": 905798.41,
+          "total_return_pct": 1711.6,
+          "max_drawdown_pct": 57.38,
+          "sharpe_ratio": 0.5063,
+          "kest_total": 308908.82,
+          "commission_total": 34053.72,
+          "total_trades": 730
+        },
+        {
+          "scenario_id": "legacy_rf_no_tlh_ts19_top2",
+          "run_id": 1089,
+          "status": "completed",
+          "final_equity_eur": 762090.32,
+          "total_return_pct": 1424.18,
+          "max_drawdown_pct": 60.49,
+          "sharpe_ratio": 0.4646,
+          "kest_total": 379820.02,
+          "commission_total": 36940.08,
+          "total_trades": 509
+        },
+        {
+          "scenario_id": "legacy_rf_no_tlh_ts25",
+          "run_id": 1090,
+          "status": "completed",
+          "final_equity_eur": 877352.36,
+          "total_return_pct": 1654.7,
+          "max_drawdown_pct": 57.07,
+          "sharpe_ratio": 0.5086,
+          "kest_total": 300203.22,
+          "commission_total": 32795.58,
+          "total_trades": 734
+        }
+      ],
+      "notes": "Basierend auf Trade-Analyse: TLH kostete -53k EUR, RSI/MACD-Exits negativ, Regime-Filter nie auf v4 getestet. Die 3 Legacy-Tests (2000-2026) sollen Dotcom-Crash + Finanzkrise durch Regime-Filter vermeiden. Ziel: 20000%+ über 26 Jahre.",
+      "started_at": "2026-04-27T05:47:20.261255+00:00",
+      "error": null,
+      "current_index": 5,
+      "finished_at": "2026-04-27T06:03:54.220156+00:00"
     }
   ]
 }

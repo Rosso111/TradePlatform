@@ -1,5 +1,5 @@
 import { api } from './api.js';
-import { fmtEUR, fmtPct, showToast } from './ui.js';
+import { fmtEUR, fmtPct, fmtDateTime, showToast } from './ui.js';
 
 let simulationChart = null;
 let simulationEquitySeries = null;
@@ -431,7 +431,7 @@ function renderScenarios() {
   if (!currentScenarios.length) {
     list.innerHTML = '<div class="empty-state" style="padding:12px;color:var(--text-muted)">Noch keine Szenarien gespeichert.</div>';
   } else {
-    list.innerHTML = currentScenarios.map((scenario) => `
+    list.innerHTML = [...currentScenarios].reverse().map((scenario) => `
       <div class="scenario-item">
         <input class="scenario-select-checkbox" type="checkbox" value="${escapeHtml(scenario.id)}">
         <button class="btn btn-ghost scenario-load-btn" type="button" data-scenario-id="${escapeHtml(scenario.id)}">
@@ -439,9 +439,9 @@ function renderScenarios() {
             <div class="scenario-item-title">${escapeHtml(scenario.name || scenario.id)}</div>
             <div class="scenario-item-meta">${escapeHtml(scenario.strategy_id || '-')} · ${escapeHtml(scenario.universe_name || '-')}</div>
             <div class="scenario-item-meta">${escapeHtml(scenario.start_date || '-')} → ${escapeHtml(scenario.end_date || '-')} · ${fmtEUR(scenario.initial_capital_eur || 0)}</div>
+            <div class="scenario-item-meta scenario-item-overrides">${escapeHtml(Object.keys(scenario.params_override || {}).join(', ') || 'keine overrides')}</div>
           </div>
         </button>
-        <div class="scenario-item-meta">${escapeHtml(Object.keys(scenario.params_override || {}).join(', ') || 'keine overrides')}</div>
         <button class="btn btn-danger scenario-delete-btn" type="button" data-scenario-id="${escapeHtml(scenario.id)}">Löschen</button>
       </div>
     `).join('');
@@ -475,10 +475,53 @@ function renderScenarios() {
 
   if (status) {
     if (!currentScenarioBatch) {
-      status.innerHTML = 'Noch kein Batch angelegt.';
+      status.innerHTML = '<div style="color:var(--text-muted);padding:8px 0">Noch kein Batch angelegt.</div>';
     } else {
       const results = currentScenarioBatch.results || [];
-      status.innerHTML = `Batch <strong>${escapeHtml(currentScenarioBatch.name || currentScenarioBatch.id)}</strong> · ID: ${escapeHtml(currentScenarioBatch.id || '-')} · Status: <strong>${escapeHtml(currentScenarioBatch.status || 'queued')}</strong> · Fortschritt: ${Number(currentScenarioBatch.current_index || 0)} / ${Number((currentScenarioBatch.scenario_ids || []).length || 0)} · Runs: ${results.length}`;
+      const total = (currentScenarioBatch.scenario_ids || []).length;
+      const batchStatus = currentScenarioBatch.status || 'queued';
+      const hasAT = results.some((r) => (r.kest_total || 0) > 0 || (r.commission_total || 0) > 0);
+      const sorted = [...results].sort((a, b) => (b.total_return_pct || 0) - (a.total_return_pct || 0));
+
+      const headerAT = hasAT ? '<th>KeSt</th><th>Kosten</th>' : '';
+      const rows = sorted.map((r) => {
+        const ret = r.total_return_pct ?? '–';
+        const retClass = (ret >= 0) ? 'positive' : 'negative';
+        const atCells = hasAT
+          ? `<td class="negative">${(r.kest_total > 0) ? fmtEUR(r.kest_total) : '–'}</td><td class="negative">${(r.commission_total > 0) ? fmtEUR(r.commission_total) : '–'}</td>`
+          : '';
+        return `<tr>
+          <td>${escapeHtml(r.scenario_id || '-')}</td>
+          <td class="${retClass}">${typeof ret === 'number' ? ret.toFixed(1) + '%' : ret}</td>
+          <td>${r.max_drawdown_pct != null ? r.max_drawdown_pct.toFixed(1) + '%' : '–'}</td>
+          <td>${r.sharpe_ratio != null ? r.sharpe_ratio.toFixed(3) : '–'}</td>
+          <td>${r.final_equity_eur != null ? fmtEUR(r.final_equity_eur) : '–'}</td>
+          ${atCells}
+          <td><a href="#" class="batch-run-link" data-run-id="${r.run_id}">#${r.run_id}</a></td>
+        </tr>`;
+      }).join('');
+
+      status.innerHTML = `
+        <div class="batch-status-header">
+          <strong>${escapeHtml(currentScenarioBatch.name || currentScenarioBatch.id)}</strong>
+          <span class="simulation-status ${batchStatus}" style="margin-left:8px">${escapeHtml(batchStatus)}</span>
+          <span style="color:var(--text-muted);margin-left:8px">${results.length} / ${total} Szenarien</span>
+        </div>
+        ${results.length ? `
+        <div style="overflow-x:auto;margin-top:8px">
+          <table class="batch-results-table">
+            <thead><tr><th>Szenario</th><th>Return</th><th>Max DD</th><th>Sharpe</th><th>Endkapital</th>${headerAT}<th>Run</th></tr></thead>
+            <tbody>${rows}</tbody>
+          </table>
+        </div>` : '<div style="color:var(--text-muted);margin-top:6px">Noch keine Ergebnisse.</div>'}
+      `;
+
+      status.querySelectorAll('.batch-run-link').forEach((a) => {
+        a.addEventListener('click', (e) => {
+          e.preventDefault();
+          loadSimulationDetail(a.dataset.runId);
+        });
+      });
     }
   }
 }
@@ -511,13 +554,15 @@ function renderSimulationRuns(runs) {
     return;
   }
   container.innerHTML = runs.map((run) => {
+    const ts = run.created_at || run.started_at || '';
+    const tsFormatted = ts ? fmtDateTime(ts) : '';
     return `
       <button class="simulation-run-item" data-run-id="${run.id}">
         <div class="simulation-run-head">
           <strong>${escapeHtml(run.name || `Run #${run.id}`)}</strong>
           <span class="simulation-status ${run.status}">${escapeHtml(run.status)}</span>
         </div>
-        <div class="simulation-run-id">ID: ${run.id}</div>
+        <div class="simulation-run-id">ID: ${run.id}${tsFormatted ? ` · ${tsFormatted}` : ''}</div>
         <div class="simulation-run-meta">${escapeHtml(run.start_date || '-')} → ${escapeHtml(run.end_date || '-')}</div>
         <div class="simulation-run-metrics">
           <span>${fmtEUR(run.final_equity_eur)}</span>
@@ -638,6 +683,8 @@ function isSimulationsViewActive() {
 
 async function refreshSimulationState() {
   const runs = await api.getSimulations();
+  // Nicht leeren wenn API leer zurückkommt aber wir vorher Runs hatten (kurzer Netzwerkfehler)
+  if (!runs.length && currentSimulationRuns.length) return;
   currentSimulationRuns = runs;
   renderSimulationRuns(runs);
   if (!runs.length) {
@@ -685,6 +732,8 @@ function renderSimulationSummary(run, metrics) {
       <div class="stat-card"><div class="stat-label">Return</div><div class="stat-value ${(metrics.total_return_pct || 0) >= 0 ? 'positive' : 'negative'}">${fmtPct(metrics.total_return_pct || 0)}</div><div class="stat-sub">Final: ${fmtEUR(metrics.final_equity_eur)}</div></div>
       <div class="stat-card"><div class="stat-label">Benchmark</div><div class="stat-value ${(metrics.benchmark_return_pct || 0) >= 0 ? 'positive' : 'negative'}">${fmtPct(metrics.benchmark_return_pct || 0)}</div><div class="stat-sub">Outperformance: ${metrics.outperformance_pct == null ? '-' : fmtPct(metrics.outperformance_pct)}</div></div>
       <div class="stat-card"><div class="stat-label">Trades</div><div class="stat-value">${metrics.total_trades || 0}</div><div class="stat-sub">Win Rate: ${fmtPct(metrics.win_rate || 0)}</div></div>
+      ${metrics.commission_total > 0 ? `<div class="stat-card"><div class="stat-label">Handelskosten</div><div class="stat-value negative">${fmtEUR(metrics.commission_total)}</div><div class="stat-sub">${metrics.total_trades ? fmtEUR(metrics.commission_total / metrics.total_trades) + ' / Trade' : '–'}</div></div>` : ''}
+      ${metrics.kest_total > 0 ? `<div class="stat-card"><div class="stat-label">KeSt bezahlt</div><div class="stat-value negative">${fmtEUR(metrics.kest_total)}</div><div class="stat-sub">${metrics.kest_rate_pct ? metrics.kest_rate_pct + '% KeSt' : '–'}</div></div>` : ''}
     </div>
   `;
 }
@@ -709,14 +758,12 @@ function renderSimulationChart(equityRows, benchmarkRows) {
   // Immer neu erstellen damit Zeitbereich resettet wird
   resetSimulationChart();
 
-  const width = container.clientWidth || 600;
-  const height = container.clientHeight || 280;
   simulationChart = LightweightCharts.createChart(container, {
+    autoSize: true,
     layout: { background: { type: 'solid', color: '#161b22' }, textColor: '#8b949e' },
     grid: { vertLines: { color: '#21262d' }, horzLines: { color: '#21262d' } },
     rightPriceScale: { borderColor: '#30363d' },
     timeScale: { borderColor: '#30363d', timeVisible: false, minBarSpacing: 0.1, rightOffset: 2 },
-    width, height,
   });
   simulationEquitySeries = simulationChart.addAreaSeries({ lineColor: '#3fb950', topColor: 'rgba(63,185,80,.30)', bottomColor: 'rgba(63,185,80,0)', lineWidth: 2 });
   const chartData = (equityRows || []).map((row) => ({ time: row.sim_date, value: Number(row.equity_eur) }));

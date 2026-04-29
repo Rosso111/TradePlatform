@@ -4,7 +4,7 @@
     {
       "id": "global_core",
       "name": "Global Core",
-      "description": "Breites internationales Kernuniversum über Regionen und Sektoren.",
+      "description": "Breites internationales Kernuniversum \u00fcber Regionen und Sektoren.",
       "symbols": [
         "SAP.DE",
         "ALV.DE",
@@ -37,7 +37,7 @@
     {
       "id": "global_core_10y",
       "name": "Global Core 10Y",
-      "description": "Global Core ohne Titel mit strukturell zu kurzer Historie, geeignet für 10-Jahres-Backtests.",
+      "description": "Global Core ohne Titel mit strukturell zu kurzer Historie, geeignet f\u00fcr 10-Jahres-Backtests.",
       "symbols": [
         "SAP.DE",
         "ALV.DE",
@@ -115,7 +115,7 @@
     {
       "id": "defensive_quality",
       "name": "Defensive Quality",
-      "description": "Defensivere Qualitätsaktien aus Healthcare, Staples und stabilen Large Caps.",
+      "description": "Defensivere Qualit\u00e4tsaktien aus Healthcare, Staples und stabilen Large Caps.",
       "symbols": [
         "NESN.SW",
         "NOVN.SW",
@@ -131,7 +131,7 @@
     {
       "id": "trend_candidates",
       "name": "Trend Candidates",
-      "description": "Werte mit typischerweise stärkerem Momentum-/Trendprofil.",
+      "description": "Werte mit typischerweise st\u00e4rkerem Momentum-/Trendprofil.",
       "symbols": [
         "NVDA",
         "MSFT",
@@ -253,7 +253,7 @@
     {
       "id": "tech_winners_12",
       "name": "Tech Winners 12",
-      "description": "Nur die stärksten Performer: US Tech + ASML + META",
+      "description": "Nur die st\u00e4rksten Performer: US Tech + ASML + META",
       "symbols": [
         "NVDA",
         "MSFT",
@@ -272,7 +272,7 @@
     {
       "id": "no_us_tech",
       "name": "No US Tech",
-      "description": "Global Core 10Y ohne AAPL/MSFT/GOOGL/AMZN/NVDA — zeigt Strategie-Performance ohne Tech-Bias",
+      "description": "Global Core 10Y ohne AAPL/MSFT/GOOGL/AMZN/NVDA \u2014 zeigt Strategie-Performance ohne Tech-Bias",
       "symbols": [
         "SAP.DE",
         "ALV.DE",
@@ -294,6 +294,93 @@
         "0700.HK",
         "005930.KS",
         "BHP.AX"
+      ]
+    },
+    {
+      "id": "small_mid_momentum",
+      "name": "Small/Mid-Cap Momentum",
+      "description": "43 Small- und Mid-Cap Wachstumstitel mit hohem Momentum-Potenzial. Marktkapitalisierung ~$500M-$15B. Mix aus US, Europa, Australien, Kanada.",
+      "symbols": [
+        "AXON",
+        "ENPH",
+        "KTOS",
+        "TREX",
+        "AAON",
+        "CASY",
+        "MATX",
+        "BCPC",
+        "POWL",
+        "POOL",
+        "UFPI",
+        "SLGN",
+        "EXPO",
+        "MGPI",
+        "DXPE",
+        "ITGR",
+        "ADUS",
+        "OMCL",
+        "ACAD",
+        "CELH",
+        "GLOB",
+        "WSO",
+        "MSA",
+        "MGNI",
+        "SAIA",
+        "ODFL",
+        "LSTR",
+        "ABCB",
+        "CVBF",
+        "HOMB",
+        "NBTB",
+        "SIKA.SW",
+        "NIBE-B.ST",
+        "BESI.AS",
+        "NESTE.HE",
+        "IMCD.AS",
+        "PME.AX",
+        "SEK.AX",
+        "REH.AX",
+        "CAR.AX",
+        "TNE.AX",
+        "WELL.TO",
+        "TFII.TO"
+      ]
+    },
+    {
+      "id": "legacy_champions",
+      "name": "Legacy Champions (2000+)",
+      "description": "US Blue Chips und Tech-Giganten mit Kurshistorie ab 2000. Enth\u00e4lt AAPL, MSFT, AMZN, NVDA, GOOGL sowie klassische Blue Chips die nicht in momentum_100 sind.",
+      "symbols": [
+        "AAPL",
+        "MSFT",
+        "AMZN",
+        "NVDA",
+        "GOOGL",
+        "INTC",
+        "CSCO",
+        "ORCL",
+        "IBM",
+        "JNJ",
+        "PFE",
+        "MRK",
+        "ABT",
+        "MDT",
+        "JPM",
+        "MS",
+        "AXP",
+        "BRK-B",
+        "DIS",
+        "TGT",
+        "LOW",
+        "CAT",
+        "BA",
+        "MMM",
+        "LMT",
+        "RTX",
+        "XOM",
+        "CVX",
+        "COP",
+        "SLB"
       ]
     }
   ]

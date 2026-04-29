@@ -412,6 +412,17 @@ def run_batch(batch_id):
                     run_historical_replay(app_obj, run.id)
                     db.session.refresh(run)
 
+                # Parse tax/commission summary from notes
+                import json as _json, re as _re
+                _tax = {}
+                if run.notes:
+                    _m = _re.search(r'tax_summary=(\{.*\})', run.notes)
+                    if _m:
+                        try:
+                            _tax = _json.loads(_m.group(1))
+                        except Exception:
+                            pass
+
                 run_ids.append(run.id)
                 results.append({
                     'scenario_id': scenario_id,
@@ -421,6 +432,9 @@ def run_batch(batch_id):
                     'total_return_pct': run.total_return_pct,
                     'max_drawdown_pct': run.max_drawdown_pct,
                     'sharpe_ratio': run.sharpe_ratio,
+                    'kest_total': _tax.get('kest_total', 0.0),
+                    'commission_total': _tax.get('commission_total', 0.0),
+                    'total_trades': run.total_trades,
                 })
 
                 update_scenario_batch(batch_id, {
@@ -800,6 +814,17 @@ def get_simulation_metrics(run_id):
 
     executed_decisions = DecisionLog.query.filter_by(run_id=run_id, executed=True).count()
 
+    # Parse tax_summary from notes
+    import json as _json, re as _re
+    _tax_summary = {}
+    if run.notes:
+        _m = _re.search(r'tax_summary=(\{.*\})', run.notes)
+        if _m:
+            try:
+                _tax_summary = _json.loads(_m.group(1))
+            except Exception:
+                pass
+
     return jsonify({
         'run_id': run.id,
         'status': run.status,
@@ -817,6 +842,11 @@ def get_simulation_metrics(run_id):
         'losing_trades': run.losing_trades if run.losing_trades not in (None, 0) or str(run.status).lower() == 'completed' else len(losing),
         'decision_counts': decision_counts,
         'executed_decisions': executed_decisions,
+        'kest_total': _tax_summary.get('kest_total', 0.0),
+        'kest_rate_pct': _tax_summary.get('kest_rate_pct', 0.0),
+        'kest_by_year': _tax_summary.get('kest_by_year', {}),
+        'commission_total': _tax_summary.get('commission_total', 0.0),
+        'commission_by_year': _tax_summary.get('commission_by_year', {}),
         'live': {
             'equity_eur': round(live_equity or 0.0, 2),
             'latest_snapshot_date': latest_snapshot.sim_date.isoformat() if latest_snapshot and latest_snapshot.sim_date else None,

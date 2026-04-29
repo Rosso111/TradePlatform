@@ -274,6 +274,29 @@ STOCK_UNIVERSE = [
     {'symbol': 'CSL.AX',  'name': 'CSL Ltd.',            'sector': 'Healthcare',   'region': 'AU', 'currency': 'AUD'},
     {'symbol': 'RIO.AX',  'name': 'Rio Tinto Ltd.',      'sector': 'Materials',    'region': 'AU', 'currency': 'AUD'},
 
+    # === USA (legacy_champions – Blue Chips mit Daten ab ~2000) ===
+    {'symbol': 'INTC',    'name': 'Intel Corp.',              'sector': 'Technology',   'region': 'US', 'currency': 'USD'},
+    {'symbol': 'CSCO',    'name': 'Cisco Systems Inc.',       'sector': 'Technology',   'region': 'US', 'currency': 'USD'},
+    {'symbol': 'ORCL',    'name': 'Oracle Corp.',             'sector': 'Technology',   'region': 'US', 'currency': 'USD'},
+    {'symbol': 'IBM',     'name': 'IBM Corp.',                'sector': 'Technology',   'region': 'US', 'currency': 'USD'},
+    {'symbol': 'PFE',     'name': 'Pfizer Inc.',              'sector': 'Healthcare',   'region': 'US', 'currency': 'USD'},
+    {'symbol': 'MRK',     'name': 'Merck & Co. Inc.',         'sector': 'Healthcare',   'region': 'US', 'currency': 'USD'},
+    {'symbol': 'ABT',     'name': 'Abbott Laboratories',      'sector': 'Healthcare',   'region': 'US', 'currency': 'USD'},
+    {'symbol': 'MDT',     'name': 'Medtronic PLC',            'sector': 'Healthcare',   'region': 'US', 'currency': 'USD'},
+    {'symbol': 'MS',      'name': 'Morgan Stanley',           'sector': 'Financials',   'region': 'US', 'currency': 'USD'},
+    {'symbol': 'AXP',     'name': 'American Express Co.',     'sector': 'Financials',   'region': 'US', 'currency': 'USD'},
+    {'symbol': 'DIS',     'name': 'Walt Disney Co.',          'sector': 'ConsumerDisc', 'region': 'US', 'currency': 'USD'},
+    {'symbol': 'TGT',     'name': 'Target Corp.',             'sector': 'ConsumerDisc', 'region': 'US', 'currency': 'USD'},
+    {'symbol': 'LOW',     'name': "Lowe's Companies Inc.",    'sector': 'ConsumerDisc', 'region': 'US', 'currency': 'USD'},
+    {'symbol': 'CAT',     'name': 'Caterpillar Inc.',         'sector': 'Industrials',  'region': 'US', 'currency': 'USD'},
+    {'symbol': 'BA',      'name': 'Boeing Co.',               'sector': 'Industrials',  'region': 'US', 'currency': 'USD'},
+    {'symbol': 'MMM',     'name': '3M Co.',                   'sector': 'Industrials',  'region': 'US', 'currency': 'USD'},
+    {'symbol': 'LMT',     'name': 'Lockheed Martin Corp.',    'sector': 'Industrials',  'region': 'US', 'currency': 'USD'},
+    {'symbol': 'RTX',     'name': 'RTX Corp.',                'sector': 'Industrials',  'region': 'US', 'currency': 'USD'},
+    {'symbol': 'CVX',     'name': 'Chevron Corp.',            'sector': 'Energy',       'region': 'US', 'currency': 'USD'},
+    {'symbol': 'COP',     'name': 'ConocoPhillips',           'sector': 'Energy',       'region': 'US', 'currency': 'USD'},
+    {'symbol': 'SLB',     'name': 'SLB (Schlumberger)',       'sector': 'Energy',       'region': 'US', 'currency': 'USD'},
+
     # === BENCHMARK (Regime-Filter — kein Handelsobjekt) ===
     {'symbol': 'SPY',     'name': 'SPDR S&P 500 ETF',    'sector': 'Benchmark',    'region': 'US', 'currency': 'USD'},
 ]

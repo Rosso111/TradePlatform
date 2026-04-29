@@ -2,9 +2,9 @@ import { api } from './api.js';
 import {
   fmtEUR, fmtNum, fmtPct, fmtDateTime, fmtTime,
   setEl, setStatusDot, hideLoading, showDataLoadingBanner,
-  hideDataLoadingBanner, showToast, addLogEntry,
+  hideDataLoadingBanner, showToast, addLogEntry, initSplitPanes,
 } from './ui.js';
-import { loadSimulations, initSimulationControls } from './simulations.js';
+import { loadSimulations, initSimulationControls } from './simulations.js?v=11';
 
 let socket = null;
 let candleChart = null;
@@ -38,6 +38,9 @@ document.addEventListener('DOMContentLoaded', () => {
   initPeriodButtons();
   initSimulationControls();
   initStrategyEditor();
+  initSplitPanes();
+  const savedTab = localStorage.getItem('tp_active_tab') || 'dashboard';
+  switchTab(savedTab);
   loadAll();
   setTimeout(() => hideLoading(), 5000);
 });
@@ -300,18 +303,13 @@ function renderCandleChart(data) {
       crosshair: { mode: LightweightCharts.CrosshairMode.Normal },
       rightPriceScale: { borderColor: '#30363d' },
       timeScale: { borderColor: '#30363d', timeVisible: true },
-      width: container.clientWidth || 600,
-      height: container.clientHeight || 340,
+      autoSize: true,
     });
 
     candleSeries = candleChart.addCandlestickSeries({
       upColor: '#3fb950', downColor: '#f85149',
       borderUpColor: '#3fb950', borderDownColor: '#f85149',
       wickUpColor: '#3fb950', wickDownColor: '#f85149',
-    });
-
-    window.addEventListener('resize', () => {
-      if (candleChart) candleChart.resize(container.clientWidth || 600, container.clientHeight || 340);
     });
   }
 
@@ -453,16 +451,11 @@ function renderEquityChart() {
       grid: { vertLines: { color: '#21262d' }, horzLines: { color: '#21262d' } },
       rightPriceScale: { borderColor: '#30363d' },
       timeScale: { borderColor: '#30363d', timeVisible: false },
-      width: container.clientWidth,
-      height: container.clientHeight,
+      autoSize: true,
     });
 
     equitySeries = equityChart.addAreaSeries({
       lineColor: '#388bfd', topColor: 'rgba(56,139,253,.3)', bottomColor: 'rgba(56,139,253,0)', lineWidth: 2,
-    });
-
-    window.addEventListener('resize', () => {
-      if (equityChart) equityChart.resize(container.clientWidth, container.clientHeight);
     });
   }
 
@@ -657,9 +650,10 @@ function populateSimulationStrategySelect() {
 
 function switchTab(tab) {
   state.activeTab = tab;
-  document.querySelectorAll('.tab-btn').forEach((b) => b.classList.toggle('active', b.dataset.tab === tab));
+  localStorage.setItem('tp_active_tab', tab);
   document.querySelectorAll('.nav-btn').forEach((b) => b.classList.toggle('active', b.dataset.tab === tab));
   document.querySelectorAll('.view-panel').forEach((p) => p.classList.toggle('active', p.dataset.tab === tab));
+  document.querySelector('.app-layout')?.classList.toggle('sim-mode', tab === 'simulations');
 
   if (tab === 'algorithm') loadAlgoParams();
   if (tab === 'simulations') loadSimulations();

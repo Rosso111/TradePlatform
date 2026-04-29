@@ -236,6 +236,20 @@ def run_historical_replay(app, run_id: int) -> SimulationRun:
             max_drawdown_pct = 0.0
             daily_returns = []
 
+            # T+1 pending BUY orders {stock_id: signal_data_with_budget}
+            pending_buy_orders: dict = {}
+            # Annual KeSt tracker (reset each December settlement date)
+            _sp = (replay_data or {}).get('strategy_params', {})
+            _tax_rate = float(_sp.get('capital_gains_tax_rate', 0.0))
+            annual_tax_tracker = {
+                'gains': 0.0,
+                'losses': 0.0,
+                'commission_total': 0.0,
+                'tax_paid_by_year': {},
+                'commission_by_year': {},
+                'current_year': run.start_date.year,
+            }
+
             sim_date = run.start_date
             while sim_date <= run.end_date:
                 should_check_run_status = days_since_cancel_check == 0 or sim_date == run.start_date
@@ -250,15 +264,131 @@ def run_historical_replay(app, run_id: int) -> SimulationRun:
                         db.session.commit()
                         return run
 
+                strategy_params_day = (replay_data or {}).get('strategy_params', {})
+                strategy_mode_day = (replay_data or {}).get('strategy_mode', 'score')
+                t1_execution = strategy_params_day.get('t1_execution', False)
+                whole_shares = strategy_params_day.get('whole_shares_only', False)
+
+                # T+1: pending BUY-Orders vom Vortag ausführen
+                if pending_buy_orders:
+                    for _pending_stock_id in list(pending_buy_orders.keys()):
+                        _pending_sig = pending_buy_orders.pop(_pending_stock_id)
+                        if _pending_stock_id in open_positions:
+                            continue
+                        _t1_price = _get_cached_price(_pending_stock_id, sim_date, replay_data)
+                        if not _t1_price:
+                            continue
+                        _t1_eur = float(_t1_price.close_eur or _t1_price.close)
+                        _t1_native = float(_t1_price.close)
+                        if _t1_eur <= 0:
+                            continue
+                        _budget = float(_pending_sig.get('_budget_eur', 0))
+                        if _budget < 100:
+                            continue
+                        _shares = _budget / _t1_eur
+                        if whole_shares:
+                            _shares = int(_shares)
+                            if _shares < 1:
+                                continue
+                            # Tatsächliche Kosten = ganze Aktien × Preis
+                            _actual_cost = _shares * _t1_eur
+                        else:
+                            _actual_cost = _budget
+                        _comm = _commission_for_trade(_actual_cost, strategy_params_day)
+                        _spread = _spread_for_trade(_actual_cost, strategy_params_day)
+                        _total = _actual_cost + _comm + _spread
+                        if _total > cash_eur:
+                            continue
+                        _stop = calc_stop_loss(_t1_native, None)
+                        open_positions[_pending_stock_id] = {
+                            'run_id': run.id,
+                            'stock_id': _pending_stock_id,
+                            'shares': _shares,
+                            'entry_price': _t1_native,
+                            'entry_price_eur': _t1_eur,
+                            'current_price': _t1_native,
+                            'current_price_eur': _t1_eur,
+                            'stop_loss': _stop,
+                            'take_profit': calc_take_profit(_t1_native, _stop),
+                            'trailing_stop': _stop,
+                            'highest_price': _t1_native,
+                            'cost_eur': _total,
+                            'commission_eur': _comm,
+                            'opened_at_sim_date': sim_date,
+                            'closed_at_sim_date': None,
+                            'reason': f"T+1: {_pending_sig.get('reason', '')}",
+                        }
+                        trade_buffer.append(_build_trade_mapping(
+                            run.id, _pending_stock_id, 'BUY', sim_date, _shares,
+                            _t1_native, _t1_eur, _comm, _spread, _total, 0.0, 0.0,
+                            f"T+1: {_pending_sig.get('reason', '')}",
+                        ))
+                        cash_eur -= _total
+                        annual_tax_tracker['commission_total'] += _comm
+                        _yr = sim_date.year
+                        annual_tax_tracker['commission_by_year'][_yr] = annual_tax_tracker['commission_by_year'].get(_yr, 0.0) + _comm
+
+                # Tax-Loss Harvesting + KeSt-Abrechnung (letzter Handelstag im Dezember)
+                _tax_harvest_dates = (replay_data or {}).get('tax_harvest_dates', set())
+                if _tax_rate > 0 and sim_date in _tax_harvest_dates:
+                    _harvest_threshold = float(strategy_params_day.get('tax_loss_harvest_threshold', -0.05))
+                    for _h_sid in list(open_positions.keys()):
+                        _h_pos = open_positions[_h_sid]
+                        _h_entry = float(_h_pos.get('entry_price_eur', 0))
+                        _h_cur = float(_h_pos.get('current_price_eur') or _h_entry)
+                        if _h_entry > 0 and (_h_cur - _h_entry) / _h_entry <= _harvest_threshold:
+                            _buf_before = len(trade_buffer)
+                            cash_eur += _close_position_state(run.id, _h_pos, sim_date,
+                                f'Tax-Loss Harvesting ({(_h_cur/_h_entry-1)*100:.1f}%)', trade_buffer,
+                                strategy_params=strategy_params_day)
+                            open_positions.pop(_h_sid)
+                            for _t in trade_buffer[_buf_before:]:
+                                _pnl = _t.get('pnl_eur', 0.0)
+                                _c = _t.get('commission_eur', 0.0)
+                                annual_tax_tracker['commission_total'] += _c
+                                _yr = sim_date.year
+                                annual_tax_tracker['commission_by_year'][_yr] = annual_tax_tracker['commission_by_year'].get(_yr, 0.0) + _c
+                                if _pnl < 0:
+                                    annual_tax_tracker['losses'] += abs(_pnl)
+                                elif _pnl > 0:
+                                    annual_tax_tracker['gains'] += _pnl
+                    # Jährliche KeSt-Abrechnung
+                    _net_taxable = max(0.0, annual_tax_tracker['gains'] - annual_tax_tracker['losses'])
+                    _tax_due = _net_taxable * _tax_rate
+                    if _tax_due > 0:
+                        cash_eur -= _tax_due
+                    _yr = sim_date.year
+                    annual_tax_tracker['tax_paid_by_year'][_yr] = _tax_due
+                    log.info('KeSt %d: Gewinne=%.2f, Verluste=%.2f, Steuer=%.2f EUR (net_taxable=%.2f)',
+                             _yr, annual_tax_tracker['gains'], annual_tax_tracker['losses'],
+                             _tax_due, _net_taxable)
+                    annual_tax_tracker['gains'] = 0.0
+                    annual_tax_tracker['losses'] = 0.0
+
+                _buf_before_positions = len(trade_buffer)
                 cash_eur += _update_open_positions_in_memory(run, sim_date, replay_data, open_positions, trade_buffer)
+                # Realisierte Gewinne/Verluste aus Stop-Exits für Tax-Tracker erfassen
+                if _tax_rate > 0:
+                    for _t in trade_buffer[_buf_before_positions:]:
+                        if _t.get('action') == 'SELL':
+                            _pnl = _t.get('pnl_eur', 0.0)
+                            _c = _t.get('commission_eur', 0.0)
+                            annual_tax_tracker['commission_total'] += _c
+                            _yr = sim_date.year
+                            annual_tax_tracker['commission_by_year'][_yr] = annual_tax_tracker['commission_by_year'].get(_yr, 0.0) + _c
+                            if _pnl > 0:
+                                annual_tax_tracker['gains'] += _pnl
+                            elif _pnl < 0:
+                                annual_tax_tracker['losses'] += abs(_pnl)
 
                 signals = _generate_signals_from_cache(run, sim_date, replay_data, include_details=True)
-                open_position_stock_ids = set(open_positions.keys())
+                open_position_stock_ids = set(open_positions.keys()) | set(pending_buy_orders.keys())
                 signal_counts = {'BUY': 0, 'SELL': 0, 'HOLD': 0, 'SKIP': 0}
                 strategy_params = replay_data.get('strategy_params', {}) if replay_data else {}
                 max_positions = strategy_params.get('max_positions', config.MAX_POSITIONS)
                 max_position_size = strategy_params.get('max_position_size', 0.1)
                 min_position_size = strategy_params.get('min_position_size', 0.03)
+                top1_max_position_size = strategy_params.get('top1_max_position_size', None)
                 atr_position_sizing = strategy_params.get('atr_position_sizing', False)
                 risk_pct_per_trade = float(strategy_params.get('risk_pct_per_trade', 0.01))
                 atr_stop_multiplier = float(strategy_params.get('atr_stop_multiplier', 2.0))
@@ -324,6 +454,11 @@ def run_historical_replay(app, run_id: int) -> SimulationRun:
                             should_execute = False
                             skip_reason = 'Ungueltiger Preis'
 
+                        # Rank-basiertes Position Sizing: Top-1 kann größere Position bekommen
+                        effective_max_pos_size = max_position_size
+                        if top1_max_position_size is not None and signal.get('dm_rank', 999) == 1:
+                            effective_max_pos_size = top1_max_position_size
+
                         # ATR-basiertes Position Sizing: gleiches EUR-Risiko pro Trade
                         atr = signal.get('atr')
                         native_price = signal.get('current_price', 0)
@@ -334,15 +469,15 @@ def run_historical_replay(app, run_id: int) -> SimulationRun:
                                 risk_eur = run.initial_capital_eur * risk_pct_per_trade
                                 shares_target = risk_eur / stop_dist_eur
                                 budget_eur = shares_target * latest_price_eur
-                                budget_eur = min(budget_eur, cash_eur * max_position_size)
+                                budget_eur = min(budget_eur, cash_eur * effective_max_pos_size)
                                 budget_eur = max(budget_eur, run.initial_capital_eur * min_position_size)
                                 budget_eur = min(budget_eur, cash_eur)
                             else:
-                                budget_eur = min(cash_eur * max_position_size, cash_eur)
+                                budget_eur = min(cash_eur * effective_max_pos_size, cash_eur)
                                 budget_eur = max(budget_eur, run.initial_capital_eur * min_position_size)
                                 budget_eur = min(budget_eur, cash_eur)
                         else:
-                            budget_eur = min(cash_eur * max_position_size, cash_eur)
+                            budget_eur = min(cash_eur * effective_max_pos_size, cash_eur)
                             budget_eur = max(budget_eur, run.initial_capital_eur * min_position_size)
                             budget_eur = min(budget_eur, cash_eur)
 
@@ -350,8 +485,8 @@ def run_historical_replay(app, run_id: int) -> SimulationRun:
                             should_execute = False
                             skip_reason = 'Zu wenig Cash fuer neuen Trade'
 
-                        commission = calc_commission(budget_eur) if budget_eur > 0 else 0.0
-                        spread = calc_spread_cost(budget_eur) if budget_eur > 0 else 0.0
+                        commission = _commission_for_trade(budget_eur, strategy_params) if budget_eur > 0 else 0.0
+                        spread = _spread_for_trade(budget_eur, strategy_params) if budget_eur > 0 else 0.0
                         total_cost = budget_eur + commission + spread
                         if total_cost > cash_eur:
                             should_execute = False
@@ -370,6 +505,29 @@ def run_historical_replay(app, run_id: int) -> SimulationRun:
                             continue
 
                         shares = budget_eur / latest_price_eur
+                        if whole_shares:
+                            shares = int(shares)
+                            if shares < 1:
+                                should_execute = False
+                                skip_reason = 'Zu wenig Cash für eine ganze Aktie'
+                            else:
+                                # Tatsächliche Kosten basieren auf ganzen Aktien (nicht auf budget_eur)
+                                actual_cost_eur = shares * latest_price_eur
+                                commission = _commission_for_trade(actual_cost_eur, strategy_params)
+                                spread = _spread_for_trade(actual_cost_eur, strategy_params)
+                                total_cost = actual_cost_eur + commission + spread
+                                if total_cost > cash_eur:
+                                    should_execute = False
+                                    skip_reason = 'Nicht genug Cash inkl. Kosten'
+
+                        if not should_execute:
+                            if _should_persist_decision(signal, sim_date, replay_data):
+                                decision_log_buffer.append(_build_decision_log_mapping(
+                                    run.id, signal, sim_date, executed=False, execution_note=skip_reason,
+                                ))
+                            signal_counts['SKIP'] += 1
+                            continue
+
                         stop_loss = calc_stop_loss(signal['current_price'], signal.get('atr'))
                         take_profit = calc_take_profit(signal['current_price'], stop_loss)
                         risk_distance = max(signal['current_price'] - stop_loss, 0)
@@ -380,12 +538,19 @@ def run_historical_replay(app, run_id: int) -> SimulationRun:
                             'risk_distance': round(risk_distance, 4),
                         }
 
+                        if t1_execution:
+                            # T+1: Signal heute → Kauf morgen zu Tagesschlusskurs
+                            signal['_budget_eur'] = budget_eur
+                            pending_buy_orders[signal['stock_id']] = signal
+                            decision_log_buffer.append(_build_decision_log_mapping(
+                                run.id, signal, sim_date, executed=False,
+                                execution_note='T+1: Kauf morgen',
+                            ))
+                            open_position_stock_ids.add(signal['stock_id'])
+                            continue
+
                         decision_log_buffer.append(_build_decision_log_mapping(
-                            run.id,
-                            signal,
-                            sim_date,
-                            executed=True,
-                            execution_note=skip_reason,
+                            run.id, signal, sim_date, executed=True, execution_note=skip_reason,
                         ))
 
                         open_positions[signal['stock_id']] = {
@@ -412,6 +577,9 @@ def run_historical_replay(app, run_id: int) -> SimulationRun:
                             commission, spread, total_cost, 0.0, 0.0, signal.get('reason', '')
                         ))
                         cash_eur -= total_cost
+                        annual_tax_tracker['commission_total'] += commission
+                        annual_tax_tracker['commission_by_year'][sim_date.year] = \
+                            annual_tax_tracker['commission_by_year'].get(sim_date.year, 0.0) + commission
                         open_position_stock_ids.add(signal['stock_id'])
                         continue
 
@@ -430,9 +598,21 @@ def run_historical_replay(app, run_id: int) -> SimulationRun:
                                 executed=True,
                                 execution_note=skip_reason,
                             ))
-                            cash_eur += _close_position_state(run.id, position, sim_date, signal['reason'], trade_buffer)
+                            _sell_buf_before = len(trade_buffer)
+                            cash_eur += _close_position_state(run.id, position, sim_date, signal['reason'], trade_buffer, strategy_params=strategy_params)
                             open_position_stock_ids.discard(signal['stock_id'])
                             open_positions.pop(signal['stock_id'], None)
+                            if _tax_rate > 0:
+                                for _t in trade_buffer[_sell_buf_before:]:
+                                    _pnl = _t.get('pnl_eur', 0.0)
+                                    _c = _t.get('commission_eur', 0.0)
+                                    annual_tax_tracker['commission_total'] += _c
+                                    annual_tax_tracker['commission_by_year'][sim_date.year] = \
+                                        annual_tax_tracker['commission_by_year'].get(sim_date.year, 0.0) + _c
+                                    if _pnl > 0:
+                                        annual_tax_tracker['gains'] += _pnl
+                                    elif _pnl < 0:
+                                        annual_tax_tracker['losses'] += abs(_pnl)
                         else:
                             if _should_persist_decision(signal, sim_date, replay_data):
                                 decision_log_buffer.append(_build_decision_log_mapping(
@@ -495,6 +675,21 @@ def run_historical_replay(app, run_id: int) -> SimulationRun:
 
                 previous_equity = equity
                 sim_date += timedelta(days=1)
+
+            # KeSt + Handelskosten-Zusammenfassung in notes speichern
+            if _tax_rate > 0 or annual_tax_tracker['commission_total'] > 0:
+                import json as _json
+                _tax_summary = {
+                    'kest_rate_pct': round(_tax_rate * 100, 1),
+                    'kest_by_year': {str(y): round(v, 2) for y, v in annual_tax_tracker['tax_paid_by_year'].items()},
+                    'kest_total': round(sum(annual_tax_tracker['tax_paid_by_year'].values()), 2),
+                    'commission_by_year': {str(y): round(v, 2) for y, v in annual_tax_tracker['commission_by_year'].items()},
+                    'commission_total': round(annual_tax_tracker['commission_total'], 2),
+                }
+                _existing_notes = run.notes or ''
+                _note_tag = f"\ntax_summary={_json.dumps(_tax_summary)}"
+                if 'tax_summary=' not in _existing_notes:
+                    run.notes = (_existing_notes + _note_tag).strip()
 
             _finalize_run_in_memory(
                 run,
@@ -598,6 +793,22 @@ def _position_profit_pct_state(position: dict) -> float:
     if cost_basis <= 0:
         return 0.0
     return ((current_value - cost_basis) / cost_basis) * 100
+
+
+def _commission_for_trade(value_eur: float, strategy_params: dict) -> float:
+    """Commission: flat EUR minimum or percentage, whichever is higher."""
+    flat = strategy_params.get('commission_eur')
+    if flat is not None:
+        rate = float(strategy_params.get('commission_rate', 0.001))
+        return max(float(flat), value_eur * rate)
+    return calc_commission(value_eur)
+
+
+def _spread_for_trade(value_eur: float, strategy_params: dict) -> float:
+    """Spread cost — zero when using flat commission (already included)."""
+    if strategy_params.get('commission_eur') is not None:
+        return 0.0
+    return calc_spread_cost(value_eur)
 
 
 def _can_sell_position(position: SimulationPosition, strategy_params: dict, reason: str) -> tuple[bool, str | None]:
@@ -822,10 +1033,11 @@ def _get_positions_value_in_memory(sim_date, replay_data=None, open_positions=No
     return total
 
 
-def _close_position_state(run_id: int, position: dict, sim_date, reason: str, trade_buffer: list[dict], decision_log_id=None) -> float:
+def _close_position_state(run_id: int, position: dict, sim_date, reason: str, trade_buffer: list[dict], decision_log_id=None, strategy_params=None) -> float:
     revenue = float(position['shares']) * float(position.get('current_price_eur') or position.get('entry_price_eur') or 0.0)
-    commission = calc_commission(revenue)
-    spread = calc_spread_cost(revenue)
+    sp = strategy_params or {}
+    commission = _commission_for_trade(revenue, sp)
+    spread = _spread_for_trade(revenue, sp)
     net_revenue = revenue - commission - spread
 
     cost_basis = float(position['shares']) * float(position['entry_price_eur'])
@@ -851,15 +1063,16 @@ def _close_position_state(run_id: int, position: dict, sim_date, reason: str, tr
     return net_revenue
 
 
-def _trim_position_state(run_id: int, position: dict, sim_date, fraction: float, reason: str, trade_buffer: list[dict]) -> float:
+def _trim_position_state(run_id: int, position: dict, sim_date, fraction: float, reason: str, trade_buffer: list[dict], strategy_params=None) -> float:
     fraction = min(max(fraction, 0.0), 1.0)
     if fraction <= 0 or float(position['shares']) <= 0:
         return 0.0
 
     shares_to_sell = float(position['shares']) * fraction
     revenue = shares_to_sell * float(position.get('current_price_eur') or position.get('entry_price_eur') or 0.0)
-    commission = calc_commission(revenue)
-    spread = calc_spread_cost(revenue)
+    sp = strategy_params or {}
+    commission = _commission_for_trade(revenue, sp)
+    spread = _spread_for_trade(revenue, sp)
     net_revenue = revenue - commission - spread
 
     cost_basis = shares_to_sell * float(position['entry_price_eur'])
@@ -914,7 +1127,7 @@ def _update_open_positions_in_memory(run: SimulationRun, sim_date, replay_data=N
         position_value_eur = float(position.get('current_price_eur') or position.get('entry_price_eur') or 0.0) * float(position['shares'])
         already_trimmed = 'trimmed_once' in (position.get('reason') or '')
         if trim_position_above_eur and position_value_eur > trim_position_above_eur and not already_trimmed:
-            cash_delta += _trim_position_state(run.id, position, sim_date, trim_fraction, 'Teilverkauf > 4000 EUR', trade_buffer)
+            cash_delta += _trim_position_state(run.id, position, sim_date, trim_fraction, 'Teilverkauf > 4000 EUR', trade_buffer, strategy_params)
             position['reason'] = ((position.get('reason') or '') + ' | trimmed_once').strip(' |')
             continue
 
@@ -929,7 +1142,7 @@ def _update_open_positions_in_memory(run: SimulationRun, sim_date, replay_data=N
                         if band_pct <= float(sideways_band_pct):
                             can_sell, _ = _can_sell_position_state(position, strategy_params, 'Seitwärtsphase > 30 Tage')
                             if can_sell:
-                                cash_delta += _close_position_state(run.id, position, sim_date, 'Seitwärtsphase > 30 Tage', trade_buffer)
+                                cash_delta += _close_position_state(run.id, position, sim_date, 'Seitwärtsphase > 30 Tage', trade_buffer, strategy_params=strategy_params)
                                 open_positions.pop(stock_id, None)
                                 continue
 
@@ -937,19 +1150,22 @@ def _update_open_positions_in_memory(run: SimulationRun, sim_date, replay_data=N
         if max_hold_days and opened_at and (sim_date - opened_at).days >= int(max_hold_days):
             can_sell, _ = _can_sell_position_state(position, strategy_params, 'Maximale Haltedauer erreicht')
             if can_sell:
-                cash_delta += _close_position_state(run.id, position, sim_date, 'Maximale Haltedauer erreicht', trade_buffer)
+                cash_delta += _close_position_state(run.id, position, sim_date, 'Maximale Haltedauer erreicht', trade_buffer, strategy_params=strategy_params)
                 open_positions.pop(stock_id, None)
                 continue
 
+        min_hold_days = int(strategy_params.get('min_hold_days', 0))
+        in_min_hold = min_hold_days > 0 and opened_at and (sim_date - opened_at).days < min_hold_days
+
         effective_stop = max(float(position.get('stop_loss') or 0.0), float(position.get('trailing_stop') or 0.0))
-        if effective_stop > 0 and float(latest.close) <= effective_stop:
-            cash_delta += _close_position_state(run.id, position, sim_date, 'Stop-Loss ausgelöst', trade_buffer)
+        if not in_min_hold and effective_stop > 0 and float(latest.close) <= effective_stop:
+            cash_delta += _close_position_state(run.id, position, sim_date, 'Stop-Loss ausgelöst', trade_buffer, strategy_params=strategy_params)
             open_positions.pop(stock_id, None)
             continue
 
         take_profit = float(position.get('take_profit') or 0.0)
-        if take_profit and float(latest.close) >= take_profit:
-            cash_delta += _close_position_state(run.id, position, sim_date, 'Take-Profit erreicht', trade_buffer)
+        if not in_min_hold and take_profit and float(latest.close) >= take_profit:
+            cash_delta += _close_position_state(run.id, position, sim_date, 'Take-Profit erreicht', trade_buffer, strategy_params=strategy_params)
             open_positions.pop(stock_id, None)
             continue
 
@@ -1325,6 +1541,77 @@ def _build_replay_data_cache(run: SimulationRun) -> dict:
         mom = df[col].pct_change(momentum_lookback)
         momentum_12m_by_stock[stock_id] = mom.to_dict()
 
+    # Sharpe-Momentum + Multi-Period Momentum vorberechnen
+    sharpe_mom_by_stock = {}
+    multi_mom_by_stock = {}
+    _needs_sharpe = strategy_mode == 'sharpe_momentum'
+    _needs_multi = strategy_mode == 'multi_momentum'
+    if _needs_sharpe or _needs_multi:
+        skip = int(strategy_params.get('momentum_skip_days', 21))
+        lb12 = momentum_lookback
+        lb6 = int(strategy_params.get('momentum_6m_days', 126))
+        lb3 = int(strategy_params.get('momentum_3m_days', 63))
+        for stock_id, df in frames_by_stock.items():
+            col = 'CloseEUR' if 'CloseEUR' in df.columns else 'Close'
+            s = df[col]
+            if _needs_sharpe:
+                ret12 = s.shift(skip) / s.shift(skip + lb12) - 1
+                # Annualisierte Volatilität der täglichen Returns über 12M
+                daily_ret = s.pct_change()
+                vol12 = daily_ret.rolling(lb12).std() * (252 ** 0.5)
+                vol12 = vol12.replace(0, float('nan'))
+                sharpe = ret12 / vol12
+                sharpe_mom_by_stock[stock_id] = sharpe.to_dict()
+            if _needs_multi:
+                r12 = s.shift(skip) / s.shift(skip + lb12) - 1
+                r6  = s.shift(skip) / s.shift(skip + lb6)  - 1
+                r3  = s.shift(skip) / s.shift(skip + lb3)  - 1
+                # Gewichteter Composite: 12M=0.4, 6M=0.35, 3M=0.25
+                composite = r12 * 0.4 + r6 * 0.35 + r3 * 0.25
+                multi_mom_by_stock[stock_id] = composite.to_dict()
+        log.info('Sharpe/Multi-Momentum: %d Aktien vorberechnet.', len(frames_by_stock))
+
+    # Cross-Sectional Momentum + Monthly Rotation: 12-1 Momentum + monatliche Termine
+    momentum_csm_by_stock = {}
+    csm_rebalance_dates = set()
+    tax_harvest_dates = set()
+    # Tax-Harvest-Termine für alle Strategien mit capital_gains_tax_rate vorberechnen
+    _needs_tax_dates = strategy_params.get('capital_gains_tax_rate', 0.0) > 0
+    _needs_csm_momentum = strategy_mode in ('cross_sectional_momentum', 'monthly_rotation')
+    if _needs_csm_momentum or _needs_tax_dates:
+        # Shared: sorted list of all trading dates
+        all_trade_dates = set()
+        for dates_dict in row_index_by_stock.values():
+            all_trade_dates.update(dates_dict.keys())
+        sorted_trade_dates = sorted(all_trade_dates)
+
+        if _needs_csm_momentum:
+            csm_skip = int(strategy_params.get('momentum_skip_days', 21))
+            csm_lookback = momentum_lookback
+            for stock_id, df in frames_by_stock.items():
+                col = 'CloseEUR' if 'CloseEUR' in df.columns else 'Close'
+                s = df[col]
+                mom = s.shift(csm_skip) / s.shift(csm_skip + csm_lookback) - 1
+                momentum_csm_by_stock[stock_id] = mom.to_dict()
+            # Erster Handelstag jedes Monats als Rebalancing-Termin
+            last_month = None
+            for d in sorted_trade_dates:
+                month_key = (d.year, d.month)
+                if month_key != last_month:
+                    csm_rebalance_dates.add(d)
+                    last_month = month_key
+
+        if _needs_tax_dates:
+            # Letzter Handelstag im Dezember jedes Jahres (KeSt-Jahresabrechnung)
+            last_dec_by_year = {}
+            for d in sorted_trade_dates:
+                if d.month == 12:
+                    last_dec_by_year[d.year] = d
+            tax_harvest_dates = set(last_dec_by_year.values())
+
+        log.info('Cache: %d Rebalancing-Termine, %d Tax-Abrechnung-Termine, %d CSM-Aktien.',
+                 len(csm_rebalance_dates), len(tax_harvest_dates), len(momentum_csm_by_stock))
+
     # Market Regime Filter: Benchmark SMA
     regime_data = _build_regime_filter_data(run, strategy_params)
 
@@ -1343,6 +1630,11 @@ def _build_replay_data_cache(run: SimulationRun) -> dict:
         'params_by_stock': params_by_stock,
         'sector_scores': sector_scores,
         'momentum_12m_by_stock': momentum_12m_by_stock,
+        'momentum_csm_by_stock': momentum_csm_by_stock,
+        'csm_rebalance_dates': csm_rebalance_dates,
+        'tax_harvest_dates': tax_harvest_dates,
+        'sharpe_mom_by_stock': sharpe_mom_by_stock,
+        'multi_mom_by_stock': multi_mom_by_stock,
         'strategy': strategy,
         'strategy_mode': strategy_mode,
         'strategy_params': strategy_params,
@@ -1384,6 +1676,40 @@ def _generate_signals_from_cache(run: SimulationRun, sim_date, replay_data: dict
     rows_by_stock = replay_data.get('rows_by_stock', {})
     params_by_stock = replay_data.get('params_by_stock', {})
     momentum_12m_by_stock = replay_data.get('momentum_12m_by_stock', {})
+    sharpe_mom_by_stock   = replay_data.get('sharpe_mom_by_stock', {})
+    multi_mom_by_stock    = replay_data.get('multi_mom_by_stock', {})
+
+    # Sharpe-Momentum: Ranking nach Return÷Volatilität
+    if strategy_mode == 'sharpe_momentum':
+        abs_threshold = float(strategy_params.get('absolute_momentum_threshold', 0.0))
+        all_sharpe = {}
+        all_raw_12m = {}
+        for stock in replay_data.get('stocks', []):
+            m = momentum_12m_by_stock.get(stock.id, {}).get(sim_date)
+            sh = sharpe_mom_by_stock.get(stock.id, {}).get(sim_date)
+            if m is not None and not (isinstance(m, float) and math.isnan(m)):
+                all_raw_12m[stock.id] = float(m)
+            if sh is not None and not (isinstance(sh, float) and math.isnan(sh)):
+                all_sharpe[stock.id] = float(sh)
+        sharpe_eligible = {sid: v for sid, v in all_sharpe.items()
+                           if all_raw_12m.get(sid, -1) > abs_threshold}
+        ranked_sharpe = sorted(sharpe_eligible, key=lambda s: sharpe_eligible[s], reverse=True)
+
+    # Multi-Period Momentum: Ranking nach gewichtetem 3M+6M+12M-Score
+    elif strategy_mode == 'multi_momentum':
+        abs_threshold = float(strategy_params.get('absolute_momentum_threshold', 0.0))
+        all_multi = {}
+        all_raw_12m_multi = {}
+        for stock in replay_data.get('stocks', []):
+            m = momentum_12m_by_stock.get(stock.id, {}).get(sim_date)
+            cm = multi_mom_by_stock.get(stock.id, {}).get(sim_date)
+            if m is not None and not (isinstance(m, float) and math.isnan(m)):
+                all_raw_12m_multi[stock.id] = float(m)
+            if cm is not None and not (isinstance(cm, float) and math.isnan(cm)):
+                all_multi[stock.id] = float(cm)
+        multi_eligible = {sid: v for sid, v in all_multi.items()
+                          if all_raw_12m_multi.get(sid, -1) > abs_threshold}
+        ranked_multi = sorted(multi_eligible, key=lambda s: multi_eligible[s], reverse=True)
 
     # Dual Momentum: Ranking aller Aktien nach 12M-Return für diesen Tag
     if strategy_mode == 'dual_momentum':
@@ -1398,6 +1724,26 @@ def _generate_signals_from_cache(run: SimulationRun, sim_date, replay_data: dict
         # Relative Stärke: sortiert nach 12M-Return absteigend
         ranked_ids = sorted(eligible_ids, key=lambda sid: all_mom.get(sid, 0), reverse=True)
 
+    # Cross-Sectional Momentum + Monthly Rotation: Rebalancing-Termin + Ranking
+    csm_is_rebalance = False
+    csm_top_ids: set = set()
+    csm_all_mom: dict = {}
+    csm_eligible: dict = {}
+    if strategy_mode in ('cross_sectional_momentum', 'monthly_rotation'):
+        csm_rebalance_dates = replay_data.get('csm_rebalance_dates', set())
+        csm_is_rebalance = sim_date in csm_rebalance_dates
+        if csm_is_rebalance:
+            momentum_csm = replay_data.get('momentum_csm_by_stock', {})
+            top_n_csm = int(strategy_params.get('top_n_signals', 10))
+            abs_thr_csm = float(strategy_params.get('min_momentum_threshold', 0.0))
+            for stock in replay_data.get('stocks', []):
+                m = momentum_csm.get(stock.id, {}).get(sim_date)
+                if m is not None and not (isinstance(m, float) and math.isnan(m)):
+                    csm_all_mom[stock.id] = float(m)
+            csm_eligible = {sid: m for sid, m in csm_all_mom.items() if m > abs_thr_csm}
+            ranked_csm = sorted(csm_eligible, key=lambda sid: csm_eligible[sid], reverse=True)
+            csm_top_ids = set(ranked_csm[:top_n_csm])
+
     for stock in replay_data.get('stocks', []):
         row_idx = row_index_by_stock.get(stock.id, {}).get(sim_date)
         rows = rows_by_stock.get(stock.id)
@@ -1410,6 +1756,7 @@ def _generate_signals_from_cache(run: SimulationRun, sim_date, replay_data: dict
             sector_score = sector_scores.get(stock.sector, 50.0)
             analyst_score = 50.0
             news_score = 50.0
+            dm_rank = 999
             latest_price = _get_cached_price(stock.id, sim_date, replay_data)
             if not latest_price:
                 continue
@@ -1490,6 +1837,10 @@ def _generate_signals_from_cache(run: SimulationRun, sim_date, replay_data: dict
 
                 in_top_n = stock.id in ranked_ids[:top_n_dm]
                 has_abs_momentum = stock.id in eligible_ids
+                try:
+                    dm_rank = ranked_ids.index(stock.id) + 1
+                except ValueError:
+                    dm_rank = 999
 
                 if has_abs_momentum and in_top_n:
                     action = 'BUY'
@@ -1497,6 +1848,78 @@ def _generate_signals_from_cache(run: SimulationRun, sim_date, replay_data: dict
                     score = min(50 + float(mom_12m or 0) * 50, 100)
                 elif mom_12m is not None and float(mom_12m) < 0:
                     # Absolutes Momentum negativ: Exit-Signal
+                    action = 'SELL'
+                    score = 0.0
+                else:
+                    action = 'HOLD'
+
+            elif strategy_mode == 'cross_sectional_momentum':
+                # Cross-Sectional Momentum: monatliches Rebalancing nach 12-1-Momentum
+                if not csm_is_rebalance:
+                    action = 'HOLD'
+                elif stock.id in csm_top_ids:
+                    action = 'BUY'
+                    score = min(50 + csm_eligible.get(stock.id, 0) * 50, 100)
+                elif stock.id in csm_all_mom:
+                    action = 'SELL'
+                    score = 0.0
+                else:
+                    action = 'HOLD'
+
+            elif strategy_mode == 'monthly_rotation':
+                # Monthly Rotation: nur BUY an Rebalancing-Tagen; Exits via Stops + Tax-Harvesting
+                if csm_is_rebalance and stock.id in csm_top_ids:
+                    action = 'BUY'
+                    score = min(50 + csm_eligible.get(stock.id, 0) * 50, 100)
+                else:
+                    action = 'HOLD'
+
+            elif strategy_mode == 'sharpe_momentum':
+                top_n = int(strategy_params.get('top_n_signals', 10))
+                in_top = stock.id in ranked_sharpe[:top_n]
+                raw_12m = all_raw_12m.get(stock.id)
+                if in_top and stock.id in sharpe_eligible:
+                    action = 'BUY'
+                    score = min(50 + sharpe_eligible.get(stock.id, 0) * 30, 100)
+                elif raw_12m is not None and float(raw_12m) < 0:
+                    action = 'SELL'
+                    score = 0.0
+                else:
+                    action = 'HOLD'
+
+            elif strategy_mode == 'multi_momentum':
+                top_n = int(strategy_params.get('top_n_signals', 10))
+                in_top = stock.id in ranked_multi[:top_n]
+                raw_12m = all_raw_12m_multi.get(stock.id)
+                if in_top and stock.id in multi_eligible:
+                    action = 'BUY'
+                    score = min(50 + multi_eligible.get(stock.id, 0) * 50, 100)
+                elif raw_12m is not None and float(raw_12m) < 0:
+                    action = 'SELL'
+                    score = 0.0
+                else:
+                    action = 'HOLD'
+
+            elif strategy_mode == 'mean_reversion':
+                # Mean Reversion im Trend: RSI-Dip kaufen wenn EMA-Trend intakt
+                rsi_buy  = float(strategy_params.get('rsi_buy_threshold', 38))
+                rsi_sell = float(strategy_params.get('rsi_sell_threshold', 65))
+                trend_ok = (
+                    ema_fast_value is not None and ema_slow_value is not None
+                    and ema_fast_value >= ema_slow_value * 0.99
+                    and latest_close >= ema_slow_value * 0.97
+                )
+                macd_not_crash = not (
+                    macd_value is not None and macd_signal_value is not None
+                    and macd_value < macd_signal_value * 0.9
+                )
+                if rsi_value is not None and rsi_value < rsi_buy and trend_ok and macd_not_crash:
+                    action = 'BUY'
+                    score = max(30, 70 - rsi_value)
+                elif rsi_value is not None and rsi_value > rsi_sell:
+                    action = 'SELL'
+                    score = 0.0
+                elif not trend_ok:
                     action = 'SELL'
                     score = 0.0
                 else:
@@ -1539,6 +1962,7 @@ def _generate_signals_from_cache(run: SimulationRun, sim_date, replay_data: dict
                 'currency': stock.currency,
                 'score': score,
                 'action': action,
+                'dm_rank': dm_rank if strategy_mode == 'dual_momentum' else 999,
                 'current_price': latest_close,
                 'current_price_eur': latest_close_eur,
                 'atr': atr_value,

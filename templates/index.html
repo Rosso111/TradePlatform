@@ -6,7 +6,7 @@
   <title>TradeBot — Autonomer Algorithmus-Trader</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap">
-  <link rel="stylesheet" href="/static/css/style.css">
+  <link rel="stylesheet" href="/static/css/style.css?v=6">
 
   <!-- TradingView Lightweight Charts -->
   <script src="https://unpkg.com/lightweight-charts@4.1.3/dist/lightweight-charts.standalone.production.js"></script>
@@ -69,15 +69,6 @@
 
   <!-- ── Main Content ───────────────────────────────────────────────────── -->
   <main class="main">
-    <div class="view-tabs">
-      <button class="tab-btn active" data-tab="dashboard">Dashboard</button>
-      <button class="tab-btn" data-tab="simulations">Simulations</button>
-      <button class="tab-btn" data-tab="strategies">Strategien</button>
-      <button class="tab-btn" data-tab="chart">Chart</button>
-      <button class="tab-btn" data-tab="positions">Positionen</button>
-      <button class="tab-btn" data-tab="trades">Trades</button>
-      <button class="tab-btn" data-tab="algorithm">Algorithmus</button>
-    </div>
 
     <!-- Dashboard -->
     <div class="view-panel active" data-tab="dashboard">
@@ -157,7 +148,7 @@
     <!-- Simulations -->
     <div class="view-panel" data-tab="simulations">
       <div class="simulation-workbench">
-        <aside class="simulation-sidebar">
+        <aside class="simulation-sidebar" id="split-sidebar">
           <div class="card simulation-sticky-panel">
             <div style="display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap;margin-bottom:12px">
               <div>
@@ -258,9 +249,10 @@
           </div>
         </aside>
 
-        <section class="simulation-main">
-          <div class="simulation-main-top">
-            <div class="simulation-runs-panel card">
+        <div class="split-handle split-h" data-prev="split-sidebar" data-dir="h"></div>
+        <section class="simulation-main" id="split-sim-main">
+          <div class="simulation-main-top" id="split-main-top">
+            <div class="simulation-runs-panel card" id="split-runs-panel">
               <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap;margin-bottom:12px">
                 <div class="card-title" style="margin:0">Simulationsläufe</div>
                 <div style="display:flex;gap:8px;flex-wrap:wrap">
@@ -272,6 +264,7 @@
               <div id="simulation-runs"></div>
             </div>
 
+            <div class="split-handle split-h" data-prev="split-runs-panel" data-dir="h"></div>
             <div class="simulation-results-panel">
               <div id="simulation-summary"></div>
               <div class="card simulation-chart-panel">
@@ -282,8 +275,9 @@
             </div>
           </div>
 
-          <div class="simulation-main-bottom">
-            <div class="card simulation-scenarios-panel">
+          <div class="split-handle split-v" data-prev="split-main-top" data-dir="v"></div>
+          <div class="simulation-main-bottom" id="split-main-bottom">
+            <div class="card simulation-scenarios-panel" id="split-scenarios-panel">
               <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:12px">
                 <div>
                   <div class="card-title" style="margin-bottom:6px">Szenarien</div>
@@ -294,6 +288,7 @@
               <div id="scenario-batch-status" class="scenario-batch-status"></div>
             </div>
 
+            <div class="split-handle split-h" data-prev="split-scenarios-panel" data-dir="h"></div>
             <div class="card simulation-scenario-detail-panel">
               <div class="card-title">Szenario-Details</div>
               <div id="scenario-detail-view" class="scenario-detail-view">
@@ -343,9 +338,10 @@
           <span class="chart-change" id="chart-change-text">–</span>
           <div class="chart-period-btns">
             <button class="period-btn" data-days="14">2W</button>
-            <button class="period-btn active" data-days="90">3M</button>
+            <button class="period-btn" data-days="90">3M</button>
             <button class="period-btn" data-days="180">6M</button>
             <button class="period-btn" data-days="365">1J</button>
+            <button class="period-btn active" data-days="9999">Max</button>
           </div>
         </div>
         <div id="chart-container"></div>
@@ -529,6 +525,6 @@
 
 </div>
 
-<script type="module" src="/static/js/app.js"></script>
+<script type="module" src="/static/js/app.js?v=11"></script>
 </body>
 </html>
