@@ -6,12 +6,14 @@
 
 ## 1. Ziele
 
-- Mehrere Portfolios pro User, unbegrenzt
-- Mehrere User pro Installation
-- Pro Portfolio: eigene Strategie, eigenes Kapital, eigener Handelsmodus
-- Strategie-Parameter auf vier Ebenen einstellbar (Portfolio → Markt → Sektor → Aktie)
-- Handelsmodus: automatisch ODER tägliche Vorschlagsliste mit manuellem Approval
-- Bestehende Daten bleiben erhalten (Migration, kein Datenverlust)
+| ID | Anforderung |
+|----|-------------|
+| G-01 | Jeder User kann unbegrenzt viele Portfolios anlegen |
+| G-02 | Mehrere User pro Installation, voneinander isoliert |
+| G-03 | Pro Portfolio: eigene Strategie, eigenes Kapital, eigener Handelsmodus |
+| G-04 | Strategie-Parameter auf vier Ebenen konfigurierbar (Portfolio → Markt → Sektor → Aktie) |
+| G-05 | Handelsmodus: vollautomatisch ODER tägliche Vorschlagsliste mit manuellem Approval |
+| G-06 | Bestehende Daten bleiben bei Migration vollständig erhalten |
 
 ---
 
@@ -25,14 +27,25 @@
 | `user` | Eigene Portfolios und Strategien verwalten |
 
 ### 2.2 Authentifizierung
-- Login via Username + Passwort (bcrypt-Hash)
-- Session-basiert (Flask-Login) oder JWT — **offen für Entscheidung**
-- Kein externer OAuth (kein Google/GitHub) in erster Version
+
+| ID | Anforderung |
+|----|-------------|
+| U-01 | Login via Username + Passwort (bcrypt-Hash) |
+| U-02 | Session-basiert (Flask-Login) oder JWT — **offen für Entscheidung** |
+| U-03 | Kein externer OAuth (kein Google/GitHub) in erster Version |
+| U-04 | Jede API-Anfrage wird auf gültige Session/Token geprüft |
+| U-05 | Abgelaufene Sessions werden automatisch ungültig |
 
 ### 2.3 User-Verwaltung
-- Admin kann User anlegen, deaktivieren, Passwort zurücksetzen
-- User kann eigenes Passwort ändern
-- Kein Self-Registration (admin legt User an)
+
+| ID | Anforderung |
+|----|-------------|
+| U-06 | Admin kann User anlegen |
+| U-07 | Admin kann User deaktivieren (kein Login, Daten bleiben erhalten) |
+| U-08 | Admin kann Passwort eines Users zurücksetzen |
+| U-09 | User kann eigenes Passwort ändern |
+| U-10 | Kein Self-Registration — Admin legt User an |
+| U-11 | Deaktivierter User kann sich nicht einloggen, aber seine Daten bleiben erhalten |
 
 ---
 
@@ -51,42 +64,44 @@
 | `strategy_id` | FK | Standard-Strategie für dieses Portfolio |
 | `ibkr_account_id` | String | Nur bei Typ ibkr_paper/live: Account-ID (z.B. DUP859792) |
 
-### 3.2 Portfolio-Typen
+### 3.2 Portfolio-Anforderungen
 
-**`sim`** — Reine Simulation
-- Keine IBKR-Verbindung
-- Preise aus DB (Yahoo Finance via yfinance)
-- Ideal für Backtesting-ähnlichen Vorwärtsbetrieb
+| ID | Anforderung |
+|----|-------------|
+| P-01 | User kann beliebig viele Portfolios anlegen |
+| P-02 | Portfolio kann aktiv oder inaktiv geschaltet werden |
+| P-03 | Inaktive Portfolios führen keinen Handelszyklus aus |
+| P-04 | Portfolio kann nur gelöscht werden wenn keine offenen Positionen vorhanden |
+| P-05 | Jedes Portfolio hat eine eigene Kasse, eigene Positionen, eigene Trade-Historie |
+| P-06 | Portfolios verschiedener User sind voneinander isoliert (kein cross-user Zugriff) |
+| P-07 | Admin kann alle Portfolios aller User einsehen |
 
-**`ibkr_paper`** — IBKR Paper Trading
-- Verbindung zu IB Gateway Port 4002
-- Echte Market Orders auf IBKR Paper-Konto
-- Positionen werden in IBKR UND in lokaler DB geführt
+### 3.3 Portfolio-Typen
 
-**`ibkr_live`** — IBKR Live Trading (spätere Ausbaustufe)
-- Verbindung zu IB Gateway Port 4001
-- Echtes Geld — zusätzliche Sicherheitsabfrage vor Ausführung
-- Nur für Admin freischaltbar
+| ID | Anforderung |
+|----|-------------|
+| P-08 | Typ `sim`: reine Simulation, Preise aus DB, keine IBKR-Verbindung |
+| P-09 | Typ `ibkr_paper`: echte Market Orders auf IBKR Paper-Konto (Port 4002) |
+| P-10 | Typ `ibkr_live`: echte Market Orders auf IBKR Live-Konto (Port 4001), nur Admin freischaltbar |
+| P-11 | Bei `ibkr_paper`/`ibkr_live`: Positionen werden in IBKR UND in lokaler DB geführt |
 
-### 3.3 Handelsmodi
+### 3.4 Handelsmodi
 
-**`auto`** — Vollautomatisch
-- Zyklus läuft alle 15 Minuten (konfigurierbar)
-- Signal → sofortige Ausführung ohne manuellen Eingriff
-
-**`approval`** — Tägliche Vorschlagsliste
-- Einmal täglich, konfigurierbare Zeit (default: 8:00 Uhr MEZ)
-- Basis: gestrige Schlusskurse + aktuelle Signallage
-- Ergebnis: Liste von Kauf-/Verkaufsvorschlägen pro Portfolio
-- User togglet einzeln an/aus im UI
-- "Jetzt ausführen"-Button → alle aktivierten Orders werden gesendet
-- Nicht ausgeführte Vorschläge verfallen am selben Tag um 22:00 Uhr (Börsenende)
+| ID | Anforderung |
+|----|-------------|
+| P-12 | Modus `auto`: Signale werden sofort ohne manuellen Eingriff ausgeführt |
+| P-13 | Modus `approval`: Signale erzeugen Vorschläge, keine automatische Ausführung |
+| P-14 | Im Approval-Modus: Vorschlagsgenerierung einmal täglich um 8:00 Uhr MEZ |
+| P-15 | Basis der Vorschläge: gestrige Schlusskurse + Indikatoren |
+| P-16 | Vorschläge verfallen täglich um 22:00 Uhr MEZ automatisch (Status: `expired`) |
+| P-17 | User kann pro Vorschlag einzeln aktivieren oder deaktivieren |
+| P-18 | "Jetzt ausführen"-Button sendet alle aktivierten Vorschläge auf einmal |
 
 ---
 
 ## 4. Strategie-System
 
-### 4.1 Strategie-Objekt
+### 4.1 Strategie-Parameter
 
 Eine Strategie enthält alle Parameter die das Scoring und den Handel steuern:
 
@@ -116,7 +131,17 @@ Handelskosten:
   - spread_rate (default: 0.05%)
 ```
 
-### 4.2 Überschreibungs-Hierarchie
+### 4.2 Strategie-Anforderungen
+
+| ID | Anforderung |
+|----|-------------|
+| S-01 | Jeder User kann eigene Strategien erstellen und benennen |
+| S-02 | Admin kann System-Strategien anlegen die alle User nutzen können |
+| S-03 | Strategien können zwischen Portfolios desselben Users geteilt werden |
+| S-04 | Eine Strategie kann mehreren Portfolios zugewiesen werden |
+| S-05 | System-Strategien können von Usern nicht verändert werden (nur kopiert) |
+
+### 4.3 Überschreibungs-Hierarchie
 
 Feingranularere Regel gewinnt immer:
 
@@ -133,27 +158,31 @@ Portfolio "Momentum":
   buy_threshold: 65, trailing_stop: 3%, max_position_size: 20%
 
   Markt US:
-    buy_threshold: 70  (strenger für US)
+    buy_threshold: 70
 
   Sektor Technology:
     trailing_stop: 5%, max_position_size: 15%
 
   Aktie NVDA:
-    max_position_size: 8%  (NVDA nie mehr als 8%)
+    max_position_size: 8%
     buy_threshold: 75
 ```
 
 Effektiv für NVDA (US, Technology):
-- `buy_threshold`: 75 (Aktien-Regel)
-- `trailing_stop`: 5% (Sektor-Regel)
-- `max_position_size`: 8% (Aktien-Regel)
+- `buy_threshold`: 75 (Aktien-Regel gewinnt)
+- `trailing_stop`: 5% (Sektor-Regel gewinnt)
+- `max_position_size`: 8% (Aktien-Regel gewinnt)
 - alles andere: Portfolio-Default
 
-### 4.3 Strategie-Verwaltung
-- Jeder User kann eigene Strategien erstellen und benennen
-- Strategien können zwischen Portfolios desselben Users geteilt werden
-- Admin kann System-Strategien anlegen die alle User nutzen können
-- Eine Strategie gehört immer einem User oder dem System
+### 4.4 Regel-Anforderungen
+
+| ID | Anforderung |
+|----|-------------|
+| S-06 | Überschreibungsregeln können auf Ebene Markt, Sektor oder Aktie definiert werden |
+| S-07 | Aktien-Regel überschreibt Sektor-Regel überschreibt Markt-Regel überschreibt Portfolio-Default |
+| S-08 | Nur die tatsächlich überschriebenen Parameter werden gespeichert (kein vollständiges Objekt) |
+| S-09 | Fehlende Parameter werden von der nächst höheren Ebene geerbt |
+| S-10 | Der aufgelöste Parametersatz ist zur Laufzeit vollständig berechenbar |
 
 ---
 
@@ -166,41 +195,44 @@ Effektiv für NVDA (US, Technology):
   → Scheduler startet Proposal-Generator für alle aktiven Approval-Portfolios
   → Pro Portfolio:
       1. Gestrige Schlusskurse + aktuelle Indikatoren berechnen
-      2. Strategie-Hierarchie auflösen (welche Parameter gelten für welche Aktie)
+      2. Strategie-Hierarchie auflösen pro Aktie
       3. Signale generieren (BUY / SELL / HOLD)
       4. DailyProposal anlegen mit Liste von ProposedOrders
       5. Telegram-Benachrichtigung an User (optional)
 
-08:00 - Börsenöffnung (15:30 MEZ für US)
+08:00 - 15:30 MEZ (vor US-Börsenöffnung)
   → User öffnet UI, sieht Vorschlagsliste
   → Togglet einzelne Orders an/aus
   → Drückt "Jetzt ausführen"
   → Alle aktivierten Orders werden ausgeführt
 
 22:00 Uhr MEZ
-  → Nicht ausgeführte Proposals verfallen automatisch (Status: expired)
+  → Nicht ausgeführte Proposals → Status: expired
 ```
 
-### 5.2 Proposal-Objekt
+### 5.2 Proposal-Anforderungen
 
-Ein `DailyProposal` enthält:
-- Portfolio, Datum, Generierungszeit
-- Status: `open` / `partially_executed` / `executed` / `expired`
-- Liste von `ProposedOrder`:
-  - Symbol, Name, Sektor
-  - Action: `BUY` / `SELL`
-  - Vorgeschlagene Stückzahl + Schätzpreis
-  - Score + Begründung (welche Indikatoren haben ausgelöst)
-  - `approved`: true/false (User-Toggle)
-  - `executed`: true/false (nach Ausführung)
+| ID | Anforderung |
+|----|-------------|
+| PR-01 | Pro Portfolio und Tag wird maximal ein DailyProposal erstellt |
+| PR-02 | Basis der Proposals: Schlusskurse des Vortages |
+| PR-03 | Proposals werden um 8:00 Uhr MEZ automatisch generiert |
+| PR-04 | Jeder ProposedOrder enthält: Symbol, Action, Stückzahl, Schätzpreis, Score, Begründung |
+| PR-05 | Default-Zustand jedes ProposedOrder: `approved = true` |
+| PR-06 | User kann `approved` pro Order auf `false` setzen |
+| PR-07 | "Ausführen"-Button führt alle `approved = true` Orders aus |
+| PR-08 | Nach Ausführung: Order erhält `executed = true` + `fill_price` |
+| PR-09 | Nicht ausgeführte Orders werden um 22:00 Uhr auf `expired` gesetzt |
+| PR-10 | Bereits ausgeführte Orders können nicht rückgängig gemacht werden |
+| PR-11 | Proposal-Status: `open` → `partially_executed` / `executed` / `expired` |
 
 ---
 
-## 6. Datenbankarchitektur (neu)
+## 6. Datenbankarchitektur
 
 ### 6.1 Neue Tabellen
 
-```
+```sql
 users
   id, username, email, password_hash, role, is_active, created_at
 
@@ -209,12 +241,13 @@ portfolios
   starting_capital, strategy_id, ibkr_account_id, created_at
 
 strategies
-  id, user_id, name, description, is_system, params (JSON), created_at
+  id, user_id (nullable für System-Strategien), name, description,
+  is_system, params (JSONB), created_at
 
 strategy_rules
   id, strategy_id, level (market/sector/stock),
   key (z.B. "US" / "Technology" / "NVDA"),
-  overrides (JSON — nur die überschriebenen Felder)
+  overrides (JSONB)
 
 daily_proposals
   id, portfolio_id, proposal_date, generated_at, status,
@@ -226,122 +259,137 @@ proposed_orders
   executed_at, fill_price
 ```
 
-### 6.2 Geänderte Tabellen (portfolio_id hinzufügen)
+### 6.2 Geänderte bestehende Tabellen
 
-```
+```sql
 accounts       → + portfolio_id (FK, unique)
 positions      → + portfolio_id (FK)
 trades         → + portfolio_id (FK)
-signals        → + portfolio_id (FK, nullable — für system-weite Signale)
+signals        → + portfolio_id (FK, nullable)
 equity_history → + portfolio_id (FK)
 ```
 
-### 6.3 Migration bestehender Daten
+### 6.3 DB-Anforderungen
 
-Strategie:
-1. Einen Default-User anlegen (`admin`, Passwort aus .env)
-2. Ein Default-Portfolio anlegen ("Default", Typ: `sim`, Modus: `auto`)
-3. Alle bestehenden `accounts`, `positions`, `trades`, `signals`, `equity_history`
-   bekommen `portfolio_id = 1` (das Default-Portfolio)
-4. Bestehende Strategie-Parameter aus `config.py` werden als System-Strategie "Default v1" gespeichert
-
-Kein Datenverlust — alle bestehenden Daten bleiben vollständig erhalten.
+| ID | Anforderung |
+|----|-------------|
+| DB-01 | Migration darf keine bestehenden Daten löschen oder verändern |
+| DB-02 | Alle bestehenden Datensätze werden einem Default-Portfolio (id=1) zugewiesen |
+| DB-03 | Ein Default-Admin-User wird beim ersten Start angelegt |
+| DB-04 | Migration wird als Alembic-Skript ausgeführt (versioniert, wiederholbar) |
+| DB-05 | Rollback der Migration muss möglich sein |
+| DB-06 | Strategie-Parameter aus config.py werden als System-Strategie "Default v1" gespeichert |
 
 ---
 
-## 7. API-Endpunkte (neu/geändert)
+## 7. API-Endpunkte
 
-### User & Auth
-```
-POST /api/auth/login
-POST /api/auth/logout
-GET  /api/auth/me
-POST /api/users              (admin only)
-GET  /api/users              (admin only)
-PUT  /api/users/:id/password
-```
+### Auth
+
+| ID | Method | Endpoint | Beschreibung |
+|----|--------|----------|--------------|
+| API-01 | POST | `/api/auth/login` | Login, gibt Session/Token zurück |
+| API-02 | POST | `/api/auth/logout` | Session ungültig machen |
+| API-03 | GET | `/api/auth/me` | Eingeloggter User + seine Portfolios |
+
+### User-Verwaltung (Admin)
+
+| ID | Method | Endpoint | Beschreibung |
+|----|--------|----------|--------------|
+| API-04 | GET | `/api/users` | Alle User auflisten |
+| API-05 | POST | `/api/users` | Neuen User anlegen |
+| API-06 | PUT | `/api/users/:id` | User bearbeiten |
+| API-07 | PATCH | `/api/users/:id/status` | Aktivieren/Deaktivieren |
+| API-08 | PUT | `/api/users/:id/password` | Passwort zurücksetzen |
 
 ### Portfolios
-```
-GET    /api/portfolios               (eigene Portfolios)
-POST   /api/portfolios               (neues Portfolio)
-GET    /api/portfolios/:id           (Detail + aktueller Stand)
-PUT    /api/portfolios/:id           (bearbeiten)
-PATCH  /api/portfolios/:id/status    (aktiv/inaktiv)
-DELETE /api/portfolios/:id           (nur wenn keine offenen Positionen)
-```
+
+| ID | Method | Endpoint | Beschreibung |
+|----|--------|----------|--------------|
+| API-09 | GET | `/api/portfolios` | Eigene Portfolios |
+| API-10 | POST | `/api/portfolios` | Neues Portfolio anlegen |
+| API-11 | GET | `/api/portfolios/:id` | Detail + aktueller Stand |
+| API-12 | PUT | `/api/portfolios/:id` | Portfolio bearbeiten |
+| API-13 | PATCH | `/api/portfolios/:id/status` | Aktiv/Inaktiv |
+| API-14 | DELETE | `/api/portfolios/:id` | Löschen (nur ohne offene Positionen) |
 
 ### Strategien
-```
-GET    /api/strategies               (eigene + System-Strategien)
-POST   /api/strategies               (neue Strategie)
-PUT    /api/strategies/:id
-DELETE /api/strategies/:id
-GET    /api/strategies/:id/rules     (Überschreibungsregeln)
-POST   /api/strategies/:id/rules
-DELETE /api/strategies/:id/rules/:rule_id
-```
 
-### Proposals (Approval-Modus)
-```
-GET  /api/portfolios/:id/proposals          (alle Proposals)
-GET  /api/portfolios/:id/proposals/today    (heutiger Proposal)
-PATCH /api/proposals/:id/orders/:order_id   (approve: true/false)
-POST /api/proposals/:id/execute             (alle approved ausführen)
-```
+| ID | Method | Endpoint | Beschreibung |
+|----|--------|----------|--------------|
+| API-15 | GET | `/api/strategies` | Eigene + System-Strategien |
+| API-16 | POST | `/api/strategies` | Neue Strategie |
+| API-17 | PUT | `/api/strategies/:id` | Strategie bearbeiten |
+| API-18 | DELETE | `/api/strategies/:id` | Löschen (nicht wenn in Verwendung) |
+| API-19 | GET | `/api/strategies/:id/rules` | Überschreibungsregeln |
+| API-20 | POST | `/api/strategies/:id/rules` | Neue Regel |
+| API-21 | PUT | `/api/strategies/:id/rules/:rid` | Regel bearbeiten |
+| API-22 | DELETE | `/api/strategies/:id/rules/:rid` | Regel löschen |
 
-### Bestehende Endpunkte
-Alle bestehenden `/api/account`, `/api/positions`, `/api/trades` etc. bekommen
-einen optionalen `?portfolio_id=X` Parameter. Ohne Parameter: aktives Portfolio
-des eingeloggten Users.
+### Proposals
 
----
+| ID | Method | Endpoint | Beschreibung |
+|----|--------|----------|--------------|
+| API-23 | GET | `/api/portfolios/:id/proposals` | Alle Proposals |
+| API-24 | GET | `/api/portfolios/:id/proposals/today` | Heutiger Proposal |
+| API-25 | PATCH | `/api/proposals/:id/orders/:oid` | approved true/false setzen |
+| API-26 | POST | `/api/proposals/:id/execute` | Alle approved Orders ausführen |
 
-## 8. UI-Änderungen
+### Bestehende Endpunkte (rückwärtskompatibel)
 
-### 8.1 Neue Elemente
-- **Login-Screen** (wird beim Start gezeigt wenn nicht eingeloggt)
-- **Portfolio-Switcher** (Dropdown oben im Header — aktives Portfolio wählen)
-- **Portfolio-Verwaltung** (Seite: Liste aller Portfolios, anlegen/bearbeiten/deaktivieren)
-- **Strategie-Editor** (Seite: Parameter einstellen, Regeln pro Markt/Sektor/Aktie)
-- **Proposals-Panel** (nur im Approval-Modus sichtbar):
-  - Tabelle mit heutigen Vorschlägen
-  - Toggle pro Zeile (ausführen / überspringen)
-  - "Alle ausführen"-Button
-  - Status-Anzeige nach Ausführung
-
-### 8.2 Bestehende UI
-- Alle bestehenden Charts, Tabellen, Signale etc. bleiben erhalten
-- Zeigen immer Daten des aktuell gewählten Portfolios
+| ID | Anforderung |
+|----|-------------|
+| API-27 | Alle bestehenden Endpunkte (`/api/account`, `/api/positions` etc.) bleiben funktionsfähig |
+| API-28 | Optionaler Parameter `?portfolio_id=X` — ohne Parameter: Standard-Portfolio des Users |
 
 ---
 
-## 9. Offene Punkte / Entscheidungen
+## 8. UI-Anforderungen
 
-| # | Frage | Optionen |
-|---|-------|----------|
-| 1 | Authentifizierung | Session (Flask-Login) vs. JWT |
-| 2 | Proposal-Benachrichtigung | Nur UI / Telegram / E-Mail |
-| 3 | Mehrere IBKR-Konten gleichzeitig | Ein Gateway für alle oder pro Portfolio eigener Gateway? |
-| 4 | Strategie-Sharing | Nur innerhalb eines Users, oder User können Strategien teilen? |
-| 5 | Portfolio-Währung | Immer EUR, oder auch USD-basierte Portfolios? |
-| 6 | IBKR Live | Direkt mit einbauen oder spätere Ausbaustufe? |
-
----
-
-## 10. Bauplan / Reihenfolge
-
-1. **DB-Migration** — neue Tabellen, Migration bestehender Daten, Alembic-Skript
-2. **Backend Models** — User, Portfolio, Strategy, StrategyRule, DailyProposal, ProposedOrder
-3. **Auth-System** — Login/Logout, Session, Middleware
-4. **Portfolio-Service** — CRUD, portfolio-aware Trading-Zyklus
-5. **Strategie-Resolver** — Hierarchie auflösen (Portfolio→Markt→Sektor→Aktie)
-6. **Proposal-Generator** — Tages-Vorschläge generieren (8:00 Uhr Job)
-7. **API-Endpunkte** — alle neuen + bestehende mit portfolio_id
-8. **UI** — Login, Portfolio-Switcher, Strategie-Editor, Proposals-Panel
-9. **Testing** — End-to-End Test mit Paper-Portfolio
-10. **Merge** → master
+| ID | Anforderung |
+|----|-------------|
+| UI-01 | Login-Screen wird angezeigt wenn kein gültiger Session/Token vorhanden |
+| UI-02 | Nach Login: Weiterleitung zum letzten aktiven Portfolio |
+| UI-03 | Portfolio-Switcher im Header — Dropdown zum Wechseln des aktiven Portfolios |
+| UI-04 | Portfolio-Verwaltungsseite: Liste, anlegen, bearbeiten, aktiv/inaktiv |
+| UI-05 | Strategie-Editor: alle Parameter bearbeiten, Regeln pro Markt/Sektor/Aktie |
+| UI-06 | Proposals-Panel nur im Approval-Modus sichtbar |
+| UI-07 | Proposals-Panel: Tabelle mit Toggle pro Zeile (ausführen / überspringen) |
+| UI-08 | "Alle ausführen"-Button mit Bestätigungsdialog |
+| UI-09 | Alle bestehenden Charts und Tabellen zeigen Daten des aktiven Portfolios |
+| UI-10 | Fehler und Erfolgsmeldungen werden als Toast/Notification angezeigt |
 
 ---
 
-*Dieses Dokument ist zur Freigabe gedacht. Änderungen und Anmerkungen bitte direkt kommunizieren.*
+## 9. Offene Punkte — Entscheidung erforderlich
+
+| # | Frage | Option A | Option B |
+|---|-------|----------|----------|
+| E-01 | Authentifizierung | Session (Flask-Login, einfacher) | JWT (stateless, für spätere Mobile-App besser) |
+| E-02 | Proposal-Benachrichtigung | Nur UI | Telegram zusätzlich |
+| E-03 | Mehrere IBKR-Konten | Ein Gateway für alle Portfolios | Pro IBKR-Portfolio eigene Gateway-Instanz |
+| E-04 | Strategie-Sharing | Nur innerhalb eines Users | User können Strategien teilen |
+| E-05 | Portfolio-Währung | Immer EUR | Auch USD-basierte Portfolios möglich |
+| E-06 | IBKR Live | Direkt mit einbauen | Spätere Ausbaustufe (nach Live-Tests mit Paper) |
+
+---
+
+## 10. Bauplan
+
+| Schritt | Was | Tests |
+|---------|-----|-------|
+| 1 | Alembic einrichten + Migration schreiben | DB-01 bis DB-06 |
+| 2 | Models: User, Portfolio, Strategy, StrategyRule, DailyProposal, ProposedOrder | alle Model-Tests |
+| 3 | Auth-System (Login/Logout/Session) | U-01 bis U-11 |
+| 4 | Portfolio-Service (CRUD + portfolio-aware Zyklus) | P-01 bis P-11 |
+| 5 | Strategie-Resolver (Hierarchie auflösen) | S-06 bis S-10 |
+| 6 | Proposal-Generator (8:00 Uhr Job) | PR-01 bis PR-11 |
+| 7 | API-Endpunkte | API-01 bis API-28 |
+| 8 | UI (Login, Switcher, Strategie-Editor, Proposals-Panel) | UI-01 bis UI-10 |
+| 9 | End-to-End Test mit Paper-Portfolio | G-01 bis G-06 |
+| 10 | Review + Merge → master | — |
+
+---
+
+*Dieses Dokument ist zur Freigabe gedacht. Bitte Änderungen und Anmerkungen direkt kommunizieren.*  
+*Anforderungs-IDs (G-xx, U-xx, P-xx, S-xx, PR-xx, DB-xx, API-xx, UI-xx) dienen als Referenz für Tests.*
