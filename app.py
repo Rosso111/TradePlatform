@@ -128,9 +128,14 @@ def _setup_scheduler(app):
     """Richtet den autonomen Handelstakt ein."""
 
     def trading_job():
-        from services.trading_engine import run_trading_cycle
+        if config.LIVE_TRADING:
+            from services.live_runner import run_live_trading_cycle
+            cycle_fn = run_live_trading_cycle
+        else:
+            from services.trading_engine import run_trading_cycle
+            cycle_fn = run_trading_cycle
         try:
-            actions = run_trading_cycle(app)
+            actions = cycle_fn(app)
             if actions:
                 socketio.emit('trading_actions', {'actions': actions})
             socketio.emit('portfolio_update', _get_portfolio_snapshot(app))
