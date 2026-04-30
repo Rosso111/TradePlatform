@@ -10,6 +10,8 @@ from dotenv import load_dotenv
 from flask import Flask, render_template
 from flask_socketio import SocketIO
 from flask_cors import CORS
+from flask_migrate import Migrate
+from flask_login import LoginManager
 from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.triggers.interval import IntervalTrigger
 from sqlalchemy import text
@@ -26,10 +28,14 @@ log = logging.getLogger(__name__)
 
 socketio = SocketIO()
 scheduler = BackgroundScheduler(timezone='Europe/Vienna')
+migrate = Migrate()
+login_manager = LoginManager()
 
 
 def create_app():
-    load_dotenv(os.path.join(os.path.dirname(os.path.abspath(__file__)), '.env'))
+    base_dir = os.path.dirname(os.path.abspath(__file__))
+    load_dotenv(os.path.join(base_dir, '.env'))
+    load_dotenv(os.path.join(base_dir, '.env.local'), override=True)
     app = Flask(__name__)
     app.config['SECRET_KEY'] = config.SECRET_KEY
     app.config['SQLALCHEMY_DATABASE_URI'] = config.SQLALCHEMY_DATABASE_URI
@@ -44,8 +50,16 @@ def create_app():
 
     # Extensions
     db.init_app(app)
+    migrate.init_app(app, db)
     CORS(app)
     socketio.init_app(app, cors_allowed_origins='*', async_mode='eventlet')
+    login_manager.init_app(app)
+    login_manager.login_view = 'api.login'
+
+    @login_manager.user_loader
+    def load_user(user_id):
+        from models import User
+        return User.query.get(int(user_id))
 
     # Blueprints
     from routes.api import api
@@ -59,10 +73,14 @@ def create_app():
     # Datenbank & Startdaten initialisieren
     with app.app_context():
         db.create_all()
-        _init_account()
-        _init_performance_indexes(app)
-        _cleanup_stuck_simulation_runs()
-        log.info("Datenbank initialisiert.")
+        try:
+            _init_account()
+            _init_performance_indexes(app)
+            _cleanup_stuck_simulation_runs()
+            log.info("Datenbank initialisiert.")
+        except Exception as e:
+            db.session.rollback()
+            log.warning("Startup-Initialisierung übersprungen (Schema-Migration ausstehend?): %s", e)
 
     # Scheduler starten
     _setup_scheduler(app)

@@ -1,4 +1,5 @@
 from flask_sqlalchemy import SQLAlchemy
+from flask_login import UserMixin
 from datetime import datetime, timezone
 
 
@@ -77,6 +78,7 @@ class Account(db.Model):
     __tablename__ = 'account'
 
     id               = db.Column(db.Integer, primary_key=True)
+    portfolio_id     = db.Column(db.Integer, db.ForeignKey('portfolios.id'), nullable=True, unique=True)
     cash_eur         = db.Column(db.Float, nullable=False, default=10000.0)
     equity_eur       = db.Column(db.Float, nullable=False, default=10000.0)
     total_trades     = db.Column(db.Integer, default=0)
@@ -101,6 +103,7 @@ class Position(db.Model):
     __tablename__ = 'positions'
 
     id              = db.Column(db.Integer, primary_key=True)
+    portfolio_id    = db.Column(db.Integer, db.ForeignKey('portfolios.id'), nullable=True)
     stock_id        = db.Column(db.Integer, db.ForeignKey('stocks.id'), nullable=False)
     shares          = db.Column(db.Float, nullable=False)
     entry_price     = db.Column(db.Float, nullable=False)       # In Originalwährung
@@ -158,6 +161,7 @@ class Trade(db.Model):
     __tablename__ = 'trades'
 
     id               = db.Column(db.Integer, primary_key=True)
+    portfolio_id     = db.Column(db.Integer, db.ForeignKey('portfolios.id'), nullable=True)
     stock_id         = db.Column(db.Integer, db.ForeignKey('stocks.id'), nullable=False)
     action           = db.Column(db.String(10), nullable=False)  # 'BUY' oder 'SELL'
     shares           = db.Column(db.Float, nullable=False)
@@ -198,6 +202,7 @@ class Signal(db.Model):
     __tablename__ = 'signals'
 
     id           = db.Column(db.Integer, primary_key=True)
+    portfolio_id = db.Column(db.Integer, db.ForeignKey('portfolios.id'), nullable=True)
     stock_id     = db.Column(db.Integer, db.ForeignKey('stocks.id'), nullable=False)
     date         = db.Column(db.Date, nullable=False)
     score        = db.Column(db.Float, nullable=False)          # 0-100
@@ -252,12 +257,15 @@ class EquityHistory(db.Model):
     """Tägliche Equity-Kurve für Performance-Chart"""
     __tablename__ = 'equity_history'
 
-    id         = db.Column(db.Integer, primary_key=True)
-    date       = db.Column(db.Date, nullable=False, unique=True)
-    equity_eur = db.Column(db.Float, nullable=False)
-    cash_eur   = db.Column(db.Float, nullable=False)
+    id           = db.Column(db.Integer, primary_key=True)
+    portfolio_id = db.Column(db.Integer, db.ForeignKey('portfolios.id'), nullable=True)
+    date         = db.Column(db.Date, nullable=False)
+    equity_eur      = db.Column(db.Float, nullable=False)
+    cash_eur        = db.Column(db.Float, nullable=False)
     positions_value = db.Column(db.Float, default=0.0)
-    daily_pnl  = db.Column(db.Float, default=0.0)
+    daily_pnl       = db.Column(db.Float, default=0.0)
+
+    __table_args__ = (db.UniqueConstraint('portfolio_id', 'date', name='uq_equity_portfolio_date'),)
 
     def to_dict(self):
         return {
@@ -531,4 +539,189 @@ class SimulationDailySnapshot(db.Model, JsonMixin):
             'drawdown_pct': self._round(self.drawdown_pct, 2),
             'open_positions': self.open_positions,
             'created_at': self.created_at.isoformat() if self.created_at else None,
+        }
+
+
+# ─── Multi-User & Multi-Portfolio Models ─────────────────────────────────────
+
+class User(db.Model, UserMixin):
+    """Implements: U-01 bis U-11"""
+    __tablename__ = 'users'
+
+    id            = db.Column(db.Integer, primary_key=True)
+    username      = db.Column(db.String(80), unique=True, nullable=False)
+    email         = db.Column(db.String(120), unique=True, nullable=True)
+    password_hash = db.Column(db.String(255), nullable=False)
+    role          = db.Column(db.String(20), nullable=False, default='user')  # 'admin' | 'user'
+    is_active     = db.Column(db.Boolean, default=True, nullable=False)
+    created_at    = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
+
+    portfolios = db.relationship('Portfolio', backref='owner', lazy='dynamic')
+    strategies = db.relationship('Strategy', backref='owner', lazy='dynamic',
+                                  foreign_keys='Strategy.user_id')
+
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'username': self.username,
+            'email': self.email,
+            'role': self.role,
+            'is_active': self.is_active,
+            'created_at': self.created_at.isoformat() if self.created_at else None,
+        }
+
+
+class Strategy(db.Model):
+    """Implements: S-01 bis S-10"""
+    __tablename__ = 'strategies'
+
+    id          = db.Column(db.Integer, primary_key=True)
+    user_id     = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=True)
+    name        = db.Column(db.String(100), nullable=False)
+    description = db.Column(db.Text)
+    is_system   = db.Column(db.Boolean, default=False, nullable=False)
+    params      = db.Column(db.JSON, nullable=False, default=dict)
+    created_at  = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
+
+    rules = db.relationship('StrategyRule', backref='strategy', lazy='dynamic',
+                             cascade='all, delete-orphan')
+
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'user_id': self.user_id,
+            'name': self.name,
+            'description': self.description,
+            'is_system': self.is_system,
+            'params': self.params or {},
+            'created_at': self.created_at.isoformat() if self.created_at else None,
+        }
+
+
+class StrategyRule(db.Model):
+    """Überschreibungsregeln pro Markt/Sektor/Aktie. Implements: S-06 bis S-10"""
+    __tablename__ = 'strategy_rules'
+
+    id          = db.Column(db.Integer, primary_key=True)
+    strategy_id = db.Column(db.Integer, db.ForeignKey('strategies.id'), nullable=False)
+    level       = db.Column(db.String(20), nullable=False)  # 'market' | 'sector' | 'stock'
+    key         = db.Column(db.String(50), nullable=False)  # z.B. 'US', 'Technology', 'NVDA'
+    overrides   = db.Column(db.JSON, nullable=False, default=dict)
+
+    __table_args__ = (db.UniqueConstraint('strategy_id', 'level', 'key', name='uq_rule_strategy_level_key'),)
+
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'strategy_id': self.strategy_id,
+            'level': self.level,
+            'key': self.key,
+            'overrides': self.overrides or {},
+        }
+
+
+class Portfolio(db.Model):
+    """Implements: P-01 bis P-11, G-01 bis G-03"""
+    __tablename__ = 'portfolios'
+
+    id                = db.Column(db.Integer, primary_key=True)
+    user_id           = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
+    name              = db.Column(db.String(100), nullable=False)
+    type              = db.Column(db.String(20), nullable=False, default='sim')  # 'sim' | 'ibkr_paper' | 'ibkr_live'
+    mode              = db.Column(db.String(20), nullable=False, default='auto')  # 'auto' | 'approval'
+    status            = db.Column(db.String(20), nullable=False, default='active')  # 'active' | 'inactive'
+    currency          = db.Column(db.String(10), nullable=False, default='EUR')
+    starting_capital  = db.Column(db.Float, nullable=False, default=10000.0)
+    strategy_id       = db.Column(db.Integer, db.ForeignKey('strategies.id'), nullable=True)
+    ibkr_account_id   = db.Column(db.String(50), nullable=True)
+    created_at        = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
+
+    strategy        = db.relationship('Strategy', foreign_keys=[strategy_id])
+    account         = db.relationship('Account', backref='portfolio', uselist=False)
+    positions       = db.relationship('Position', backref='portfolio', lazy='dynamic')
+    trades          = db.relationship('Trade', backref='portfolio', lazy='dynamic')
+    signals         = db.relationship('Signal', backref='portfolio', lazy='dynamic')
+    equity_history  = db.relationship('EquityHistory', backref='portfolio', lazy='dynamic')
+    daily_proposals = db.relationship('DailyProposal', backref='portfolio', lazy='dynamic',
+                                       cascade='all, delete-orphan')
+
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'user_id': self.user_id,
+            'name': self.name,
+            'type': self.type,
+            'mode': self.mode,
+            'status': self.status,
+            'currency': self.currency,
+            'starting_capital': self.starting_capital,
+            'strategy_id': self.strategy_id,
+            'ibkr_account_id': self.ibkr_account_id,
+            'created_at': self.created_at.isoformat() if self.created_at else None,
+        }
+
+
+class DailyProposal(db.Model):
+    """Täglicher Vorschlag im Approval-Modus. Implements: PR-01 bis PR-11"""
+    __tablename__ = 'daily_proposals'
+
+    id           = db.Column(db.Integer, primary_key=True)
+    portfolio_id = db.Column(db.Integer, db.ForeignKey('portfolios.id'), nullable=False)
+    proposal_date = db.Column(db.Date, nullable=False)
+    generated_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
+    status       = db.Column(db.String(20), nullable=False, default='open')  # open|partially_executed|executed|expired
+    executed_at  = db.Column(db.DateTime)
+    notes        = db.Column(db.Text)
+
+    __table_args__ = (db.UniqueConstraint('portfolio_id', 'proposal_date', name='uq_proposal_portfolio_date'),)
+
+    orders = db.relationship('ProposedOrder', backref='proposal', lazy='dynamic',
+                              cascade='all, delete-orphan')
+
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'portfolio_id': self.portfolio_id,
+            'proposal_date': self.proposal_date.isoformat() if self.proposal_date else None,
+            'generated_at': self.generated_at.isoformat() if self.generated_at else None,
+            'status': self.status,
+            'executed_at': self.executed_at.isoformat() if self.executed_at else None,
+            'notes': self.notes,
+        }
+
+
+class ProposedOrder(db.Model):
+    """Einzelner Vorschlag innerhalb eines DailyProposal. Implements: PR-04 bis PR-10"""
+    __tablename__ = 'proposed_orders'
+
+    id             = db.Column(db.Integer, primary_key=True)
+    proposal_id    = db.Column(db.Integer, db.ForeignKey('daily_proposals.id'), nullable=False)
+    stock_id       = db.Column(db.Integer, db.ForeignKey('stocks.id'), nullable=False)
+    action         = db.Column(db.String(10), nullable=False)   # 'BUY' | 'SELL'
+    shares_proposed = db.Column(db.Float, nullable=False)
+    est_price_eur  = db.Column(db.Float, nullable=False)
+    score          = db.Column(db.Float)
+    reason         = db.Column(db.String(500))
+    approved       = db.Column(db.Boolean, default=True, nullable=False)
+    executed       = db.Column(db.Boolean, default=False, nullable=False)
+    executed_at    = db.Column(db.DateTime)
+    fill_price     = db.Column(db.Float)
+
+    stock = db.relationship('Stock')
+
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'proposal_id': self.proposal_id,
+            'symbol': self.stock.symbol,
+            'name': self.stock.name,
+            'action': self.action,
+            'shares_proposed': self.shares_proposed,
+            'est_price_eur': round(self.est_price_eur, 4) if self.est_price_eur else None,
+            'score': round(self.score, 1) if self.score else None,
+            'reason': self.reason,
+            'approved': self.approved,
+            'executed': self.executed,
+            'executed_at': self.executed_at.isoformat() if self.executed_at else None,
+            'fill_price': round(self.fill_price, 4) if self.fill_price else None,
         }
