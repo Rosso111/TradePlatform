@@ -15,6 +15,32 @@
 </head>
 <body>
 
+<!-- ── Login Overlay (UI-01) ─────────────────────────────────────────────── -->
+<div id="login-overlay" style="display:none">
+  <div class="login-card">
+    <div class="login-logo">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="32" height="32">
+        <polyline points="22 7 13.5 15.5 8.5 10.5 2 17"/>
+        <polyline points="16 7 22 7 22 13"/>
+      </svg>
+      TradeBot
+    </div>
+    <h2 class="login-title">Anmelden</h2>
+    <form id="login-form" autocomplete="on">
+      <div class="login-field">
+        <label for="login-username">Benutzername</label>
+        <input id="login-username" type="text" autocomplete="username" placeholder="admin" required>
+      </div>
+      <div class="login-field">
+        <label for="login-password">Passwort</label>
+        <input id="login-password" type="password" autocomplete="current-password" placeholder="••••••••••" required>
+      </div>
+      <div id="login-error" class="login-error" style="display:none"></div>
+      <button type="submit" id="login-submit" class="login-btn">Anmelden</button>
+    </form>
+  </div>
+</div>
+
 <!-- Loading Overlay -->
 <div id="loading-overlay">
   <div class="loading-spinner"></div>
@@ -45,6 +71,8 @@
       <button class="nav-btn" data-tab="positions">Positionen</button>
       <button class="nav-btn" data-tab="trades">Trades</button>
       <button class="nav-btn" data-tab="algorithm">Algorithmus</button>
+      <button class="nav-btn" data-tab="portfolios">Portfolios</button>
+      <button class="nav-btn" id="nav-proposals" data-tab="proposals" style="display:none">Proposals</button>
     </nav>
 
     <div class="header-status">
@@ -52,10 +80,22 @@
       <span>Autonom aktiv</span>
     </div>
 
+    <!-- Portfolio-Switcher (UI-03) -->
+    <div class="portfolio-switcher" id="portfolio-switcher" style="display:none">
+      <label class="portfolio-switcher-label">Portfolio</label>
+      <select id="portfolio-select" title="Aktives Portfolio wechseln"></select>
+    </div>
+
     <div class="header-equity">
-      <div class="equity-label">Portfolio</div>
+      <div class="equity-label" id="header-portfolio-name">Portfolio</div>
       <div class="equity-value" id="header-equity-val">–</div>
       <div><span id="header-return" class="neutral" style="font-size:.75rem">–</span></div>
+    </div>
+
+    <!-- User-Menü -->
+    <div class="user-menu" id="user-menu" style="display:none">
+      <span id="user-menu-name" class="user-menu-name"></span>
+      <button class="user-menu-btn" id="btn-logout" title="Abmelden">⏏</button>
     </div>
   </header>
 
@@ -468,6 +508,76 @@
       </div>
     </div>
 
+    <!-- ── Portfolios (UI-04) ──────────────────────────────────────────────── -->
+    <div class="view-panel" data-tab="portfolios">
+      <div class="panel-header">
+        <h2 class="panel-title">Portfolios</h2>
+        <button class="btn-primary" id="btn-create-portfolio">+ Neues Portfolio</button>
+      </div>
+      <div id="portfolios-list" class="portfolios-list"></div>
+
+      <!-- Formular: Portfolio anlegen / bearbeiten -->
+      <div id="portfolio-form-wrap" style="display:none" class="portfolio-form-wrap">
+        <h3 id="portfolio-form-title">Neues Portfolio</h3>
+        <form id="portfolio-form">
+          <input type="hidden" id="pf-id">
+          <div class="form-row">
+            <label>Name</label>
+            <input id="pf-name" type="text" required placeholder="Mein Portfolio">
+          </div>
+          <div class="form-row">
+            <label>Typ</label>
+            <select id="pf-type">
+              <option value="sim">Simulation</option>
+              <option value="ibkr_paper">IBKR Paper</option>
+              <option value="ibkr_live">IBKR Live</option>
+            </select>
+          </div>
+          <div class="form-row">
+            <label>Modus</label>
+            <select id="pf-mode">
+              <option value="auto">Vollautomatisch</option>
+              <option value="approval">Approval (tägl. Vorschläge)</option>
+            </select>
+          </div>
+          <div class="form-row">
+            <label>Währung</label>
+            <select id="pf-currency">
+              <option value="EUR">EUR</option>
+              <option value="USD">USD</option>
+            </select>
+          </div>
+          <div class="form-row">
+            <label>Startkapital (€)</label>
+            <input id="pf-capital" type="number" min="100" step="100" value="10000">
+          </div>
+          <div id="pf-form-error" class="login-error" style="display:none"></div>
+          <div class="form-actions">
+            <button type="submit" class="btn-primary">Speichern</button>
+            <button type="button" class="btn-secondary" id="btn-cancel-portfolio">Abbrechen</button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <!-- ── Proposals / Approval-Modus ──────────────────────────────────────── -->
+    <div class="view-panel" data-tab="proposals">
+      <div class="panel-header">
+        <h2 class="panel-title">Tagesvorschläge</h2>
+        <div id="proposals-status" class="proposals-status"></div>
+      </div>
+      <div id="proposals-today" class="proposals-today">
+        <div class="empty-state">Kein Proposal für heute vorhanden.</div>
+      </div>
+      <div id="btn-execute-wrap" style="display:none;margin-top:1rem">
+        <button class="btn-primary" id="btn-execute-proposal">▶ Alle genehmigten Orders ausführen</button>
+      </div>
+      <div class="panel-header" style="margin-top:2rem">
+        <h3 class="panel-title" style="font-size:1rem">Historie</h3>
+      </div>
+      <div id="proposals-history"></div>
+    </div>
+
   </main>
 
   <!-- ── Rechtes Panel ───────────────────────────────────────────────────── -->
@@ -525,6 +635,6 @@
 
 </div>
 
-<script type="module" src="/static/js/app.js?v=11"></script>
+<script type="module" src="/static/js/app.js?v=12"></script>
 </body>
 </html>

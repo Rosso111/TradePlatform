@@ -989,3 +989,142 @@ body {
   from { transform: translateX(100%); opacity: 0; }
   to   { transform: translateX(0);    opacity: 1; }
 }
+
+/* ── Login Overlay (UI-01) ───────────────────────────────────────────────── */
+#login-overlay {
+  position: fixed; inset: 0; z-index: 10000;
+  background: rgba(0,0,0,.75); backdrop-filter: blur(4px);
+  display: flex; align-items: center; justify-content: center;
+}
+.login-card {
+  background: var(--bg-card); border: 1px solid var(--border);
+  border-radius: 12px; padding: 2.5rem 2rem; width: 340px;
+  box-shadow: 0 8px 40px rgba(0,0,0,.5);
+}
+.login-logo {
+  display: flex; align-items: center; gap: .6rem;
+  font-size: 1.2rem; font-weight: 700; color: var(--accent);
+  margin-bottom: 1.5rem;
+}
+.login-title {
+  font-size: 1.1rem; font-weight: 600;
+  margin: 0 0 1.2rem; color: var(--text-primary);
+}
+.login-field { display: flex; flex-direction: column; gap: .35rem; margin-bottom: 1rem; }
+.login-field label { font-size: .78rem; color: var(--text-muted); }
+.login-field input {
+  background: var(--bg-secondary); border: 1px solid var(--border);
+  border-radius: var(--radius); padding: .55rem .75rem;
+  color: var(--text-primary); font-size: .9rem;
+}
+.login-field input:focus { outline: none; border-color: var(--accent); }
+.login-error {
+  background: rgba(239,68,68,.12); border: 1px solid rgba(239,68,68,.3);
+  border-radius: var(--radius); padding: .5rem .75rem;
+  color: #f87171; font-size: .82rem; margin-bottom: .75rem;
+}
+.login-btn {
+  width: 100%; padding: .65rem; background: var(--accent);
+  border: none; border-radius: var(--radius); color: #000;
+  font-weight: 600; font-size: .9rem; cursor: pointer;
+  transition: opacity .15s;
+}
+.login-btn:hover { opacity: .85; }
+.login-btn:disabled { opacity: .5; cursor: not-allowed; }
+
+/* ── Portfolio Switcher (UI-03) ──────────────────────────────────────────── */
+.portfolio-switcher {
+  display: flex; align-items: center; gap: .5rem;
+}
+.portfolio-switcher-label { font-size: .72rem; color: var(--text-muted); }
+#portfolio-select {
+  background: var(--bg-secondary); border: 1px solid var(--border);
+  border-radius: var(--radius); color: var(--text-primary);
+  font-size: .8rem; padding: .3rem .6rem; cursor: pointer;
+  max-width: 160px;
+}
+
+/* ── User-Menü ───────────────────────────────────────────────────────────── */
+.user-menu { display: flex; align-items: center; gap: .5rem; }
+.user-menu-name { font-size: .8rem; color: var(--text-muted); }
+.user-menu-btn {
+  background: transparent; border: 1px solid var(--border);
+  border-radius: var(--radius); color: var(--text-muted);
+  padding: .25rem .5rem; cursor: pointer; font-size: .9rem;
+}
+.user-menu-btn:hover { color: var(--text-primary); border-color: var(--text-muted); }
+
+/* ── Portfolio-Panel (UI-04) ─────────────────────────────────────────────── */
+.panel-header {
+  display: flex; justify-content: space-between; align-items: center;
+  margin-bottom: 1.25rem;
+}
+.panel-title { font-size: 1.1rem; font-weight: 600; margin: 0; }
+.portfolios-list { display: flex; flex-direction: column; gap: .75rem; }
+.portfolio-card {
+  background: var(--bg-card); border: 1px solid var(--border);
+  border-radius: var(--radius); padding: 1rem 1.25rem;
+  display: flex; align-items: center; gap: 1rem; flex-wrap: wrap;
+}
+.portfolio-card--active { border-color: var(--accent); }
+.portfolio-card-info { flex: 1; min-width: 180px; }
+.portfolio-card-name { font-weight: 600; font-size: .95rem; }
+.portfolio-card-meta { font-size: .75rem; color: var(--text-muted); margin-top: .2rem; }
+.portfolio-card-badges { display: flex; gap: .4rem; flex-wrap: wrap; }
+.portfolio-card-actions { display: flex; gap: .5rem; flex-wrap: wrap; }
+
+.portfolio-form-wrap {
+  background: var(--bg-card); border: 1px solid var(--border);
+  border-radius: var(--radius); padding: 1.5rem; margin-top: 1.5rem;
+}
+.portfolio-form-wrap h3 { margin: 0 0 1rem; font-size: 1rem; }
+.form-row { display: flex; flex-direction: column; gap: .3rem; margin-bottom: .85rem; }
+.form-row label { font-size: .78rem; color: var(--text-muted); }
+.form-row input, .form-row select {
+  background: var(--bg-secondary); border: 1px solid var(--border);
+  border-radius: var(--radius); color: var(--text-primary);
+  padding: .5rem .7rem; font-size: .88rem;
+}
+.form-actions { display: flex; gap: .75rem; margin-top: 1rem; }
+
+/* ── Proposals-Panel ─────────────────────────────────────────────────────── */
+.proposals-status {
+  font-size: .82rem; color: var(--text-muted);
+  background: var(--bg-secondary); border-radius: var(--radius);
+  padding: .3rem .75rem;
+}
+.proposals-today { overflow-x: auto; }
+.row-executed { opacity: .55; }
+
+/* ── Badges ──────────────────────────────────────────────────────────────── */
+.badge {
+  display: inline-block; border-radius: 4px; padding: .15rem .45rem;
+  font-size: .72rem; font-weight: 600; text-transform: uppercase;
+}
+.badge-buy    { background: rgba(34,197,94,.15); color: var(--green-bright); }
+.badge-sell   { background: rgba(239,68,68,.15);  color: var(--red-bright); }
+.badge-active { background: rgba(34,197,94,.15); color: var(--green-bright); }
+.badge-inactive { background: rgba(100,116,139,.15); color: var(--text-muted); }
+.badge-current { background: rgba(99,102,241,.2); color: var(--accent); }
+
+/* ── Buttons ─────────────────────────────────────────────────────────────── */
+.btn-primary {
+  background: var(--accent); border: none; border-radius: var(--radius);
+  color: #000; font-weight: 600; font-size: .85rem;
+  padding: .5rem 1rem; cursor: pointer; transition: opacity .15s;
+}
+.btn-primary:hover { opacity: .85; }
+.btn-primary:disabled { opacity: .5; cursor: not-allowed; }
+.btn-secondary {
+  background: var(--bg-secondary); border: 1px solid var(--border);
+  border-radius: var(--radius); color: var(--text-primary);
+  font-size: .82rem; padding: .4rem .75rem; cursor: pointer;
+}
+.btn-secondary:hover { border-color: var(--text-muted); }
+.btn-sm { padding: .3rem .6rem; font-size: .75rem; }
+
+/* ── Empty State ─────────────────────────────────────────────────────────── */
+.empty-state {
+  color: var(--text-muted); font-size: .85rem;
+  padding: 2rem; text-align: center;
+}

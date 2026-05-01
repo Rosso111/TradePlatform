@@ -1,4 +1,4 @@
-import { api } from './api.js';
+import { api, set401Handler } from './api.js';
 import {
   fmtEUR, fmtNum, fmtPct, fmtDateTime, fmtTime,
   setEl, setStatusDot, hideLoading, showDataLoadingBanner,
@@ -25,6 +25,11 @@ const state = {
   selectedLabStrategyId: null,
   selectedSymbol: null,
   activeTab: 'dashboard',
+  // Multi-User
+  currentUser: null,
+  portfolios: [],
+  activePortfolio: null,
+  todayProposal: null,
 };
 
 window.switchTab = switchTab;
@@ -32,18 +37,392 @@ window.triggerCycle = triggerCycle;
 window.triggerOptimize = triggerOptimize;
 window.selectSymbol = selectSymbol;
 
-document.addEventListener('DOMContentLoaded', () => {
+document.addEventListener('DOMContentLoaded', async () => {
+  set401Handler(showLoginOverlay);
+  initLoginForm();
+  await checkAuthAndBoot();
+});
+
+// ── Auth (UI-01, UI-02) ──────────────────────────────────────────────────────
+
+function showLoginOverlay() {
+  document.getElementById('login-overlay').style.display = 'flex';
+  document.getElementById('login-username').focus();
+}
+
+function hideLoginOverlay() {
+  document.getElementById('login-overlay').style.display = 'none';
+}
+
+function initLoginForm() {
+  const form = document.getElementById('login-form');
+  const errorEl = document.getElementById('login-error');
+  const submitBtn = document.getElementById('login-submit');
+
+  form.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    errorEl.style.display = 'none';
+    submitBtn.disabled = true;
+    submitBtn.textContent = 'Anmelden…';
+
+    const username = document.getElementById('login-username').value.trim();
+    const password = document.getElementById('login-password').value;
+
+    try {
+      const user = await api.login(username, password);
+      state.currentUser = user;
+      hideLoginOverlay();
+      await bootApp();
+    } catch (err) {
+      errorEl.textContent = err.message || 'Anmeldung fehlgeschlagen';
+      errorEl.style.display = 'block';
+    } finally {
+      submitBtn.disabled = false;
+      submitBtn.textContent = 'Anmelden';
+    }
+  });
+}
+
+async function checkAuthAndBoot() {
+  try {
+    const user = await api.me();
+    state.currentUser = user;
+    hideLoginOverlay();
+    await bootApp();
+  } catch {
+    showLoginOverlay();
+  }
+}
+
+async function bootApp() {
+  renderUserMenu();
+  await loadPortfolios();
   initWebSocket();
   initNavigation();
   initPeriodButtons();
   initSimulationControls();
   initStrategyEditor();
+  initPortfolioPanel();
   initSplitPanes();
   const savedTab = localStorage.getItem('tp_active_tab') || 'dashboard';
   switchTab(savedTab);
   loadAll();
   setTimeout(() => hideLoading(), 5000);
-});
+}
+
+// ── User-Menü ────────────────────────────────────────────────────────────────
+
+function renderUserMenu() {
+  const menu = document.getElementById('user-menu');
+  const nameEl = document.getElementById('user-menu-name');
+  if (!state.currentUser) return;
+  nameEl.textContent = state.currentUser.username;
+  menu.style.display = 'flex';
+
+  document.getElementById('btn-logout').addEventListener('click', async () => {
+    await api.logout();
+    state.currentUser = null;
+    state.portfolios = [];
+    state.activePortfolio = null;
+    document.getElementById('user-menu').style.display = 'none';
+    document.getElementById('portfolio-switcher').style.display = 'none';
+    showLoginOverlay();
+  });
+}
+
+// ── Portfolio-Switcher (UI-03) ───────────────────────────────────────────────
+
+async function loadPortfolios() {
+  try {
+    const me = await api.me();
+    state.portfolios = me.portfolios || [];
+    state.activePortfolio = state.portfolios.find(p => p.status === 'active') || state.portfolios[0] || null;
+    renderPortfolioSwitcher();
+    renderProposalsTab();
+  } catch (e) {
+    console.warn('Portfolios:', e);
+  }
+}
+
+function renderPortfolioSwitcher() {
+  const switcher = document.getElementById('portfolio-switcher');
+  const select = document.getElementById('portfolio-select');
+  const nameEl = document.getElementById('header-portfolio-name');
+
+  if (!state.portfolios.length) {
+    switcher.style.display = 'none';
+    return;
+  }
+
+  select.innerHTML = state.portfolios.map(p =>
+    `<option value="${p.id}" ${state.activePortfolio?.id === p.id ? 'selected' : ''}>
+      ${p.name}${p.status === 'inactive' ? ' (inaktiv)' : ''}
+    </option>`
+  ).join('');
+
+  if (state.activePortfolio) {
+    nameEl.textContent = state.activePortfolio.name;
+  }
+
+  switcher.style.display = 'flex';
+
+  select.onchange = async () => {
+    const chosen = state.portfolios.find(p => p.id === parseInt(select.value));
+    if (!chosen) return;
+    try {
+      await api.activatePortfolio(chosen.id);
+      state.activePortfolio = chosen;
+      nameEl.textContent = chosen.name;
+      renderProposalsTab();
+      await loadAll();
+      showToast(`Portfolio gewechselt: ${chosen.name}`, 'info');
+    } catch (e) {
+      showToast(`Fehler: ${e.message}`, 'info');
+    }
+  };
+}
+
+function renderProposalsTab() {
+  const navBtn = document.getElementById('nav-proposals');
+  if (!navBtn) return;
+  const hasApproval = state.portfolios.some(p => p.mode === 'approval');
+  navBtn.style.display = hasApproval ? '' : 'none';
+}
+
+// ── Proposals-Panel ──────────────────────────────────────────────────────────
+
+async function loadTodayProposal() {
+  const portfolio = state.activePortfolio;
+  if (!portfolio || portfolio.mode !== 'approval') return;
+
+  try {
+    const data = await api.getTodayProposal(portfolio.id);
+    state.todayProposal = data.proposal;
+    renderProposalsPanel();
+  } catch (e) {
+    console.warn('Proposal:', e);
+  }
+}
+
+function renderProposalsPanel() {
+  const proposal = state.todayProposal;
+  const container = document.getElementById('proposals-today');
+  const statusEl = document.getElementById('proposals-status');
+  const executeWrap = document.getElementById('btn-execute-wrap');
+
+  if (!proposal) {
+    container.innerHTML = '<div class="empty-state">Kein Proposal für heute vorhanden.</div>';
+    if (statusEl) statusEl.textContent = '';
+    if (executeWrap) executeWrap.style.display = 'none';
+    return;
+  }
+
+  const statusLabel = { open: 'Offen', partially_executed: 'Teilweise ausgeführt', executed: 'Ausgeführt', expired: 'Abgelaufen' };
+  if (statusEl) statusEl.textContent = statusLabel[proposal.status] || proposal.status;
+
+  const orders = proposal.orders || [];
+  const canExecute = proposal.status === 'open' || proposal.status === 'partially_executed';
+
+  container.innerHTML = `
+    <table class="data-table">
+      <thead>
+        <tr>
+          <th>Symbol</th>
+          <th>Aktion</th>
+          <th>Stück</th>
+          <th>Schätzpreis</th>
+          <th>Score</th>
+          <th>Begründung</th>
+          <th>Genehmigt</th>
+          <th>Status</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${orders.map(o => `
+          <tr class="${o.executed ? 'row-executed' : ''}">
+            <td><strong>${o.symbol}</strong></td>
+            <td><span class="badge badge-${o.action === 'BUY' ? 'buy' : 'sell'}">${o.action}</span></td>
+            <td>${fmtNum(o.shares_proposed, 2)}</td>
+            <td>${fmtEUR(o.est_price_eur)}</td>
+            <td>${o.score ?? '–'}</td>
+            <td style="font-size:.75rem;max-width:200px;white-space:normal">${o.reason || '–'}</td>
+            <td>
+              ${o.executed
+                ? '<span style="color:var(--text-muted)">ausgeführt</span>'
+                : `<input type="checkbox" ${o.approved ? 'checked' : ''}
+                     onchange="toggleOrderApproval(${proposal.id}, ${o.id}, this.checked)">`
+              }
+            </td>
+            <td>${o.executed ? `✓ ${fmtEUR(o.fill_price)}` : '–'}</td>
+          </tr>
+        `).join('')}
+      </tbody>
+    </table>
+  `;
+
+  if (executeWrap) {
+    executeWrap.style.display = canExecute ? 'block' : 'none';
+  }
+}
+
+window.toggleOrderApproval = async (proposalId, orderId, approved) => {
+  try {
+    await api.patchOrderApproval(proposalId, orderId, approved);
+  } catch (e) {
+    showToast(`Fehler: ${e.message}`, 'info');
+    loadTodayProposal();
+  }
+};
+
+function initProposalExecuteButton() {
+  const btn = document.getElementById('btn-execute-proposal');
+  if (!btn) return;
+  btn.addEventListener('click', async () => {
+    if (!state.todayProposal) return;
+    btn.disabled = true;
+    btn.textContent = 'Wird ausgeführt…';
+    try {
+      const result = await api.executeProposal(state.todayProposal.id);
+      const ok = result.results.filter(r => r.success).length;
+      const fail = result.results.filter(r => !r.success).length;
+      showToast(`${ok} Order(s) ausgeführt${fail ? `, ${fail} fehlgeschlagen` : ''}`, 'info');
+      state.todayProposal = result.proposal;
+      renderProposalsPanel();
+      loadAll();
+    } catch (e) {
+      showToast(`Fehler: ${e.message}`, 'info');
+    } finally {
+      btn.disabled = false;
+      btn.textContent = '▶ Alle genehmigten Orders ausführen';
+    }
+  });
+}
+
+// ── Portfolio-Verwaltungsseite (UI-04) ───────────────────────────────────────
+
+function initPortfolioPanel() {
+  initProposalExecuteButton();
+
+  document.getElementById('btn-create-portfolio')?.addEventListener('click', () => {
+    openPortfolioForm(null);
+  });
+  document.getElementById('btn-cancel-portfolio')?.addEventListener('click', () => {
+    document.getElementById('portfolio-form-wrap').style.display = 'none';
+  });
+
+  document.getElementById('portfolio-form')?.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const id = document.getElementById('pf-id').value;
+    const payload = {
+      name: document.getElementById('pf-name').value.trim(),
+      type: document.getElementById('pf-type').value,
+      mode: document.getElementById('pf-mode').value,
+      currency: document.getElementById('pf-currency').value,
+      starting_capital: parseFloat(document.getElementById('pf-capital').value),
+    };
+    const errEl = document.getElementById('pf-form-error');
+    errEl.style.display = 'none';
+    try {
+      if (id) {
+        await api.updatePortfolio(parseInt(id), { name: payload.name });
+      } else {
+        await api.createPortfolio(payload);
+      }
+      document.getElementById('portfolio-form-wrap').style.display = 'none';
+      await loadPortfolios();
+      renderPortfoliosList();
+      showToast(id ? 'Portfolio aktualisiert' : 'Portfolio angelegt', 'info');
+    } catch (err) {
+      errEl.textContent = err.message;
+      errEl.style.display = 'block';
+    }
+  });
+
+  renderPortfoliosList();
+}
+
+function openPortfolioForm(portfolio) {
+  const wrap = document.getElementById('portfolio-form-wrap');
+  const title = document.getElementById('portfolio-form-title');
+  wrap.style.display = 'block';
+
+  if (portfolio) {
+    title.textContent = 'Portfolio bearbeiten';
+    document.getElementById('pf-id').value = portfolio.id;
+    document.getElementById('pf-name').value = portfolio.name;
+    document.getElementById('pf-type').value = portfolio.type;
+    document.getElementById('pf-type').disabled = true;
+    document.getElementById('pf-mode').value = portfolio.mode;
+    document.getElementById('pf-mode').disabled = true;
+    document.getElementById('pf-currency').value = portfolio.currency;
+    document.getElementById('pf-currency').disabled = true;
+    document.getElementById('pf-capital').value = portfolio.starting_capital;
+    document.getElementById('pf-capital').disabled = true;
+  } else {
+    title.textContent = 'Neues Portfolio';
+    document.getElementById('pf-id').value = '';
+    document.getElementById('portfolio-form').reset();
+    ['pf-type','pf-mode','pf-currency','pf-capital'].forEach(id => {
+      document.getElementById(id).disabled = false;
+    });
+  }
+}
+
+function renderPortfoliosList() {
+  const container = document.getElementById('portfolios-list');
+  if (!container) return;
+
+  if (!state.portfolios.length) {
+    container.innerHTML = '<div class="empty-state">Noch keine Portfolios vorhanden.</div>';
+    return;
+  }
+
+  container.innerHTML = state.portfolios.map(p => `
+    <div class="portfolio-card ${p.id === state.activePortfolio?.id ? 'portfolio-card--active' : ''}">
+      <div class="portfolio-card-info">
+        <div class="portfolio-card-name">${p.name}</div>
+        <div class="portfolio-card-meta">
+          ${p.type} · ${p.mode === 'approval' ? 'Approval' : 'Auto'} · ${p.currency} · ${fmtEUR(p.starting_capital)} Startkapital
+        </div>
+      </div>
+      <div class="portfolio-card-badges">
+        <span class="badge ${p.status === 'active' ? 'badge-active' : 'badge-inactive'}">${p.status === 'active' ? 'Aktiv' : 'Inaktiv'}</span>
+        ${p.id === state.activePortfolio?.id ? '<span class="badge badge-current">Aktuell</span>' : ''}
+      </div>
+      <div class="portfolio-card-actions">
+        <button class="btn-secondary btn-sm" onclick="handleActivatePortfolio(${p.id})">Wechseln</button>
+        <button class="btn-secondary btn-sm" onclick="handleEditPortfolio(${p.id})">Bearbeiten</button>
+        <button class="btn-secondary btn-sm" onclick="handleTogglePortfolioStatus(${p.id})">${p.status === 'active' ? 'Deaktivieren' : 'Aktivieren'}</button>
+      </div>
+    </div>
+  `).join('');
+}
+
+window.handleActivatePortfolio = async (id) => {
+  try {
+    await api.activatePortfolio(id);
+    await loadPortfolios();
+    renderPortfoliosList();
+    loadAll();
+    showToast('Portfolio gewechselt', 'info');
+  } catch (e) { showToast(e.message, 'info'); }
+};
+
+window.handleEditPortfolio = (id) => {
+  const p = state.portfolios.find(p => p.id === id);
+  if (p) openPortfolioForm(p);
+};
+
+window.handleTogglePortfolioStatus = async (id) => {
+  try {
+    await api.togglePortfolioStatus(id);
+    await loadPortfolios();
+    renderPortfoliosList();
+    showToast('Status geändert', 'info');
+  } catch (e) { showToast(e.message, 'info'); }
+};
+
+// ── WebSocket ────────────────────────────────────────────────────────────────
 
 function initWebSocket() {
   socket = io();
@@ -86,6 +465,7 @@ async function loadAll() {
     loadEquity(),
     loadSimulations(),
     loadStrategies(),
+    loadTodayProposal(),
   ]);
 }
 
@@ -658,6 +1038,8 @@ function switchTab(tab) {
   if (tab === 'algorithm') loadAlgoParams();
   if (tab === 'simulations') loadSimulations();
   if (tab === 'strategies') loadStrategies();
+  if (tab === 'portfolios') renderPortfoliosList();
+  if (tab === 'proposals') loadTodayProposal();
 }
 
 function initPeriodButtons() {
