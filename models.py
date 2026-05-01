@@ -307,6 +307,7 @@ class SimulationRun(db.Model, JsonMixin):
     started_at = db.Column(db.DateTime)
     finished_at = db.Column(db.DateTime)
     created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
+    user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=True)  # Implements: G-02
     updated_at = db.Column(
         db.DateTime,
         default=lambda: datetime.now(timezone.utc),
@@ -343,6 +344,7 @@ class SimulationRun(db.Model, JsonMixin):
             'finished_at': self.finished_at.isoformat() if self.finished_at else None,
             'created_at': self.created_at.isoformat() if self.created_at else None,
             'updated_at': self.updated_at.isoformat() if self.updated_at else None,
+            'user_id': self.user_id,
         }
 
 
@@ -560,6 +562,18 @@ class User(db.Model, UserMixin):
     strategies = db.relationship('Strategy', backref='owner', lazy='dynamic',
                                   foreign_keys='Strategy.user_id')
 
+    def set_password(self, password: str):
+        import bcrypt
+        self.password_hash = bcrypt.hashpw(
+            password.encode('utf-8'), bcrypt.gensalt()
+        ).decode('utf-8')
+
+    def check_password(self, password: str) -> bool:
+        import bcrypt
+        return bcrypt.checkpw(
+            password.encode('utf-8'), self.password_hash.encode('utf-8')
+        )
+
     def to_dict(self):
         return {
             'id': self.id,
@@ -573,15 +587,19 @@ class User(db.Model, UserMixin):
 
 class Strategy(db.Model):
     """Implements: S-01 bis S-10"""
+    # Implements: S-01, S-02, S-05
     __tablename__ = 'strategies'
 
-    id          = db.Column(db.Integer, primary_key=True)
-    user_id     = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=True)
-    name        = db.Column(db.String(100), nullable=False)
-    description = db.Column(db.Text)
-    is_system   = db.Column(db.Boolean, default=False, nullable=False)
-    params      = db.Column(db.JSON, nullable=False, default=dict)
-    created_at  = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
+    id               = db.Column(db.Integer, primary_key=True)
+    user_id          = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=True)
+    name             = db.Column(db.String(100), nullable=False)
+    description      = db.Column(db.Text)
+    is_system        = db.Column(db.Boolean, default=False, nullable=False)
+    params           = db.Column(db.JSON, nullable=False, default=dict)
+    created_at       = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
+    slug             = db.Column(db.String(80), unique=True, nullable=True)   # nullable=True wegen Migration
+    mode             = db.Column(db.String(40), nullable=False, default='score')
+    is_approved_live = db.Column(db.Boolean, default=False, nullable=False)
 
     rules = db.relationship('StrategyRule', backref='strategy', lazy='dynamic',
                              cascade='all, delete-orphan')
@@ -595,6 +613,9 @@ class Strategy(db.Model):
             'is_system': self.is_system,
             'params': self.params or {},
             'created_at': self.created_at.isoformat() if self.created_at else None,
+            'slug': self.slug,
+            'mode': self.mode,
+            'is_approved_live': self.is_approved_live,
         }
 
 

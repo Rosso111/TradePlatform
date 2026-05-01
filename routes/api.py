@@ -2,7 +2,8 @@
 REST API Routes
 Liefert alle Daten für das Frontend.
 """
-from flask import Blueprint, jsonify, request
+from flask import Blueprint, jsonify, request, session
+from flask_login import login_required, current_user
 from datetime import date, timedelta
 import logging
 import threading
@@ -12,6 +13,7 @@ from datetime import datetime, timezone
 from models import (
     db, Account, Position, Trade, Stock, Price, Signal, EquityHistory, AlgoParams,
     SimulationRun, SimulationPosition, SimulationTrade, DecisionLog, SimulationDailySnapshot,
+    Portfolio,
 )
 from services.replay_engine import _calculate_benchmark_return_until_date
 from services.strategy_store import list_strategies, get_strategy, upsert_strategy, set_active_strategy, approve_strategy_for_live
@@ -31,15 +33,33 @@ log = logging.getLogger(__name__)
 api = Blueprint('api', __name__, url_prefix='/api')
 
 
+def get_active_portfolio():
+    """Implements: G-02, P-05, API-27, API-28"""
+    pid = session.get('active_portfolio_id')
+    if pid:
+        portfolio = Portfolio.query.filter_by(id=pid, user_id=current_user.id).first()
+        if portfolio:
+            return portfolio
+    return Portfolio.query.filter_by(
+        user_id=current_user.id, status='active'
+    ).order_by(Portfolio.id).first()
+
+
 # ─── Account ─────────────────────────────────────────────────────────────────
 
 @api.route('/account')
+@login_required
 def get_account():
-    account = Account.query.first()
+    # Implements: P-05, API-27
+    portfolio = get_active_portfolio()
+    if portfolio is None:
+        return jsonify({'error': 'Kein aktives Portfolio gefunden'}), 404
+
+    account = Account.query.filter_by(portfolio_id=portfolio.id).first()
     if not account:
         return jsonify({'error': 'Kein Konto gefunden'}), 404
 
-    positions = Position.query.all()
+    positions = Position.query.filter_by(portfolio_id=portfolio.id).all()
     positions_value = sum(
         (p.current_price_eur or p.entry_price_eur) * p.shares
         for p in positions
@@ -63,14 +83,26 @@ def get_account():
 # ─── Portfolio / Positionen ──────────────────────────────────────────────────
 
 @api.route('/positions')
+@login_required
 def get_positions():
-    positions = Position.query.all()
+    # Implements: P-05, API-27
+    portfolio = get_active_portfolio()
+    if portfolio is None:
+        return jsonify({'error': 'Kein aktives Portfolio gefunden'}), 404
+
+    positions = Position.query.filter_by(portfolio_id=portfolio.id).all()
     return jsonify([p.to_dict() for p in positions])
 
 
 @api.route('/portfolio/summary')
+@login_required
 def portfolio_summary():
-    positions = Position.query.all()
+    # Implements: P-05, API-27
+    portfolio = get_active_portfolio()
+    if portfolio is None:
+        return jsonify({'error': 'Kein aktives Portfolio gefunden'}), 404
+
+    positions = Position.query.filter_by(portfolio_id=portfolio.id).all()
     by_sector = {}
     by_region = {}
 
@@ -91,17 +123,30 @@ def portfolio_summary():
 # ─── Trades ──────────────────────────────────────────────────────────────────
 
 @api.route('/trades')
+@login_required
 def get_trades():
+    # Implements: P-05, API-27
+    portfolio = get_active_portfolio()
+    if portfolio is None:
+        return jsonify({'error': 'Kein aktives Portfolio gefunden'}), 404
+
     limit = int(request.args.get('limit', 50))
     trades = (Trade.query
+              .filter_by(portfolio_id=portfolio.id)
               .order_by(Trade.executed_at.desc())
               .limit(limit).all())
     return jsonify([t.to_dict() for t in trades])
 
 
 @api.route('/trades/stats')
+@login_required
 def trade_stats():
-    trades = Trade.query.filter_by(action='SELL').all()
+    # Implements: P-05, API-27
+    portfolio = get_active_portfolio()
+    if portfolio is None:
+        return jsonify({'error': 'Kein aktives Portfolio gefunden'}), 404
+
+    trades = Trade.query.filter_by(portfolio_id=portfolio.id, action='SELL').all()
     if not trades:
         return jsonify({'total': 0, 'wins': 0, 'losses': 0,
                         'win_rate': 0, 'avg_pnl': 0, 'best': 0, 'worst': 0})
@@ -125,7 +170,9 @@ def trade_stats():
 # ─── Kursdaten ───────────────────────────────────────────────────────────────
 
 @api.route('/prices/<symbol>')
+@login_required
 def get_prices(symbol):
+    # Implements: API-27
     days = int(request.args.get('days', 90))
     stock = Stock.query.filter_by(symbol=symbol).first()
     if not stock:
@@ -148,8 +195,14 @@ def get_prices(symbol):
 
 
 @api.route('/watchlist')
+@login_required
 def get_watchlist():
+    # Implements: API-27
     """Alle Aktien mit aktuellem Kurs und Signal-Score"""
+    portfolio = get_active_portfolio()
+    if portfolio is None:
+        return jsonify({'error': 'Kein aktives Portfolio gefunden'}), 404
+
     stocks = Stock.query.filter_by(active=True).all()
     result = []
 
@@ -186,7 +239,7 @@ def get_watchlist():
             'change_pct': round(change_pct, 2),
             'score': round(latest_signal.score, 1) if latest_signal else None,
             'action': latest_signal.action if latest_signal else 'HOLD',
-            'in_portfolio': (Position.query.filter_by(stock_id=stock.id).first() is not None),
+            'in_portfolio': (Position.query.filter_by(stock_id=stock.id, portfolio_id=portfolio.id).first() is not None),
         })
 
     result.sort(key=lambda x: x.get('score') or 0, reverse=True)
@@ -196,10 +249,17 @@ def get_watchlist():
 # ─── Equity-Kurve ────────────────────────────────────────────────────────────
 
 @api.route('/equity')
+@login_required
 def get_equity():
+    # Implements: P-05, API-27
+    portfolio = get_active_portfolio()
+    if portfolio is None:
+        return jsonify({'error': 'Kein aktives Portfolio gefunden'}), 404
+
     days = int(request.args.get('days', 30))
     since = date.today() - timedelta(days=days)
     history = (EquityHistory.query
+               .filter_by(portfolio_id=portfolio.id)
                .filter(EquityHistory.date >= since)
                .order_by(EquityHistory.date.asc())
                .all())
@@ -209,10 +269,16 @@ def get_equity():
 # ─── Signale ─────────────────────────────────────────────────────────────────
 
 @api.route('/signals')
+@login_required
 def get_signals():
+    # Implements: P-05, API-27
+    portfolio = get_active_portfolio()
+    if portfolio is None:
+        return jsonify({'error': 'Kein aktives Portfolio gefunden'}), 404
+
     today = date.today()
     signals = (Signal.query
-               .filter_by(date=today)
+               .filter_by(portfolio_id=portfolio.id, date=today)
                .order_by(Signal.score.desc())
                .all())
     return jsonify([s.to_dict() for s in signals])
@@ -221,7 +287,9 @@ def get_signals():
 # ─── Algo-Parameter ──────────────────────────────────────────────────────────
 
 @api.route('/algo/params')
+@login_required
 def get_algo_params():
+    # Implements: API-27
     params = (AlgoParams.query
               .join(Stock)
               .order_by(AlgoParams.sharpe_ratio.desc())
@@ -244,12 +312,29 @@ def get_algo_params():
 # ─── Strategien ──────────────────────────────────────────────────────────────
 
 @api.route('/strategies', methods=['GET'])
+@login_required
 def get_strategies():
+    # Implements: API-15, API-27
     return jsonify(list_strategies())
 
 
+@api.route('/strategies', methods=['POST'])
+@login_required
+def create_strategy():
+    # Implements: S-01, API-16
+    payload = request.get_json(silent=True) or {}
+    payload.setdefault('user_id', current_user.id)
+    try:
+        saved = upsert_strategy(payload)
+        return jsonify({'success': True, 'strategy': saved}), 201
+    except (ValueError, PermissionError) as e:
+        return jsonify({'success': False, 'error': str(e)}), 400
+
+
 @api.route('/strategies/active', methods=['POST'])
+@login_required
 def update_active_strategy():
+    # Implements: API-15 (deprecated path — active strategy is now per Portfolio)
     payload = request.get_json(silent=True) or {}
     strategy_id = payload.get('strategy_id')
     if not strategy_id:
@@ -262,18 +347,26 @@ def update_active_strategy():
 
 
 @api.route('/strategies/<strategy_id>', methods=['PUT'])
+@login_required
 def update_strategy(strategy_id):
+    # Implements: API-17, S-05
     payload = request.get_json(silent=True) or {}
     payload['id'] = strategy_id
     try:
         saved = upsert_strategy(payload)
         return jsonify({'success': True, 'strategy': saved})
+    except PermissionError as e:
+        return jsonify({'success': False, 'error': str(e)}), 403  # Implements: S-05
     except ValueError as e:
         return jsonify({'success': False, 'error': str(e)}), 400
 
 
 @api.route('/strategies/<strategy_id>/approve-live', methods=['POST'])
+@login_required
 def approve_strategy_live(strategy_id):
+    # Implements: S-02, API-17
+    if current_user.role != 'admin':
+        return jsonify({'error': 'Nur Admins können Strategien freigeben'}), 403
     try:
         data = approve_strategy_for_live(strategy_id)
         return jsonify({'success': True, **data})
@@ -282,19 +375,25 @@ def approve_strategy_live(strategy_id):
 
 
 @api.route('/universes', methods=['GET'])
+@login_required
 def get_universes():
+    # Implements: API-27
     return jsonify(list_universes())
 
 
 # ─── Scenario Runner ─────────────────────────────────────────────────────────
 
 @api.route('/scenarios', methods=['GET'])
+@login_required
 def get_scenarios():
+    # Implements: API-27
     return jsonify(list_scenarios())
 
 
 @api.route('/scenarios/<scenario_id>', methods=['PUT'])
+@login_required
 def update_scenario(scenario_id):
+    # Implements: API-27
     payload = request.get_json(silent=True) or {}
     payload['id'] = scenario_id
     try:
@@ -305,7 +404,9 @@ def update_scenario(scenario_id):
 
 
 @api.route('/scenarios/<scenario_id>', methods=['DELETE'])
+@login_required
 def remove_scenario(scenario_id):
+    # Implements: API-27
     try:
         delete_scenario(scenario_id)
         return jsonify({'success': True, 'deleted_scenario_id': scenario_id})
@@ -314,7 +415,9 @@ def remove_scenario(scenario_id):
 
 
 @api.route('/scenario-batches', methods=['POST'])
+@login_required
 def create_batch():
+    # Implements: API-27
     payload = request.get_json(silent=True) or {}
     scenario_ids = payload.get('scenario_ids') or []
     if not scenario_ids:
@@ -350,7 +453,9 @@ def create_batch():
 
 
 @api.route('/scenario-batches/<batch_id>', methods=['GET'])
+@login_required
 def get_batch(batch_id):
+    # Implements: API-27
     batch = get_scenario_batch(batch_id)
     if not batch:
         return jsonify({'success': False, 'error': 'Batch nicht gefunden'}), 404
@@ -358,7 +463,9 @@ def get_batch(batch_id):
 
 
 @api.route('/scenario-batches/<batch_id>', methods=['DELETE'])
+@login_required
 def delete_batch(batch_id):
+    # Implements: API-27
     try:
         delete_scenario_batch(batch_id)
         return jsonify({'success': True, 'deleted_batch_id': batch_id})
@@ -367,7 +474,9 @@ def delete_batch(batch_id):
 
 
 @api.route('/scenario-batches/<batch_id>/run', methods=['POST'])
+@login_required
 def run_batch(batch_id):
+    # Implements: API-27
     from flask import current_app
     from services.replay_engine import create_simulation_run, run_historical_replay
 
@@ -482,8 +591,14 @@ def run_batch(batch_id):
 # ─── Manueller Trigger ───────────────────────────────────────────────────────
 
 @api.route('/trading/run', methods=['POST'])
+@login_required
 def trigger_trading_cycle():
+    # Implements: G-02, API-27
     """Manueller Auslöser für einen Handelszyklus (für Tests)"""
+    portfolio = get_active_portfolio()
+    if portfolio is None:
+        return jsonify({'error': 'Kein aktives Portfolio gefunden'}), 404
+
     from flask import current_app
     from services.trading_engine import run_trading_cycle
     try:
@@ -495,7 +610,9 @@ def trigger_trading_cycle():
 
 
 @api.route('/trading/optimize', methods=['POST'])
+@login_required
 def trigger_optimization():
+    # Implements: API-27
     """Manueller Auslöser für Backtesting-Optimierung"""
     from flask import current_app
     from services.algorithm import run_optimization_for_all
@@ -507,13 +624,22 @@ def trigger_optimization():
 
 
 @api.route('/status')
+@login_required
 def get_status():
+    # Implements: API-27
+    portfolio = get_active_portfolio()
+    if portfolio is None:
+        return jsonify({'error': 'Kein aktives Portfolio gefunden'}), 404
+
     from apscheduler.schedulers.base import STATE_RUNNING
-    account = Account.query.first()
-    positions_count = Position.query.count()
-    trades_count = Trade.query.count()
+    account = Account.query.filter_by(portfolio_id=portfolio.id).first()
+    positions_count = Position.query.filter_by(portfolio_id=portfolio.id).count()
+    trades_count = Trade.query.filter_by(portfolio_id=portfolio.id).count()
     stocks_count = Stock.query.filter_by(active=True).count()
-    latest_signal = Signal.query.order_by(Signal.created_at.desc()).first()
+    latest_signal = (Signal.query
+                     .filter_by(portfolio_id=portfolio.id)
+                     .order_by(Signal.created_at.desc())
+                     .first())
 
     return jsonify({
         'ready': True,
@@ -545,17 +671,28 @@ def _delete_simulation_runs_bulk(run_ids: list[int]):
 
 
 @api.route('/simulations', methods=['GET'])
+@login_required
 def get_simulations():
-    runs = (SimulationRun.query
-            .order_by(SimulationRun.created_at.desc())
-            .all())
+    # Implements: G-02, API-27
+    # Admin sieht alle, normaler User nur seine eigenen
+    if current_user.role == 'admin':
+        runs = SimulationRun.query.order_by(SimulationRun.created_at.desc()).all()
+    else:
+        runs = SimulationRun.query.filter_by(user_id=current_user.id)\
+               .order_by(SimulationRun.created_at.desc()).all()
     return jsonify([run.to_dict() for run in runs])
 
 
 @api.route('/simulations', methods=['DELETE'])
+@login_required
 def delete_all_simulations():
+    # Implements: G-02, API-27
     from sqlalchemy import text
-    runs = SimulationRun.query.all()
+    # Admin löscht alle, normaler User nur seine eigenen
+    if current_user.role != 'admin':
+        runs = SimulationRun.query.filter_by(user_id=current_user.id).all()
+    else:
+        runs = SimulationRun.query.all()
     active = [run for run in runs if str(run.status).upper() in ('RUNNING', 'CANCEL_REQUESTED')]
     if active:
         return jsonify({
@@ -576,7 +713,9 @@ def delete_all_simulations():
 
 
 @api.route('/simulations', methods=['POST'])
+@login_required
 def create_simulation():
+    # Implements: G-02, API-27
     from flask import current_app
     from services.replay_engine import create_simulation_run, run_historical_replay
 
@@ -588,6 +727,8 @@ def create_simulation():
 
     try:
         run = create_simulation_run(payload)
+        run.user_id = current_user.id  # Implements: G-02
+        db.session.flush()
         run_id = run.id
         auto_start = str(payload.get('auto_start', True)).lower() in ('1', 'true', 'yes', 'on')
         if auto_start:
@@ -621,8 +762,13 @@ def create_simulation():
 
 
 @api.route('/simulations/<int:run_id>', methods=['GET'])
+@login_required
 def get_simulation(run_id):
+    # Implements: G-02, API-27
     run = SimulationRun.query.get_or_404(run_id)
+    # Implements: G-02
+    if run.user_id != current_user.id and current_user.role != 'admin':
+        return jsonify({'error': 'Keine Berechtigung'}), 403
     latest_snapshot = (SimulationDailySnapshot.query
                        .filter_by(run_id=run_id)
                        .order_by(SimulationDailySnapshot.sim_date.desc())
@@ -659,8 +805,13 @@ def get_simulation(run_id):
 
 
 @api.route('/simulations/<int:run_id>', methods=['DELETE'])
+@login_required
 def delete_simulation(run_id):
+    # Implements: G-02, API-27
     run = SimulationRun.query.get_or_404(run_id)
+    # Implements: G-02
+    if run.user_id != current_user.id and current_user.role != 'admin':
+        return jsonify({'error': 'Keine Berechtigung'}), 403
 
     if str(run.status).upper() in ('RUNNING', 'CANCEL_REQUESTED'):
         return jsonify({
@@ -679,8 +830,13 @@ def delete_simulation(run_id):
 
 
 @api.route('/simulations/<int:run_id>/cancel', methods=['POST'])
+@login_required
 def cancel_simulation(run_id):
+    # Implements: G-02, API-27
     run = SimulationRun.query.get_or_404(run_id)
+    # Implements: G-02
+    if run.user_id != current_user.id and current_user.role != 'admin':
+        return jsonify({'error': 'Keine Berechtigung'}), 403
 
     if str(run.status).upper() != 'RUNNING':
         return jsonify({
@@ -700,7 +856,13 @@ def cancel_simulation(run_id):
 
 
 @api.route('/simulations/<int:run_id>/equity', methods=['GET'])
+@login_required
 def get_simulation_equity(run_id):
+    # Implements: G-02, API-27
+    run = SimulationRun.query.get_or_404(run_id)
+    # Implements: G-02
+    if run.user_id != current_user.id and current_user.role != 'admin':
+        return jsonify({'error': 'Keine Berechtigung'}), 403
     rows = (SimulationDailySnapshot.query
             .filter_by(run_id=run_id)
             .order_by(SimulationDailySnapshot.sim_date.asc())
@@ -709,7 +871,13 @@ def get_simulation_equity(run_id):
 
 
 @api.route('/simulations/<int:run_id>/trades', methods=['GET'])
+@login_required
 def get_simulation_trades(run_id):
+    # Implements: G-02, API-27
+    run = SimulationRun.query.get_or_404(run_id)
+    # Implements: G-02
+    if run.user_id != current_user.id and current_user.role != 'admin':
+        return jsonify({'error': 'Keine Berechtigung'}), 403
     limit = min(int(request.args.get('limit', 300)), 1000)
     rows = (SimulationTrade.query
             .filter_by(run_id=run_id)
@@ -720,7 +888,13 @@ def get_simulation_trades(run_id):
 
 
 @api.route('/simulations/<int:run_id>/positions', methods=['GET'])
+@login_required
 def get_simulation_positions(run_id):
+    # Implements: G-02, API-27
+    run = SimulationRun.query.get_or_404(run_id)
+    # Implements: G-02
+    if run.user_id != current_user.id and current_user.role != 'admin':
+        return jsonify({'error': 'Keine Berechtigung'}), 403
     rows = (SimulationPosition.query
             .filter_by(run_id=run_id)
             .order_by(SimulationPosition.opened_at_sim_date.desc(), SimulationPosition.id.desc())
@@ -729,7 +903,13 @@ def get_simulation_positions(run_id):
 
 
 @api.route('/simulations/<int:run_id>/decisions', methods=['GET'])
+@login_required
 def get_simulation_decisions(run_id):
+    # Implements: G-02, API-27
+    run = SimulationRun.query.get_or_404(run_id)
+    # Implements: G-02
+    if run.user_id != current_user.id and current_user.role != 'admin':
+        return jsonify({'error': 'Keine Berechtigung'}), 403
     query = DecisionLog.query.filter_by(run_id=run_id)
     limit = min(int(request.args.get('limit', 400)), 1000)
 
@@ -751,8 +931,13 @@ def get_simulation_decisions(run_id):
 
 
 @api.route('/simulations/<int:run_id>/metrics', methods=['GET'])
+@login_required
 def get_simulation_metrics(run_id):
+    # Implements: G-02, API-27
     run = SimulationRun.query.get_or_404(run_id)
+    # Implements: G-02
+    if run.user_id != current_user.id and current_user.role != 'admin':
+        return jsonify({'error': 'Keine Berechtigung'}), 403
     snapshots = (SimulationDailySnapshot.query
                  .filter_by(run_id=run_id)
                  .order_by(SimulationDailySnapshot.sim_date.asc())
@@ -858,8 +1043,13 @@ def get_simulation_metrics(run_id):
 
 
 @api.route('/simulations/<int:run_id>/benchmark', methods=['GET'])
+@login_required
 def get_simulation_benchmark(run_id):
+    # Implements: G-02, API-27
     run = SimulationRun.query.get_or_404(run_id)
+    # Implements: G-02
+    if run.user_id != current_user.id and current_user.role != 'admin':
+        return jsonify({'error': 'Keine Berechtigung'}), 403
     rows = (SimulationDailySnapshot.query
             .filter_by(run_id=run_id)
             .order_by(SimulationDailySnapshot.sim_date.asc())
@@ -924,3 +1114,17 @@ def get_simulation_benchmark(run_id):
         'benchmark_name': 'buy_and_hold_first_active_stock',
         'points': benchmark_points,
     })
+
+
+@api.route('/portfolios/<int:portfolio_id>/activate', methods=['POST'])
+@login_required
+def activate_portfolio(portfolio_id):
+    """Implements: G-02, P-05, API-28"""
+    from flask import session
+    portfolio = Portfolio.query.filter_by(
+        id=portfolio_id, user_id=current_user.id
+    ).first()
+    if not portfolio:
+        return jsonify({'error': 'Portfolio nicht gefunden'}), 404
+    session['active_portfolio_id'] = portfolio_id
+    return jsonify({'active_portfolio_id': portfolio_id, 'portfolio': portfolio.to_dict()})
