@@ -445,17 +445,19 @@ def run_trading_cycle(app, portfolio_id: int | None = None) -> list[str]:
             log.error(f"Signal-Generierung: {e}")
             signals = []
 
-        # 4. Portfolios bestimmen
+        # 4. Portfolios bestimmen — nur Sim-Portfolios (IBKR übernimmt live_runner)
         if portfolio_id is not None:
             portfolios = Portfolio.query.filter(
                 Portfolio.id == portfolio_id,
                 Portfolio.status == 'active',
                 Portfolio.mode == 'auto',
+                Portfolio.type == 'sim',
             ).all()
         else:
             portfolios = Portfolio.query.filter(
                 Portfolio.status == 'active',
                 Portfolio.mode == 'auto',
+                Portfolio.type == 'sim',
             ).all()
 
         for portfolio in portfolios:

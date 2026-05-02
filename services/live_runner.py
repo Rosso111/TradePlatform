@@ -7,7 +7,14 @@ from datetime import date
 
 from models import db, Account, Position, Trade, Stock, Price, EquityHistory, Portfolio
 import config
-from services.ibkr_connector import connector
+import config as _config
+from services.ibkr_connector import IBKRConnectionPool
+
+
+def _get_connector(portfolio):
+    """Gibt den richtigen IBKR-Connector für ein Portfolio zurück."""
+    port = _config.IBKR_LIVE_PORT if portfolio.type == 'ibkr_live' else _config.IBKR_PAPER_PORT
+    return IBKRConnectionPool.get(_config.IBKR_HOST, port, _config.IBKR_CLIENT_ID)
 from services.trading_engine import (
     calc_commission, calc_spread_cost, calc_stop_loss,
     calc_take_profit, get_open_positions_count,
@@ -73,8 +80,10 @@ def execute_live_buy(signal: dict, fx_rates: dict, portfolio: Portfolio) -> tupl
         return False, f"{symbol}: Nicht genug Kapital"
 
     # ── IBKR Order ────────────────────────────────────────────────────────────
+    ibkr_account = portfolio.ibkr_account_id or ''
     try:
-        fill_price_usd, fill_qty = connector.place_market_order(symbol, shares, 'BUY')
+        conn = _get_connector(portfolio)
+        fill_price_usd, fill_qty = conn.place_market_order(symbol, shares, 'BUY', account=ibkr_account)
     except Exception as e:
         return False, f"{symbol}: IBKR Order fehlgeschlagen — {e}"
 
@@ -149,8 +158,15 @@ def execute_live_sell(position: Position, fx_rates: dict, reason: str) -> tuple[
     if qty <= 0:
         return False, f"{symbol}: Stückzahl 0"
 
+    # Portfolio holen um richtigen Connector + Account zu bestimmen
+    from models import Portfolio as _Portfolio
+    _portfolio = _Portfolio.query.get(position.portfolio_id)
+    ibkr_account = _portfolio.ibkr_account_id if _portfolio else ''
     try:
-        fill_price_usd, _ = connector.place_market_order(symbol, qty, 'SELL')
+        conn = _get_connector(_portfolio) if _portfolio else IBKRConnectionPool.get(
+            _config.IBKR_HOST, _config.IBKR_PAPER_PORT, _config.IBKR_CLIENT_ID
+        )
+        fill_price_usd, _ = conn.place_market_order(symbol, qty, 'SELL', account=ibkr_account)
     except Exception as e:
         return False, f"{symbol}: IBKR Sell-Order fehlgeschlagen — {e}"
 
@@ -253,10 +269,6 @@ def run_live_trading_cycle(app, portfolio_id: int | None = None) -> list[str]:
     log.info("=== IBKR Live-Zyklus gestartet ===")
     all_actions = []
 
-    if not connector.ensure_connected():
-        log.error("IBKR nicht verbunden — Live-Zyklus abgebrochen")
-        return ["FEHLER: IBKR Gateway nicht erreichbar"]
-
     with app.app_context():
         # 1. Wechselkurse
         try:
@@ -279,17 +291,20 @@ def run_live_trading_cycle(app, portfolio_id: int | None = None) -> list[str]:
             log.error(f"Signal-Generierung: {e}")
             signals = []
 
-        # 4. Portfolios bestimmen
+        # 4. Portfolios bestimmen — nur IBKR-Portfolios (nicht sim)
+        _ibkr_types = ('ibkr_paper', 'ibkr_live')
         if portfolio_id is not None:
             portfolios = Portfolio.query.filter(
                 Portfolio.id == portfolio_id,
                 Portfolio.status == 'active',
                 Portfolio.mode == 'auto',
+                Portfolio.type.in_(_ibkr_types),
             ).all()
         else:
             portfolios = Portfolio.query.filter(
                 Portfolio.status == 'active',
                 Portfolio.mode == 'auto',
+                Portfolio.type.in_(_ibkr_types),
             ).all()
 
         buy_signals = sorted(

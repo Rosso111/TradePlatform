@@ -77,9 +77,12 @@ DATA_UPDATE_INTERVAL_HOURS = 1     # Kursdaten stündlich aktualisieren
 BASE_CURRENCY = 'EUR'
 
 # IBKR Live Trading
-LIVE_TRADING = os.environ.get('LIVE_TRADING', 'false').lower() == 'true'
-IBKR_HOST    = os.environ.get('IBKR_HOST', '127.0.0.1')
-IBKR_PORT    = int(os.environ.get('IBKR_PORT', '4002'))
+LIVE_TRADING    = os.environ.get('LIVE_TRADING', 'false').lower() == 'true'
+IBKR_HOST       = os.environ.get('IBKR_HOST', '127.0.0.1')
+IBKR_PORT       = int(os.environ.get('IBKR_PORT', '4002'))       # Legacy-Alias
+IBKR_PAPER_PORT = int(os.environ.get('IBKR_PAPER_PORT', '4002'))
+IBKR_LIVE_PORT  = int(os.environ.get('IBKR_LIVE_PORT', '4001'))
+IBKR_CLIENT_ID  = int(os.environ.get('IBKR_CLIENT_ID', '1'))
 
 # Flask
 SECRET_KEY = os.environ.get('SECRET_KEY', 'dev-secret-key-change-in-production')

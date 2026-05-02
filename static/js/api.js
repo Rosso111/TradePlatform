@@ -118,6 +118,19 @@ export const api = {
   getSimulationMetrics: (runId) => request(`/simulations/${runId}/metrics`),
   getSimulationBenchmark: (runId) => request(`/simulations/${runId}/benchmark`),
 
+  // ── Admin / Users ────────────────────────────────────────────────────────
+  getUsers: () => request('/users'),
+  createUser: (payload) => request('/users', {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  }),
+  toggleUserStatus: (userId) => request(`/users/${userId}/status`, { method: 'PATCH' }),
+  adminResetPassword: (userId, newPassword) => request(`/users/${userId}/password`, {
+    method: 'PUT',
+    body: JSON.stringify({ new_password: newPassword }),
+  }),
+  getStatus: () => request('/status'),
+
   // ── Scenarios ────────────────────────────────────────────────────────────
   getScenarios: () => request('/scenarios'),
   updateScenario: (scenarioId, payload) => request(`/scenarios/${scenarioId}`, {

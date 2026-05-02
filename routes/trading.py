@@ -23,7 +23,7 @@ trading_bp = Blueprint('trading', __name__, url_prefix='/api')
 
 @trading_bp.route('/account')
 @login_required
-def get_account():
+def account_view():
     # Implements: P-05, API-27
     portfolio = get_active_portfolio()
     if portfolio is None:
@@ -58,7 +58,7 @@ def get_account():
 
 @trading_bp.route('/positions')
 @login_required
-def get_positions():
+def positions_view():
     # Implements: P-05, API-27
     portfolio = get_active_portfolio()
     if portfolio is None:
@@ -98,7 +98,7 @@ def portfolio_summary():
 
 @trading_bp.route('/trades')
 @login_required
-def get_trades():
+def trades_view():
     # Implements: P-05, API-27
     portfolio = get_active_portfolio()
     if portfolio is None:

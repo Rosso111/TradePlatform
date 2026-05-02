@@ -4,7 +4,7 @@ import {
   setEl, setStatusDot, hideLoading, showDataLoadingBanner,
   hideDataLoadingBanner, showToast, addLogEntry, initSplitPanes,
 } from './ui.js';
-import { loadSimulations, initSimulationControls } from './simulations.js?v=11';
+import { loadSimulations, initSimulationControls } from './simulations.js?v=12';
 
 let socket = null;
 let candleChart = null;
@@ -103,6 +103,7 @@ async function bootApp() {
   initSimulationControls();
   initStrategyEditor();
   initPortfolioPanel();
+  initAdminPanel();
   initSplitPanes();
   const savedTab = localStorage.getItem('tp_active_tab') || 'dashboard';
   switchTab(savedTab);
@@ -1029,6 +1030,7 @@ function populateSimulationStrategySelect() {
 }
 
 function switchTab(tab) {
+  if (tab === 'admin' && state.currentUser?.role !== 'admin') return;
   state.activeTab = tab;
   localStorage.setItem('tp_active_tab', tab);
   document.querySelectorAll('.nav-btn').forEach((b) => b.classList.toggle('active', b.dataset.tab === tab));
@@ -1040,6 +1042,7 @@ function switchTab(tab) {
   if (tab === 'strategies') loadStrategies();
   if (tab === 'portfolios') renderPortfoliosList();
   if (tab === 'proposals') loadTodayProposal();
+  if (tab === 'admin') switchAdminTab(adminState.activeSubTab);
 }
 
 function initPeriodButtons() {
@@ -1096,5 +1099,222 @@ async function triggerOptimize() {
       btn.disabled = false;
       btn.textContent = '⚙ Neu optimieren';
     }
+  }
+}
+
+// ── Admin Panel ───────────────────────────────────────────────────────────────
+
+const adminState = {
+  users: [],
+  allPortfolios: [],
+  userMap: {},
+  activeSubTab: 'users',
+};
+
+function initAdminPanel() {
+  const navBtn = document.getElementById('nav-admin');
+  if (state.currentUser?.role === 'admin') {
+    if (navBtn) navBtn.style.display = '';
+  } else {
+    if (localStorage.getItem('tp_active_tab') === 'admin') {
+      localStorage.setItem('tp_active_tab', 'dashboard');
+    }
+    return;
+  }
+
+  document.querySelectorAll('.admin-tab-btn').forEach(btn => {
+    btn.addEventListener('click', () => switchAdminTab(btn.dataset.adminTab));
+  });
+
+  document.getElementById('btn-create-user')?.addEventListener('click', () => {
+    const wrap = document.getElementById('user-create-wrap');
+    wrap.style.display = wrap.style.display === 'none' ? 'block' : 'none';
+    if (wrap.style.display === 'block') document.getElementById('new-user-username').focus();
+  });
+
+  document.getElementById('btn-cancel-create-user')?.addEventListener('click', () => {
+    document.getElementById('user-create-wrap').style.display = 'none';
+    document.getElementById('user-create-form').reset();
+    document.getElementById('user-create-error').style.display = 'none';
+  });
+
+  document.getElementById('user-create-form')?.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const errEl = document.getElementById('user-create-error');
+    errEl.style.display = 'none';
+    const payload = {
+      username: document.getElementById('new-user-username').value.trim(),
+      email: document.getElementById('new-user-email').value.trim() || null,
+      password: document.getElementById('new-user-password').value,
+      role: document.getElementById('new-user-role').value,
+    };
+    try {
+      await api.createUser(payload);
+      document.getElementById('user-create-wrap').style.display = 'none';
+      document.getElementById('user-create-form').reset();
+      await loadAdminUsers();
+      showToast(`Benutzer "${payload.username}" angelegt`, 'info');
+    } catch (err) {
+      errEl.textContent = err.message;
+      errEl.style.display = 'block';
+    }
+  });
+
+  document.getElementById('btn-cancel-pw-reset')?.addEventListener('click', () => {
+    document.getElementById('user-pw-wrap').style.display = 'none';
+    document.getElementById('user-pw-form').reset();
+    document.getElementById('user-pw-error').style.display = 'none';
+  });
+
+  document.getElementById('user-pw-form')?.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const errEl = document.getElementById('user-pw-error');
+    errEl.style.display = 'none';
+    const userId = parseInt(document.getElementById('pw-reset-user-id').value);
+    const newPassword = document.getElementById('pw-reset-new').value;
+    try {
+      await api.adminResetPassword(userId, newPassword);
+      document.getElementById('user-pw-wrap').style.display = 'none';
+      document.getElementById('user-pw-form').reset();
+      showToast('Passwort zurückgesetzt', 'info');
+    } catch (err) {
+      errEl.textContent = err.message;
+      errEl.style.display = 'block';
+    }
+  });
+
+  document.getElementById('btn-admin-refresh-status')?.addEventListener('click', loadAdminSystem);
+}
+
+function switchAdminTab(tab) {
+  adminState.activeSubTab = tab;
+  document.querySelectorAll('.admin-tab-btn').forEach(btn => {
+    const active = btn.dataset.adminTab === tab;
+    btn.style.background = active ? 'var(--accent)' : '';
+    btn.style.color = active ? '#fff' : '';
+    btn.style.borderColor = active ? 'var(--accent)' : '';
+  });
+  document.querySelectorAll('.admin-panel').forEach(panel => {
+    panel.style.display = panel.dataset.adminTab === tab ? 'block' : 'none';
+  });
+
+  if (tab === 'users') loadAdminUsers();
+  else if (tab === 'portfolios') loadAdminPortfolios();
+  else if (tab === 'system') loadAdminSystem();
+}
+
+async function loadAdminUsers() {
+  try {
+    adminState.users = await api.getUsers();
+    adminState.userMap = Object.fromEntries(adminState.users.map(u => [u.id, u.username]));
+    renderAdminUsers();
+  } catch (e) {
+    console.warn('Admin users:', e);
+  }
+}
+
+function renderAdminUsers() {
+  const tbody = document.getElementById('admin-users-tbody');
+  if (!tbody) return;
+
+  if (!adminState.users.length) {
+    tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;color:var(--text-muted);padding:20px">Keine Benutzer gefunden</td></tr>';
+    return;
+  }
+
+  tbody.innerHTML = adminState.users.map(u => {
+    const isMe = u.id === state.currentUser?.id;
+    const statusBadge = u.is_active
+      ? '<span class="badge badge-active">Aktiv</span>'
+      : '<span class="badge badge-inactive">Inaktiv</span>';
+    const roleBadge = u.role === 'admin'
+      ? '<span class="badge" style="background:rgba(255,200,0,.15);color:var(--yellow)">Admin</span>'
+      : '<span class="badge" style="background:rgba(88,166,255,.1);color:var(--accent)">User</span>';
+    return `
+      <tr>
+        <td class="mono" style="color:var(--text-muted)">${u.id}</td>
+        <td><strong>${escapeHtml(u.username)}</strong>${isMe ? ' <span style="color:var(--text-muted);font-size:.7rem">(du)</span>' : ''}</td>
+        <td style="color:var(--text-secondary);font-size:.82rem">${escapeHtml(u.email || '–')}</td>
+        <td>${roleBadge}</td>
+        <td>${statusBadge}</td>
+        <td>
+          <div style="display:flex;gap:6px;flex-wrap:wrap">
+            ${!isMe ? `<button class="btn btn-ghost" style="font-size:.73rem;padding:3px 8px" onclick="adminToggleUser(${u.id})">${u.is_active ? 'Deaktivieren' : 'Aktivieren'}</button>` : '<span style="color:var(--text-muted);font-size:.73rem">–</span>'}
+            <button class="btn btn-ghost" style="font-size:.73rem;padding:3px 8px" onclick="adminOpenPwReset(${u.id}, '${escapeHtml(u.username)}')">PW Reset</button>
+          </div>
+        </td>
+      </tr>`;
+  }).join('');
+}
+
+window.adminToggleUser = async (userId) => {
+  try {
+    await api.toggleUserStatus(userId);
+    await loadAdminUsers();
+    showToast('Status geändert', 'info');
+  } catch (e) {
+    showToast(e.message, 'info');
+  }
+};
+
+window.adminOpenPwReset = (userId, username) => {
+  document.getElementById('pw-reset-user-id').value = userId;
+  document.getElementById('user-pw-title').textContent = `Passwort zurücksetzen: ${username}`;
+  document.getElementById('user-pw-wrap').style.display = 'block';
+  document.getElementById('pw-reset-new').value = '';
+  document.getElementById('user-pw-error').style.display = 'none';
+  document.getElementById('pw-reset-new').focus();
+};
+
+async function loadAdminPortfolios() {
+  try {
+    const [portfolios, users] = await Promise.all([api.getPortfolios(), api.getUsers()]);
+    adminState.allPortfolios = portfolios;
+    adminState.userMap = Object.fromEntries(users.map(u => [u.id, u.username]));
+    renderAdminPortfolios();
+  } catch (e) {
+    console.warn('Admin portfolios:', e);
+  }
+}
+
+function renderAdminPortfolios() {
+  const tbody = document.getElementById('admin-portfolios-tbody');
+  if (!tbody) return;
+
+  if (!adminState.allPortfolios.length) {
+    tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;color:var(--text-muted);padding:20px">Keine Portfolios gefunden</td></tr>';
+    return;
+  }
+
+  tbody.innerHTML = adminState.allPortfolios.map(p => {
+    const owner = escapeHtml(adminState.userMap[p.user_id] || `#${p.user_id}`);
+    const statusBadge = p.status === 'active'
+      ? '<span class="badge badge-active">Aktiv</span>'
+      : '<span class="badge badge-inactive">Inaktiv</span>';
+    const modeLabel = p.mode === 'approval' ? 'Approval' : 'Auto';
+    return `
+      <tr>
+        <td class="mono" style="color:var(--text-muted)">${p.id}</td>
+        <td style="color:var(--text-secondary)">${owner}</td>
+        <td><strong>${escapeHtml(p.name)}</strong></td>
+        <td><span class="badge" style="background:rgba(88,166,255,.1);color:var(--accent);font-size:.7rem">${escapeHtml(p.type)}</span></td>
+        <td style="color:var(--text-secondary);font-size:.82rem">${modeLabel}</td>
+        <td>${statusBadge}</td>
+        <td class="mono">${fmtEUR(p.starting_capital)}</td>
+      </tr>`;
+  }).join('');
+}
+
+async function loadAdminSystem() {
+  try {
+    const status = await api.getStatus();
+    setEl('sys-ready', status.ready ? '✓ Bereit' : '✗ Fehler');
+    setEl('sys-stocks', status.stocks_loaded ?? '–');
+    setEl('sys-positions', status.open_positions ?? '–');
+    setEl('sys-trades', status.total_trades ?? '–');
+    setEl('sys-equity', fmtEUR(status.equity_eur));
+    setEl('sys-signal', status.last_signal ? fmtDateTime(status.last_signal) : '–');
+  } catch (e) {
+    console.warn('Admin system:', e);
   }
 }

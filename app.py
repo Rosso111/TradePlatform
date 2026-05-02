@@ -218,19 +218,28 @@ def _setup_scheduler(app):
     """Richtet den autonomen Handelstakt ein."""
 
     def trading_job():
-        if config.LIVE_TRADING:
-            from services.live_runner import run_live_trading_cycle
-            cycle_fn = run_live_trading_cycle
-        else:
-            from services.trading_engine import run_trading_cycle
-            cycle_fn = run_trading_cycle
+        all_actions = []
+
+        # Sim-Portfolios — immer aktiv
         try:
-            actions = cycle_fn(app)
-            if actions:
-                socketio.emit('trading_actions', {'actions': actions})
-            socketio.emit('portfolio_update', _get_portfolio_snapshot(app))
+            from services.trading_engine import run_trading_cycle
+            actions = run_trading_cycle(app)
+            all_actions.extend(actions)
         except Exception as e:
-            log.error(f"Scheduler-Fehler: {e}")
+            log.error("Sim-Handelszyklus fehlgeschlagen: %s", e)
+
+        # IBKR-Portfolios — nur wenn Live-Trading aktiviert
+        if config.LIVE_TRADING:
+            try:
+                from services.live_runner import run_live_trading_cycle
+                actions = run_live_trading_cycle(app)
+                all_actions.extend(actions)
+            except Exception as e:
+                log.error("IBKR-Handelszyklus fehlgeschlagen: %s", e)
+
+        if all_actions:
+            socketio.emit('trading_actions', {'actions': all_actions})
+        socketio.emit('portfolio_update', _get_portfolio_snapshot(app))
 
     def equity_broadcast():
         """Pusht Echtzeit-Portfolio-Daten ans Frontend."""

@@ -48,7 +48,7 @@ def upgrade():
             continue
         conn.execute(sa.text("""
             INSERT INTO strategies (user_id, name, description, is_system, params, slug, mode, is_approved_live, created_at)
-            VALUES (NULL, :name, :desc, true, :params::jsonb, :slug, :mode, :approved, NOW())
+            VALUES (NULL, :name, :desc, true, CAST(:params AS jsonb), :slug, :mode, :approved, NOW())
             ON CONFLICT DO NOTHING
         """), {
             'name': s.get('name', sid),

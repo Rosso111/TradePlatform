@@ -73,6 +73,7 @@
       <button class="nav-btn" data-tab="algorithm">Algorithmus</button>
       <button class="nav-btn" data-tab="portfolios">Portfolios</button>
       <button class="nav-btn" id="nav-proposals" data-tab="proposals" style="display:none">Proposals</button>
+      <button class="nav-btn" id="nav-admin" data-tab="admin" style="display:none">Admin</button>
     </nav>
 
     <div class="header-status">
@@ -578,6 +579,126 @@
       <div id="proposals-history"></div>
     </div>
 
+    <!-- ── Admin Panel (nur für Admins) ─────────────────────────────────── -->
+    <div class="view-panel" data-tab="admin">
+
+      <!-- Sub-Navigation -->
+      <div style="display:flex;gap:8px;margin-bottom:20px">
+        <button class="btn btn-ghost admin-tab-btn" data-admin-tab="users"
+                style="background:var(--accent);color:#fff;border-color:var(--accent)">Benutzer</button>
+        <button class="btn btn-ghost admin-tab-btn" data-admin-tab="portfolios">Portfolios</button>
+        <button class="btn btn-ghost admin-tab-btn" data-admin-tab="system">System</button>
+      </div>
+
+      <!-- ── Benutzer ───────────────────────────────────────────────────── -->
+      <div class="admin-panel" data-admin-tab="users">
+        <div class="card">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
+            <div class="card-title" style="margin:0">Benutzer</div>
+            <button class="btn btn-primary" id="btn-create-user">+ Neuer Benutzer</button>
+          </div>
+
+          <!-- Benutzer anlegen -->
+          <div id="user-create-wrap" style="display:none;background:var(--bg-secondary,#161b22);border:1px solid var(--border,#30363d);border-radius:8px;padding:16px;margin-bottom:16px">
+            <div style="font-weight:600;font-size:.9rem;margin-bottom:12px;color:var(--text-primary)">Neuer Benutzer</div>
+            <form id="user-create-form" style="display:grid;grid-template-columns:1fr 1fr;gap:8px;align-items:end">
+              <input type="text" id="new-user-username" placeholder="Username" required>
+              <input type="email" id="new-user-email" placeholder="E-Mail (optional)">
+              <input type="password" id="new-user-password" placeholder="Passwort (min. 10 Zeichen)" required>
+              <select id="new-user-role">
+                <option value="user">User</option>
+                <option value="admin">Admin</option>
+              </select>
+              <div id="user-create-error" style="display:none;color:var(--red-bright,#f85149);font-size:.8rem;grid-column:1/-1"></div>
+              <div style="display:flex;gap:8px;grid-column:1/-1">
+                <button type="submit" class="btn btn-primary">Anlegen</button>
+                <button type="button" class="btn btn-ghost" id="btn-cancel-create-user">Abbrechen</button>
+              </div>
+            </form>
+          </div>
+
+          <!-- Passwort zurücksetzen -->
+          <div id="user-pw-wrap" style="display:none;background:var(--bg-secondary,#161b22);border:1px solid var(--border,#30363d);border-radius:8px;padding:16px;margin-bottom:16px">
+            <div id="user-pw-title" style="font-weight:600;font-size:.9rem;margin-bottom:12px;color:var(--text-primary)">Passwort zurücksetzen</div>
+            <form id="user-pw-form" style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+              <input type="hidden" id="pw-reset-user-id">
+              <input type="password" id="pw-reset-new" placeholder="Neues Passwort (min. 10 Zeichen)" required style="flex:1;min-width:240px">
+              <button type="submit" class="btn btn-primary">Setzen</button>
+              <button type="button" class="btn btn-ghost" id="btn-cancel-pw-reset">Abbrechen</button>
+            </form>
+            <div id="user-pw-error" style="display:none;color:var(--red-bright,#f85149);font-size:.8rem;margin-top:6px"></div>
+          </div>
+
+          <div style="overflow-x:auto">
+            <table class="positions-table">
+              <thead>
+                <tr><th>ID</th><th>Username</th><th>E-Mail</th><th>Rolle</th><th>Status</th><th>Aktionen</th></tr>
+              </thead>
+              <tbody id="admin-users-tbody">
+                <tr><td colspan="6" style="text-align:center;color:var(--text-muted);padding:20px">Lädt...</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <!-- ── Portfolios ─────────────────────────────────────────────────── -->
+      <div class="admin-panel" data-admin-tab="portfolios" style="display:none">
+        <div class="card">
+          <div class="card-title">Alle Portfolios</div>
+          <div style="overflow-x:auto">
+            <table class="positions-table">
+              <thead>
+                <tr><th>ID</th><th>Besitzer</th><th>Name</th><th>Typ</th><th>Modus</th><th>Status</th><th>Startkapital</th></tr>
+              </thead>
+              <tbody id="admin-portfolios-tbody">
+                <tr><td colspan="7" style="text-align:center;color:var(--text-muted);padding:20px">Lädt...</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <!-- ── System ─────────────────────────────────────────────────────── -->
+      <div class="admin-panel" data-admin-tab="system" style="display:none">
+        <div class="stats-bar">
+          <div class="stat-card">
+            <div class="stat-label">Status</div>
+            <div class="stat-value positive" id="sys-ready">–</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-label">Aktien geladen</div>
+            <div class="stat-value" id="sys-stocks">–</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-label">Offene Positionen</div>
+            <div class="stat-value" id="sys-positions">–</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-label">Trades gesamt</div>
+            <div class="stat-value" id="sys-trades">–</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-label">Equity (aktives PF)</div>
+            <div class="stat-value" id="sys-equity">–</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-label">Letztes Signal</div>
+            <div class="stat-value" id="sys-signal" style="font-size:.8rem">–</div>
+          </div>
+        </div>
+        <div class="card" style="margin-top:16px">
+          <div class="card-title">Aktionen</div>
+          <div style="display:flex;gap:8px;flex-wrap:wrap">
+            <button class="btn btn-ghost" id="btn-admin-refresh-status">↻ Status aktualisieren</button>
+            <button class="btn btn-ghost" onclick="triggerCycle()">▶ Handelszyklus</button>
+            <button class="btn btn-ghost" onclick="triggerOptimize()">⚙ Optimierung starten</button>
+          </div>
+        </div>
+      </div>
+
+    </div><!-- /admin -->
+
   </main>
 
   <!-- ── Rechtes Panel ───────────────────────────────────────────────────── -->
@@ -635,6 +756,6 @@
 
 </div>
 
-<script type="module" src="/static/js/app.js?v=12"></script>
+<script type="module" src="/static/js/app.js?v=13"></script>
 </body>
 </html>

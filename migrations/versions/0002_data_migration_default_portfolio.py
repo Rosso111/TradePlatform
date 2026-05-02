@@ -56,10 +56,21 @@ def upgrade():
         ).fetchone()[0]
 
     # 3. Account verknüpfen (portfolio_id = NULL → portfolio_id)
-    conn.execute(
-        sa.text("UPDATE account SET portfolio_id=:pid WHERE portfolio_id IS NULL"),
+    # Falls bereits ein Account mit dieser portfolio_id existiert (z.B. durch App-Startup),
+    # den verwaisten NULL-Account löschen statt updaten (verhindert UniqueViolation).
+    already_linked = conn.execute(
+        sa.text("SELECT id FROM account WHERE portfolio_id=:pid"),
         {'pid': portfolio_id}
-    )
+    ).fetchone()
+    if already_linked:
+        conn.execute(
+            sa.text("DELETE FROM account WHERE portfolio_id IS NULL")
+        )
+    else:
+        conn.execute(
+            sa.text("UPDATE account SET portfolio_id=:pid WHERE portfolio_id IS NULL"),
+            {'pid': portfolio_id}
+        )
 
     # 4. EquityHistory — Duplikate zuerst entfernen (UniqueConstraint portfolio_id+date)
     #    Behalte pro Datum den Eintrag mit der höchsten ID, lösche ältere Duplikate
