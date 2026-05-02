@@ -5,7 +5,7 @@ Ersetzt run_trading_cycle() für den Live/Paper-Trading-Modus.
 import logging
 from datetime import date
 
-from models import db, Account, Position, Trade, Stock, Price, EquityHistory
+from models import db, Account, Position, Trade, Stock, Price, EquityHistory, Portfolio
 import config
 from services.ibkr_connector import connector
 from services.trading_engine import (
@@ -45,18 +45,20 @@ def _calc_shares(signal: dict, account: Account) -> int:
     return max(shares, 0)
 
 
-def execute_live_buy(signal: dict, fx_rates: dict) -> tuple[bool, str]:
+def execute_live_buy(signal: dict, fx_rates: dict, portfolio: Portfolio) -> tuple[bool, str]:
     """Kauft via IBKR und trägt die Position in die DB ein."""
-    account = Account.query.first()
+    account = Account.query.filter_by(portfolio_id=portfolio.id).first()
+    if not account:
+        return False, f"Kein Konto für Portfolio {portfolio.id}"
     symbol  = signal['symbol']
     stock_id = signal['stock_id']
 
     # Portfolio-Checks
-    if get_open_positions_count() >= config.MAX_POSITIONS:
+    if get_open_positions_count(portfolio.id) >= config.MAX_POSITIONS:
         return False, f"{symbol}: Portfolio voll"
-    if get_sector_position_count(signal['sector']) >= config.MAX_POSITIONS_PER_SECTOR:
+    if get_sector_position_count(signal['sector'], portfolio.id) >= config.MAX_POSITIONS_PER_SECTOR:
         return False, f"{symbol}: Sektor voll"
-    if already_in_position(stock_id):
+    if already_in_position(stock_id, portfolio.id):
         return False, f"{symbol}: Position bereits offen"
     if signal['score'] < config.SIGNAL_THRESHOLD_BUY:
         return False, f"{symbol}: Score zu niedrig"
@@ -91,6 +93,7 @@ def execute_live_buy(signal: dict, fx_rates: dict) -> tuple[bool, str]:
 
     # ── DB-Eintrag ────────────────────────────────────────────────────────────
     pos = Position(
+        portfolio_id=portfolio.id,
         stock_id=stock_id,
         shares=float(fill_qty),
         entry_price=fill_price_usd,
@@ -109,6 +112,7 @@ def execute_live_buy(signal: dict, fx_rates: dict) -> tuple[bool, str]:
     db.session.add(pos)
 
     trade = Trade(
+        portfolio_id=portfolio.id,
         stock_id=stock_id,
         action='BUY',
         shares=float(fill_qty),
@@ -162,6 +166,7 @@ def execute_live_sell(position: Position, fx_rates: dict, reason: str) -> tuple[
     pnl_pct    = (pnl_eur / cost_basis * 100) if cost_basis > 0 else 0
 
     trade = Trade(
+        portfolio_id=position.portfolio_id,
         stock_id=position.stock_id,
         action='SELL',
         shares=float(qty),
@@ -176,7 +181,7 @@ def execute_live_sell(position: Position, fx_rates: dict, reason: str) -> tuple[
     )
     db.session.add(trade)
 
-    account = Account.query.first()
+    account = Account.query.filter_by(portfolio_id=position.portfolio_id).first()
     account.cash_eur      += net_revenue
     account.total_trades  += 1
     account.total_commission += commission
@@ -194,10 +199,10 @@ def execute_live_sell(position: Position, fx_rates: dict, reason: str) -> tuple[
 
 # ── Positionen überwachen (SL/TP via IBKR) ───────────────────────────────────
 
-def update_live_positions(fx_rates: dict) -> list[str]:
-    """Prüft SL/TP für alle offenen Positionen und sendet ggf. Sell-Orders."""
+def update_live_positions(fx_rates: dict, portfolio_id: int) -> list[str]:
+    """Prüft SL/TP für alle offenen Positionen eines Portfolios und sendet ggf. Sell-Orders."""
     actions = []
-    for pos in Position.query.all():
+    for pos in Position.query.filter_by(portfolio_id=portfolio_id).all():
         stock    = pos.stock
         currency = stock.currency
         fx_rate  = fx_rates.get(currency, 1.0)
@@ -237,7 +242,7 @@ def update_live_positions(fx_rates: dict) -> list[str]:
 
 # ── Haupt-Zyklus ──────────────────────────────────────────────────────────────
 
-def run_live_trading_cycle(app) -> list[str]:
+def run_live_trading_cycle(app, portfolio_id: int | None = None) -> list[str]:
     """
     Vollständiger Live-Handelszyklus mit IBKR-Ausführung.
     Gleiche Schnittstelle wie run_trading_cycle() in trading_engine.py.
@@ -246,7 +251,7 @@ def run_live_trading_cycle(app) -> list[str]:
     from services.algorithm import generate_signals
 
     log.info("=== IBKR Live-Zyklus gestartet ===")
-    actions = []
+    all_actions = []
 
     if not connector.ensure_connected():
         log.error("IBKR nicht verbunden — Live-Zyklus abgebrochen")
@@ -261,57 +266,73 @@ def run_live_trading_cycle(app) -> list[str]:
             fx_rates = {'USD': 1.08, 'GBP': 0.85, 'JPY': 163.0,
                         'CHF': 0.96, 'HKD': 8.45, 'EUR': 1.0}
 
-        # 2. Preise aktualisieren
+        # 2. Preise aktualisieren (einmalig, geteilt)
         try:
             update_prices_incremental(app, config.STOCK_UNIVERSE)
         except Exception as e:
             log.error(f"Preis-Update: {e}")
 
-        # 3. SL/TP via IBKR prüfen
-        try:
-            actions.extend(update_live_positions(fx_rates))
-        except Exception as e:
-            log.error(f"Positions-Update: {e}")
-
-        # 4. Signale generieren
+        # 3. Signale generieren (einmalig, geteilt)
         try:
             signals = generate_signals(app)
         except Exception as e:
             log.error(f"Signal-Generierung: {e}")
             signals = []
 
-        # 5. Kaufen
-        buy_signals = [s for s in signals if s['action'] == 'BUY']
-        for signal in sorted(buy_signals, key=lambda s: s['score'], reverse=True):
-            if get_open_positions_count() >= config.MAX_POSITIONS:
-                break
-            try:
-                ok, msg = execute_live_buy(signal, fx_rates)
-                if ok:
-                    actions.append(msg)
-            except Exception as e:
-                log.error(f"Live-Kauf {signal['symbol']}: {e}")
+        # 4. Portfolios bestimmen
+        if portfolio_id is not None:
+            portfolios = Portfolio.query.filter(
+                Portfolio.id == portfolio_id,
+                Portfolio.status == 'active',
+                Portfolio.mode == 'auto',
+            ).all()
+        else:
+            portfolios = Portfolio.query.filter(
+                Portfolio.status == 'active',
+                Portfolio.mode == 'auto',
+            ).all()
 
-        # 6. Verkaufen (Signal)
+        buy_signals = sorted(
+            [s for s in signals if s['action'] == 'BUY'],
+            key=lambda s: s['score'], reverse=True,
+        )
         sell_signals = {s['stock_id']: s for s in signals if s['action'] == 'SELL'}
-        for pos in Position.query.all():
-            if pos.stock_id in sell_signals:
-                sig = sell_signals[pos.stock_id]
-                try:
-                    ok, msg = execute_live_sell(
-                        pos, fx_rates,
-                        reason=f"Verkaufssignal (Score {sig['score']:.0f})"
-                    )
-                    if ok:
-                        actions.append(msg)
-                except Exception as e:
-                    log.error(f"Live-Verkauf {pos.stock.symbol}: {e}")
 
-        # 7. Equity
+        for portfolio in portfolios:
+            try:
+                actions = update_live_positions(fx_rates, portfolio.id)
+                all_actions.extend(actions)
+            except Exception as e:
+                log.error(f"Positions-Update Portfolio {portfolio.id}: {e}")
+
+            for signal in buy_signals:
+                if get_open_positions_count(portfolio.id) >= config.MAX_POSITIONS:
+                    break
+                try:
+                    ok, msg = execute_live_buy(signal, fx_rates, portfolio)
+                    if ok:
+                        all_actions.append(msg)
+                except Exception as e:
+                    log.error(f"Live-Kauf {signal['symbol']} Portfolio {portfolio.id}: {e}")
+
+            for pos in Position.query.filter_by(portfolio_id=portfolio.id).all():
+                if pos.stock_id in sell_signals:
+                    sig = sell_signals[pos.stock_id]
+                    try:
+                        ok, msg = execute_live_sell(
+                            pos, fx_rates,
+                            reason=f"Verkaufssignal (Score {sig['score']:.0f})"
+                        )
+                        if ok:
+                            all_actions.append(msg)
+                    except Exception as e:
+                        log.error(f"Live-Verkauf {pos.stock.symbol} Portfolio {portfolio.id}: {e}")
+
+        # 5. Equity
         try:
             update_equity(app)
         except Exception as e:
             log.error(f"Equity-Update: {e}")
 
-    log.info(f"=== IBKR Live-Zyklus beendet: {len(actions)} Aktionen ===")
-    return actions
+    log.info(f"=== IBKR Live-Zyklus beendet: {len(all_actions)} Aktionen ===")
+    return all_actions

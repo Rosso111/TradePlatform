@@ -85,11 +85,19 @@ def create_app(test_config: dict | None = None):
     from routes.users import users_bp
     from routes.portfolios import portfolios_bp
     from routes.proposals import proposals_bp
+    from routes.trading import trading_bp
+    from routes.simulations import simulations_bp
+    from routes.scenarios import scenarios_bp
+    from routes.strategies import strategies_bp
     app.register_blueprint(api)
     app.register_blueprint(auth_bp)
     app.register_blueprint(users_bp)
     app.register_blueprint(portfolios_bp)
     app.register_blueprint(proposals_bp)
+    app.register_blueprint(trading_bp)
+    app.register_blueprint(simulations_bp)
+    app.register_blueprint(scenarios_bp)
+    app.register_blueprint(strategies_bp)
 
     # Hauptseite
     @app.route('/')

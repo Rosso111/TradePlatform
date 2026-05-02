@@ -7,7 +7,7 @@ import logging
 from datetime import date, datetime, timezone
 
 import config
-from models import db, Account, Position, Trade, Stock, Price, EquityHistory
+from models import db, Account, Position, Trade, Stock, Price, EquityHistory, Portfolio
 
 log = logging.getLogger(__name__)
 
@@ -87,42 +87,45 @@ def calc_position_size(account: Account, signal: dict) -> float:
     return min(size, account.cash_eur * 0.98)
 
 
-# ─── Portfolio-Prüfungen ─────────────────────────────────────────────────────
+# ─── Portfolio-Prüfungen (portfolio-bewusst) ─────────────────────────────────
 
-def get_open_positions_count() -> int:
-    return Position.query.count()
+def get_open_positions_count(portfolio_id: int) -> int:
+    return Position.query.filter_by(portfolio_id=portfolio_id).count()
 
 
-def get_sector_position_count(sector: str) -> int:
+def get_sector_position_count(sector: str, portfolio_id: int) -> int:
     return (Position.query
             .join(Stock)
-            .filter(Stock.sector == sector)
+            .filter(Stock.sector == sector, Position.portfolio_id == portfolio_id)
             .count())
 
 
-def already_in_position(stock_id: int) -> bool:
-    return Position.query.filter_by(stock_id=stock_id).first() is not None
+def already_in_position(stock_id: int, portfolio_id: int) -> bool:
+    return Position.query.filter_by(stock_id=stock_id, portfolio_id=portfolio_id).first() is not None
 
 
 # ─── Kauf-Ausführung ─────────────────────────────────────────────────────────
 
-def execute_buy(signal: dict, fx_rates: dict) -> tuple[bool, str]:
+def execute_buy(signal: dict, fx_rates: dict, portfolio: Portfolio) -> tuple[bool, str]:
     """
     Kauft eine Position wenn alle Bedingungen erfüllt sind.
     Gibt (Erfolg, Meldung) zurück.
     """
-    account = Account.query.first()
+    account = Account.query.filter_by(portfolio_id=portfolio.id).first()
+    if not account:
+        return False, f"Kein Konto für Portfolio {portfolio.id}"
+
     stock_id = signal['stock_id']
     symbol = signal['symbol']
 
     # Bedingungen prüfen
-    if get_open_positions_count() >= config.MAX_POSITIONS:
+    if get_open_positions_count(portfolio.id) >= config.MAX_POSITIONS:
         return False, f"{symbol}: Portfolio voll ({config.MAX_POSITIONS} Positionen)"
 
-    if get_sector_position_count(signal['sector']) >= config.MAX_POSITIONS_PER_SECTOR:
+    if get_sector_position_count(signal['sector'], portfolio.id) >= config.MAX_POSITIONS_PER_SECTOR:
         return False, f"{symbol}: Sektor {signal['sector']} voll ({config.MAX_POSITIONS_PER_SECTOR} Pos.)"
 
-    if already_in_position(stock_id):
+    if already_in_position(stock_id, portfolio.id):
         return False, f"{symbol}: Position bereits offen"
 
     if signal['score'] < config.SIGNAL_THRESHOLD_BUY:
@@ -158,6 +161,7 @@ def execute_buy(signal: dict, fx_rates: dict) -> tuple[bool, str]:
 
     # Position anlegen
     pos = Position(
+        portfolio_id=portfolio.id,
         stock_id=stock_id,
         shares=shares,
         entry_price=entry_price_with_spread,
@@ -177,6 +181,7 @@ def execute_buy(signal: dict, fx_rates: dict) -> tuple[bool, str]:
 
     # Trade-Log
     trade = Trade(
+        portfolio_id=portfolio.id,
         stock_id=stock_id,
         action='BUY',
         shares=shares,
@@ -222,6 +227,7 @@ def execute_sell(position: Position, current_price: float,
 
     # Trade-Log
     trade = Trade(
+        portfolio_id=position.portfolio_id,
         stock_id=position.stock_id,
         action='SELL',
         shares=position.shares,
@@ -237,7 +243,7 @@ def execute_sell(position: Position, current_price: float,
     db.session.add(trade)
 
     # Kontostand
-    account = Account.query.first()
+    account = Account.query.filter_by(portfolio_id=position.portfolio_id).first()
     account.cash_eur += net_revenue
     account.total_trades += 1
     account.total_commission += commission
@@ -256,14 +262,13 @@ def execute_sell(position: Position, current_price: float,
 
 # ─── Positionen aktualisieren ────────────────────────────────────────────────
 
-def update_positions(fx_rates: dict) -> list[str]:
+def update_positions(fx_rates: dict, portfolio_id: int) -> list[str]:
     """
-    Aktualisiert Preise aller offenen Positionen,
+    Aktualisiert Preise aller offenen Positionen eines Portfolios,
     prüft Stop-Loss / Take-Profit, aktualisiert Trailing-Stop.
-    Gibt Liste von Aktionen zurück.
     """
     actions = []
-    positions = Position.query.all()
+    positions = Position.query.filter_by(portfolio_id=portfolio_id).all()
 
     for pos in positions:
         stock = pos.stock
@@ -314,23 +319,109 @@ def update_positions(fx_rates: dict) -> list[str]:
     return actions
 
 
+# ─── Pro-Portfolio Zyklus ────────────────────────────────────────────────────
+
+def _execute_cycle_for_portfolio(portfolio: Portfolio, signals: list, fx_rates: dict) -> list[str]:
+    """Führt Kauf-/Verkaufsentscheidungen für ein einzelnes Portfolio aus."""
+    actions = []
+
+    # SL/TP prüfen
+    try:
+        sl_actions = update_positions(fx_rates, portfolio.id)
+        actions.extend(sl_actions)
+    except Exception as e:
+        log.error(f"Positions-Update Portfolio {portfolio.id}: {e}")
+
+    # Kaufentscheidungen
+    buy_signals = [s for s in signals if s['action'] == 'BUY']
+    for signal in buy_signals:
+        if get_open_positions_count(portfolio.id) >= config.MAX_POSITIONS:
+            break
+        try:
+            ok, msg = execute_buy(signal, fx_rates, portfolio)
+            if ok:
+                actions.append(msg)
+        except Exception as e:
+            log.error(f"Kauf {signal['symbol']} Portfolio {portfolio.id}: {e}")
+
+    # Verkaufssignale
+    sell_signals = {s['stock_id']: s for s in signals if s['action'] == 'SELL'}
+    for pos in Position.query.filter_by(portfolio_id=portfolio.id).all():
+        if pos.stock_id in sell_signals:
+            sig = sell_signals[pos.stock_id]
+            currency = pos.stock.currency
+            fx_rate = fx_rates.get(currency, 1.0)
+            try:
+                ok, msg = execute_sell(
+                    pos,
+                    sig['current_price'],
+                    sig['current_price_eur'],
+                    fx_rate,
+                    reason=f"Verkaufssignal (Score {sig['score']:.0f})"
+                )
+                if ok:
+                    actions.append(msg)
+            except Exception as e:
+                log.error(f"Verkauf {pos.stock.symbol} Portfolio {portfolio.id}: {e}")
+
+    return actions
+
+
+def _update_equity_for_portfolio(portfolio: Portfolio):
+    """Berechnet und speichert den Gesamtwert eines einzelnen Portfolios."""
+    account = Account.query.filter_by(portfolio_id=portfolio.id).first()
+    if not account:
+        return
+
+    positions = Position.query.filter_by(portfolio_id=portfolio.id).all()
+    positions_value = sum(
+        (p.current_price_eur or p.entry_price_eur) * p.shares
+        for p in positions
+    )
+    equity = account.cash_eur + positions_value
+    account.equity_eur = equity
+
+    today = date.today()
+    history = EquityHistory.query.filter_by(portfolio_id=portfolio.id, date=today).first()
+
+    yesterday = (EquityHistory.query
+                 .filter(EquityHistory.portfolio_id == portfolio.id,
+                         EquityHistory.date < today)
+                 .order_by(EquityHistory.date.desc())
+                 .first())
+
+    starting = getattr(portfolio, 'starting_capital', None) or config.STARTING_CAPITAL
+    daily_pnl = equity - (yesterday.equity_eur if yesterday else starting)
+
+    if not history:
+        history = EquityHistory(date=today, portfolio_id=portfolio.id)
+        db.session.add(history)
+    history.equity_eur = equity
+    history.cash_eur = account.cash_eur
+    history.positions_value = positions_value
+    history.daily_pnl = daily_pnl
+
+    db.session.commit()
+
+
 # ─── Haupt-Trading-Schleife ──────────────────────────────────────────────────
 
-def run_trading_cycle(app) -> list[str]:
+def run_trading_cycle(app, portfolio_id: int | None = None) -> list[str]:
     """
-    Vollständiger Handelszyklus:
+    Vollständiger Handelszyklus für alle aktiven Auto-Portfolios
+    oder ein einzelnes Portfolio wenn portfolio_id angegeben.
+
     1. Wechselkurse laden
     2. Preise aktualisieren
-    3. Stop-Loss / Take-Profit prüfen
-    4. Signale berechnen
-    5. Kaufentscheidungen treffen
-    6. Equity-Stand aktualisieren
+    3. Signale berechnen
+    4. Pro Portfolio: SL/TP prüfen, kaufen, verkaufen
+    5. Equity aller aktiven Portfolios aktualisieren
     """
     from services.data_fetcher import fetch_exchange_rates, update_prices_incremental
     from services.algorithm import generate_signals
 
     log.info("=== Handelszyklus gestartet ===")
-    actions = []
+    all_actions = []
 
     with app.app_context():
         # 1. Wechselkurse aktualisieren
@@ -341,96 +432,61 @@ def run_trading_cycle(app) -> list[str]:
             fx_rates = {'USD': 1.08, 'GBP': 0.85, 'JPY': 163.0,
                         'CHF': 0.96, 'HKD': 8.45, 'KRW': 1450.0, 'AUD': 1.65, 'EUR': 1.0}
 
-        # 2. Preise inkrementell aktualisieren
+        # 2. Preise inkrementell aktualisieren (geteilt, einmalig)
         try:
             update_prices_incremental(app, config.STOCK_UNIVERSE)
         except Exception as e:
             log.error(f"Preis-Update: {e}")
 
-        # 3. Offene Positionen prüfen (Stop-Loss / Take-Profit)
-        try:
-            sl_actions = update_positions(fx_rates)
-            actions.extend(sl_actions)
-        except Exception as e:
-            log.error(f"Positions-Update: {e}")
-
-        # 4. Signale generieren
+        # 3. Signale generieren (geteilt, einmalig)
         try:
             signals = generate_signals(app)
         except Exception as e:
             log.error(f"Signal-Generierung: {e}")
             signals = []
 
-        # 5. Kaufentscheidungen
-        buy_signals = [s for s in signals if s['action'] == 'BUY']
-        for signal in buy_signals:
-            if get_open_positions_count() >= config.MAX_POSITIONS:
-                break
+        # 4. Portfolios bestimmen
+        if portfolio_id is not None:
+            portfolios = Portfolio.query.filter(
+                Portfolio.id == portfolio_id,
+                Portfolio.status == 'active',
+                Portfolio.mode == 'auto',
+            ).all()
+        else:
+            portfolios = Portfolio.query.filter(
+                Portfolio.status == 'active',
+                Portfolio.mode == 'auto',
+            ).all()
+
+        for portfolio in portfolios:
             try:
-                ok, msg = execute_buy(signal, fx_rates)
-                if ok:
-                    actions.append(msg)
+                actions = _execute_cycle_for_portfolio(portfolio, signals, fx_rates)
+                all_actions.extend(actions)
             except Exception as e:
-                log.error(f"Kauf {signal['symbol']}: {e}")
+                log.error(f"Zyklus Portfolio {portfolio.id}: {e}")
 
-        # 6. Verkaufssignale für bestehende Positionen
-        sell_signals = {s['stock_id']: s for s in signals if s['action'] == 'SELL'}
-        for pos in Position.query.all():
-            if pos.stock_id in sell_signals:
-                sig = sell_signals[pos.stock_id]
-                currency = pos.stock.currency
-                fx_rate = fx_rates.get(currency, 1.0)
-                try:
-                    ok, msg = execute_sell(
-                        pos,
-                        sig['current_price'],
-                        sig['current_price_eur'],
-                        fx_rate,
-                        reason=f"Verkaufssignal (Score {sig['score']:.0f})"
-                    )
-                    if ok:
-                        actions.append(msg)
-                except Exception as e:
-                    log.error(f"Verkauf {pos.stock.symbol}: {e}")
-
-        # 7. Equity aktualisieren
+        # 5. Equity für alle aktiven Portfolios aktualisieren
         try:
-            update_equity(app)
+            active = Portfolio.query.filter_by(status='active').all()
+            for portfolio in active:
+                _update_equity_for_portfolio(portfolio)
         except Exception as e:
             log.error(f"Equity-Update: {e}")
 
-    log.info(f"=== Handelszyklus beendet: {len(actions)} Aktionen ===")
-    return actions
+    log.info(f"=== Handelszyklus beendet: {len(all_actions)} Aktionen ===")
+    return all_actions
 
 
-def update_equity(app):
-    """Berechnet und speichert den aktuellen Gesamtwert des Portfolios."""
-    account = Account.query.first()
-    positions = Position.query.all()
+def update_equity(app, portfolio_id: int | None = None):
+    """Berechnet und speichert den Gesamtwert aller aktiven Portfolios."""
+    with app.app_context():
+        if portfolio_id is not None:
+            portfolios = Portfolio.query.filter_by(id=portfolio_id).all()
+        else:
+            portfolios = Portfolio.query.filter_by(status='active').all()
 
-    positions_value = sum(
-        (p.current_price_eur or p.entry_price_eur) * p.shares
-        for p in positions
-    )
-    equity = account.cash_eur + positions_value
-    account.equity_eur = equity
-
-    today = date.today()
-    history = EquityHistory.query.filter_by(date=today).first()
-
-    yesterday = (EquityHistory.query
-                 .filter(EquityHistory.date < today)
-                 .order_by(EquityHistory.date.desc())
-                 .first())
-
-    daily_pnl = equity - (yesterday.equity_eur if yesterday else config.STARTING_CAPITAL)
-
-    if not history:
-        history = EquityHistory(date=today)
-        db.session.add(history)
-    history.equity_eur = equity
-    history.cash_eur = account.cash_eur
-    history.positions_value = positions_value
-    history.daily_pnl = daily_pnl
-
-    db.session.commit()
+        for portfolio in portfolios:
+            try:
+                _update_equity_for_portfolio(portfolio)
+            except Exception as e:
+                log.error(f"Equity-Update Portfolio {portfolio.id}: {e}")
