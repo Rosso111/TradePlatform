@@ -191,7 +191,12 @@ def execute_buy(signal: dict, fx_rates: dict, portfolio: Portfolio) -> tuple[boo
     account.total_trades += 1
     account.total_commission += commission
 
-    db.session.commit()
+    try:
+        db.session.commit()
+    except Exception as e:
+        db.session.rollback()
+        log.error(f"{symbol}: DB-Commit bei Kauf fehlgeschlagen — {e}")
+        return False, f"{symbol}: Datenbankfehler beim Kauf-Eintrag — {e}"
 
     msg = (f"KAUF {symbol}: {shares:.2f} Aktien @ {entry_price_eur:.4f} EUR "
            f"(SL: {stop_loss:.4f}, TP: {take_profit:.4f}), "
@@ -246,7 +251,13 @@ def execute_sell(position: Position, current_price: float,
         account.winning_trades += 1
 
     db.session.delete(position)
-    db.session.commit()
+
+    try:
+        db.session.commit()
+    except Exception as e:
+        db.session.rollback()
+        log.error(f"{position.stock.symbol}: DB-Commit bei Verkauf fehlgeschlagen — {e}")
+        return False, f"{position.stock.symbol}: Datenbankfehler beim Verkauf-Eintrag — {e}"
 
     symbol = position.stock.symbol
     msg = (f"VERKAUF {symbol}: {position.shares:.2f} Aktien @ {current_price_eur:.4f} EUR, "
