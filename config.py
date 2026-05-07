@@ -281,6 +281,7 @@ STOCK_UNIVERSE = [
     {'symbol': 'CBA.AX',  'name': 'Commonwealth Bank',   'sector': 'Financials',   'region': 'AU', 'currency': 'AUD'},
     {'symbol': 'CSL.AX',  'name': 'CSL Ltd.',            'sector': 'Healthcare',   'region': 'AU', 'currency': 'AUD'},
     {'symbol': 'RIO.AX',  'name': 'Rio Tinto Ltd.',      'sector': 'Materials',    'region': 'AU', 'currency': 'AUD'},
+    {'symbol': 'TNE.AX',  'name': 'Technology One Ltd.', 'sector': 'Technology',   'region': 'AU', 'currency': 'AUD'},
 
     # === USA (legacy_champions – Blue Chips mit Daten ab ~2000) ===
     {'symbol': 'INTC',    'name': 'Intel Corp.',              'sector': 'Technology',   'region': 'US', 'currency': 'USD'},
