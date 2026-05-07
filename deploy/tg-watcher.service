@@ -1,0 +1,18 @@
+[Unit]
+Description=Telegram Watcher — Bot Start/Stop Control
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=martin
+WorkingDirectory=/home/martin/.openclaw/workspace/TradePlatform_multiuser
+EnvironmentFile=/home/martin/.openclaw/workspace/TradePlatform_multiuser/.env
+ExecStart=/home/martin/TradePlatform/.venv/bin/python deploy/tg_watcher.py
+Restart=always
+RestartSec=10
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target

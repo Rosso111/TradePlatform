@@ -1,0 +1,10 @@
+# Erlaubt user 'martin' die tradeplatform- und ibgateway-Services ohne Passwort zu steuern
+# Einmalig installieren mit:
+#   sudo cp deploy/sudoers_tradeplatform /etc/sudoers.d/tradeplatform
+#   sudo chmod 440 /etc/sudoers.d/tradeplatform
+martin ALL=(ALL) NOPASSWD: /usr/bin/systemctl start tradeplatform
+martin ALL=(ALL) NOPASSWD: /usr/bin/systemctl stop tradeplatform
+martin ALL=(ALL) NOPASSWD: /usr/bin/systemctl restart tradeplatform
+martin ALL=(ALL) NOPASSWD: /usr/bin/systemctl start ibgateway
+martin ALL=(ALL) NOPASSWD: /usr/bin/systemctl stop ibgateway
+martin ALL=(ALL) NOPASSWD: /usr/bin/systemctl restart ibgateway
