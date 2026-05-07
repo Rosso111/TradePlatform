@@ -160,7 +160,16 @@ def execute_live_buy(signal: dict, fx_rates: dict, portfolio: Portfolio) -> tupl
     account.cash_eur      -= total_cost
     account.total_trades  += 1
     account.total_commission += commission
-    db.session.commit()
+
+    try:
+        db.session.commit()
+    except Exception as e:
+        db.session.rollback()
+        log.critical(
+            f"{symbol}: IBKR-Order ausgeführt, aber DB-Commit fehlgeschlagen — {e}. "
+            f"IBKR-Position manuell prüfen!"
+        )
+        return False, f"{symbol}: DB-Fehler nach IBKR-Order — manuelle Prüfung erforderlich"
 
     status_label = "PENDING" if pending else "KAUF"
     msg = (f"IBKR {status_label} {symbol}: {fill_qty} Stück @ {fill_price_usd:.2f} "
@@ -235,7 +244,16 @@ def execute_live_sell(position: Position, fx_rates: dict, reason: str) -> tuple[
         account.winning_trades += 1
 
     db.session.delete(position)
-    db.session.commit()
+
+    try:
+        db.session.commit()
+    except Exception as e:
+        db.session.rollback()
+        log.critical(
+            f"{symbol}: IBKR-Verkauf ausgeführt, aber DB-Commit fehlgeschlagen — {e}. "
+            f"Position in DB noch offen, IBKR-Account manuell prüfen!"
+        )
+        return False, f"{symbol}: DB-Fehler nach IBKR-Verkauf — manuelle Prüfung erforderlich"
 
     msg = (f"IBKR VERKAUF {symbol}: {qty} Stück @ {fill_price_usd:.4f} {currency}, "
            f"P&L: {pnl_eur:+.2f} EUR ({pnl_pct:+.1f}%), Grund: {reason}")
