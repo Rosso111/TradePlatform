@@ -509,7 +509,7 @@ def generate_signals_for_date(app, as_of_date) -> list[dict]:
                     'sector_score': sector_score,
                     'risk_score': None,
                     'params': params,
-                    'reason': _build_reason(last_row, params, score, analyst_score, sector_score),
+                    'reason': _build_reason(last_row, params, score, analyst_score, sector_score, action),
                     'reason_json': {
                         'technical': {
                             'rsi': float(last_row['rsi']) if not np.isnan(last_row['rsi']) else None,
@@ -608,22 +608,27 @@ def run_optimization_for_all(app):
         log.info("Optimierung abgeschlossen.")
 
 
-def _build_reason(row, params, score, analyst_score, sector_score) -> str:
-    """Menschenlesbare Begründung für das Signal"""
+def _build_reason(row, params, score, analyst_score, sector_score, action: str = 'BUY') -> str:
+    """Menschenlesbare Begründung für das Signal — nur zur Aktion passende Indikatoren."""
     parts = []
+    is_buy = action == 'BUY'
     rsi = row.get('rsi')
     if rsi is not None and not np.isnan(rsi):
         if rsi < params.get('rsi_oversold', 35):
             parts.append(f"RSI überverkauft ({rsi:.0f})")
         elif rsi > params.get('rsi_overbought', 65):
             parts.append(f"RSI überkauft ({rsi:.0f})")
-    if row.get('macd', 0) > row.get('macd_signal', 0):
+    macd     = row.get('macd', 0) or 0
+    macd_sig = row.get('macd_signal', 0) or 0
+    if macd > macd_sig and is_buy:
         parts.append("MACD bullisch")
-    elif row.get('macd', 0) < row.get('macd_signal', 0):
+    elif macd < macd_sig and not is_buy:
         parts.append("MACD bärisch")
-    if row.get('ema_fast', 0) > row.get('ema_slow', 0):
+    ema_fast = row.get('ema_fast', 0) or 0
+    ema_slow = row.get('ema_slow', 0) or 0
+    if ema_fast > ema_slow and is_buy:
         parts.append("EMA-Aufwärtstrend")
-    else:
+    elif ema_fast <= ema_slow and not is_buy:
         parts.append("EMA-Abwärtstrend")
     if analyst_score >= 75:
         parts.append("starke Analystenempfehlung")

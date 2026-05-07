@@ -257,15 +257,18 @@ def execute_sell(position: Position, current_price: float,
 
 # ─── Positionen aktualisieren ────────────────────────────────────────────────
 
-def update_positions(fx_rates: dict, portfolio_id: int) -> list[str]:
+def update_positions(fx_rates: dict, portfolio_id: int) -> tuple[list[str], set[int]]:
     """
     Aktualisiert Preise aller offenen Positionen eines Portfolios,
     prüft Stop-Loss / Take-Profit, aktualisiert Trailing-Stop.
+    Gibt (actions, sold_stock_ids) zurück — sold_stock_ids verhindert
+    Sofort-Wiederkauf im selben Zyklus.
     """
     from services.strategy_resolver import resolve
-    actions   = []
-    portfolio = Portfolio.query.get(portfolio_id)
-    positions = Position.query.filter_by(portfolio_id=portfolio_id).all()
+    actions        = []
+    sold_stock_ids: set[int] = set()
+    portfolio      = Portfolio.query.get(portfolio_id)
+    positions      = Position.query.filter_by(portfolio_id=portfolio_id).all()
 
     for pos in positions:
         stock    = pos.stock
@@ -302,6 +305,8 @@ def update_positions(fx_rates: dict, portfolio_id: int) -> list[str]:
         if effective_stop > 0 and current_price <= effective_stop:
             ok, msg = execute_sell(pos, current_price, current_price_eur, fx_rate,
                                    reason='Stop-Loss ausgelöst')
+            if ok:
+                sold_stock_ids.add(pos.stock_id)
             actions.append(msg)
             continue
 
@@ -309,11 +314,13 @@ def update_positions(fx_rates: dict, portfolio_id: int) -> list[str]:
         if pos.take_profit and current_price >= pos.take_profit:
             ok, msg = execute_sell(pos, current_price, current_price_eur, fx_rate,
                                    reason='Take-Profit erreicht')
+            if ok:
+                sold_stock_ids.add(pos.stock_id)
             actions.append(msg)
             continue
 
     db.session.commit()
-    return actions
+    return actions, sold_stock_ids
 
 
 # ─── Pro-Portfolio Zyklus ────────────────────────────────────────────────────
@@ -324,14 +331,18 @@ def _execute_cycle_for_portfolio(portfolio: Portfolio, signals: list, fx_rates: 
     actions = []
     portfolio_params = resolve(portfolio)
 
+    sold_stock_ids: set[int] = set()
     try:
-        sl_actions = update_positions(fx_rates, portfolio.id)
+        sl_actions, sold_stock_ids = update_positions(fx_rates, portfolio.id)
         actions.extend(sl_actions)
     except Exception as e:
         log.error(f"Positions-Update Portfolio {portfolio.id}: {e}")
 
     buy_signals = [s for s in signals if s['action'] == 'BUY']
     for signal in buy_signals:
+        if signal['stock_id'] in sold_stock_ids:
+            log.info(f"{signal['symbol']}: Kauf übersprungen — im selben Zyklus per SL/TP verkauft")
+            continue
         if get_open_positions_count(portfolio.id) >= portfolio_params['max_positions']:
             break
         try:

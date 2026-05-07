@@ -251,11 +251,13 @@ def execute_live_sell(position: Position, fx_rates: dict, reason: str) -> tuple[
 
 # ── Positionen überwachen (SL/TP via IBKR) ───────────────────────────────────
 
-def update_live_positions(fx_rates: dict, portfolio_id: int) -> list[str]:
-    """Prüft SL/TP für alle offenen Positionen eines Portfolios und sendet ggf. Sell-Orders."""
+def update_live_positions(fx_rates: dict, portfolio_id: int) -> tuple[list[str], set[int]]:
+    """Prüft SL/TP für alle offenen Positionen eines Portfolios und sendet ggf. Sell-Orders.
+    Gibt (actions, sold_stock_ids) zurück."""
     from services.strategy_resolver import resolve
-    actions   = []
-    portfolio = Portfolio.query.get(portfolio_id)
+    actions        = []
+    sold_stock_ids: set[int] = set()
+    portfolio      = Portfolio.query.get(portfolio_id)
 
     for pos in Position.query.filter_by(portfolio_id=portfolio_id).all():
         stock    = pos.stock
@@ -287,13 +289,17 @@ def update_live_positions(fx_rates: dict, portfolio_id: int) -> list[str]:
 
         if effective_stop > 0 and current_price <= effective_stop:
             ok, msg = execute_live_sell(pos, fx_rates, reason='Stop-Loss ausgelöst')
+            if ok:
+                sold_stock_ids.add(pos.stock_id)
             actions.append(msg)
         elif pos.take_profit and current_price >= pos.take_profit:
             ok, msg = execute_live_sell(pos, fx_rates, reason='Take-Profit erreicht')
+            if ok:
+                sold_stock_ids.add(pos.stock_id)
             actions.append(msg)
 
     db.session.commit()
-    return actions
+    return actions, sold_stock_ids
 
 
 # ── Haupt-Zyklus ──────────────────────────────────────────────────────────────
@@ -368,13 +374,17 @@ def run_live_trading_cycle(app, portfolio_id: int | None = None) -> list[str]:
             except Exception as e:
                 log.warning(f"IBKR-Account-Sync Portfolio {portfolio.id} fehlgeschlagen: {e}")
 
+            sold_stock_ids: set[int] = set()
             try:
-                actions = update_live_positions(fx_rates, portfolio.id)
-                all_actions.extend(actions)
+                pos_actions, sold_stock_ids = update_live_positions(fx_rates, portfolio.id)
+                all_actions.extend(pos_actions)
             except Exception as e:
                 log.error(f"Positions-Update Portfolio {portfolio.id}: {e}")
 
             for signal in buy_signals:
+                if signal['stock_id'] in sold_stock_ids:
+                    log.info(f"{signal['symbol']}: Kauf übersprungen — im selben Zyklus per SL/TP verkauft")
+                    continue
                 if get_open_positions_count(portfolio.id) >= config.MAX_POSITIONS:
                     break
                 try:
