@@ -1,10 +1,10 @@
-import { api } from './api.js';
+import { api, set401Handler } from './api.js';
 import {
   fmtEUR, fmtNum, fmtPct, fmtDateTime, fmtTime,
   setEl, setStatusDot, hideLoading, showDataLoadingBanner,
   hideDataLoadingBanner, showToast, addLogEntry, initSplitPanes,
 } from './ui.js';
-import { loadSimulations, initSimulationControls } from './simulations.js?v=11';
+import { loadSimulations, initSimulationControls } from './simulations.js?v=12';
 
 let socket = null;
 let candleChart = null;
@@ -25,6 +25,11 @@ const state = {
   selectedLabStrategyId: null,
   selectedSymbol: null,
   activeTab: 'dashboard',
+  // Multi-User
+  currentUser: null,
+  portfolios: [],
+  activePortfolio: null,
+  todayProposal: null,
 };
 
 window.switchTab = switchTab;
@@ -32,18 +37,394 @@ window.triggerCycle = triggerCycle;
 window.triggerOptimize = triggerOptimize;
 window.selectSymbol = selectSymbol;
 
-document.addEventListener('DOMContentLoaded', () => {
+document.addEventListener('DOMContentLoaded', async () => {
+  set401Handler(showLoginOverlay);
+  initLoginForm();
+  await checkAuthAndBoot();
+});
+
+// ── Auth (UI-01, UI-02) ──────────────────────────────────────────────────────
+
+function showLoginOverlay() {
+  document.getElementById('login-overlay').style.display = 'flex';
+  document.getElementById('login-username').focus();
+}
+
+function hideLoginOverlay() {
+  document.getElementById('login-overlay').style.display = 'none';
+}
+
+function initLoginForm() {
+  const form = document.getElementById('login-form');
+  const errorEl = document.getElementById('login-error');
+  const submitBtn = document.getElementById('login-submit');
+
+  form.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    errorEl.style.display = 'none';
+    submitBtn.disabled = true;
+    submitBtn.textContent = 'Anmelden…';
+
+    const username = document.getElementById('login-username').value.trim();
+    const password = document.getElementById('login-password').value;
+
+    try {
+      const user = await api.login(username, password);
+      state.currentUser = user;
+      hideLoginOverlay();
+      await bootApp();
+    } catch (err) {
+      errorEl.textContent = err.message || 'Anmeldung fehlgeschlagen';
+      errorEl.style.display = 'block';
+    } finally {
+      submitBtn.disabled = false;
+      submitBtn.textContent = 'Anmelden';
+    }
+  });
+}
+
+async function checkAuthAndBoot() {
+  try {
+    const user = await api.me();
+    state.currentUser = user;
+    hideLoginOverlay();
+    await bootApp();
+  } catch {
+    showLoginOverlay();
+  }
+}
+
+async function bootApp() {
+  renderUserMenu();
+  await loadPortfolios();
   initWebSocket();
   initNavigation();
   initPeriodButtons();
   initSimulationControls();
   initStrategyEditor();
+  initPortfolioPanel();
+  await initIbkrPanel();
+  initAdminPanel();
   initSplitPanes();
   const savedTab = localStorage.getItem('tp_active_tab') || 'dashboard';
   switchTab(savedTab);
   loadAll();
   setTimeout(() => hideLoading(), 5000);
-});
+}
+
+// ── User-Menü ────────────────────────────────────────────────────────────────
+
+function renderUserMenu() {
+  const menu = document.getElementById('user-menu');
+  const nameEl = document.getElementById('user-menu-name');
+  if (!state.currentUser) return;
+  nameEl.textContent = state.currentUser.username;
+  menu.style.display = 'flex';
+
+  document.getElementById('btn-logout').addEventListener('click', async () => {
+    await api.logout();
+    state.currentUser = null;
+    state.portfolios = [];
+    state.activePortfolio = null;
+    document.getElementById('user-menu').style.display = 'none';
+    document.getElementById('portfolio-switcher').style.display = 'none';
+    showLoginOverlay();
+  });
+}
+
+// ── Portfolio-Switcher (UI-03) ───────────────────────────────────────────────
+
+async function loadPortfolios() {
+  try {
+    const me = await api.me();
+    state.portfolios = me.portfolios || [];
+    state.activePortfolio = state.portfolios.find(p => p.status === 'active') || state.portfolios[0] || null;
+    renderPortfolioSwitcher();
+    renderProposalsTab();
+  } catch (e) {
+    console.warn('Portfolios:', e);
+  }
+}
+
+function renderPortfolioSwitcher() {
+  const switcher = document.getElementById('portfolio-switcher');
+  const select = document.getElementById('portfolio-select');
+  const nameEl = document.getElementById('header-portfolio-name');
+
+  if (!state.portfolios.length) {
+    switcher.style.display = 'none';
+    return;
+  }
+
+  select.innerHTML = state.portfolios.map(p =>
+    `<option value="${p.id}" ${state.activePortfolio?.id === p.id ? 'selected' : ''}>
+      ${p.name}${p.status === 'inactive' ? ' (inaktiv)' : ''}
+    </option>`
+  ).join('');
+
+  if (state.activePortfolio) {
+    nameEl.textContent = state.activePortfolio.name;
+  }
+
+  switcher.style.display = 'flex';
+
+  select.onchange = async () => {
+    const chosen = state.portfolios.find(p => p.id === parseInt(select.value));
+    if (!chosen) return;
+    try {
+      await api.activatePortfolio(chosen.id);
+      state.activePortfolio = chosen;
+      nameEl.textContent = chosen.name;
+      renderProposalsTab();
+      await loadAll();
+      showToast(`Portfolio gewechselt: ${chosen.name}`, 'info');
+    } catch (e) {
+      showToast(`Fehler: ${e.message}`, 'info');
+    }
+  };
+}
+
+function renderProposalsTab() {
+  const navBtn = document.getElementById('nav-proposals');
+  if (!navBtn) return;
+  const hasApproval = state.portfolios.some(p => p.mode === 'approval');
+  navBtn.style.display = hasApproval ? '' : 'none';
+}
+
+// ── Proposals-Panel ──────────────────────────────────────────────────────────
+
+async function loadTodayProposal() {
+  const portfolio = state.activePortfolio;
+  if (!portfolio || portfolio.mode !== 'approval') return;
+
+  try {
+    const data = await api.getTodayProposal(portfolio.id);
+    state.todayProposal = data.proposal;
+    renderProposalsPanel();
+  } catch (e) {
+    console.warn('Proposal:', e);
+  }
+}
+
+function renderProposalsPanel() {
+  const proposal = state.todayProposal;
+  const container = document.getElementById('proposals-today');
+  const statusEl = document.getElementById('proposals-status');
+  const executeWrap = document.getElementById('btn-execute-wrap');
+
+  if (!proposal) {
+    container.innerHTML = '<div class="empty-state">Kein Proposal für heute vorhanden.</div>';
+    if (statusEl) statusEl.textContent = '';
+    if (executeWrap) executeWrap.style.display = 'none';
+    return;
+  }
+
+  const statusLabel = { open: 'Offen', partially_executed: 'Teilweise ausgeführt', executed: 'Ausgeführt', expired: 'Abgelaufen' };
+  if (statusEl) statusEl.textContent = statusLabel[proposal.status] || proposal.status;
+
+  const orders = proposal.orders || [];
+  const canExecute = proposal.status === 'open' || proposal.status === 'partially_executed';
+
+  container.innerHTML = `
+    <table class="data-table">
+      <thead>
+        <tr>
+          <th>Symbol</th>
+          <th>Aktion</th>
+          <th>Stück</th>
+          <th>Schätzpreis</th>
+          <th>Score</th>
+          <th>Begründung</th>
+          <th>Genehmigt</th>
+          <th>Status</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${orders.map(o => `
+          <tr class="${o.executed ? 'row-executed' : ''}">
+            <td><strong>${o.symbol}</strong></td>
+            <td><span class="badge badge-${o.action === 'BUY' ? 'buy' : 'sell'}">${o.action}</span></td>
+            <td>${fmtNum(o.shares_proposed, 2)}</td>
+            <td>${fmtEUR(o.est_price_eur)}</td>
+            <td>${o.score ?? '–'}</td>
+            <td style="font-size:.75rem;max-width:200px;white-space:normal">${o.reason || '–'}</td>
+            <td>
+              ${o.executed
+                ? '<span style="color:var(--text-muted)">ausgeführt</span>'
+                : `<input type="checkbox" ${o.approved ? 'checked' : ''}
+                     onchange="toggleOrderApproval(${proposal.id}, ${o.id}, this.checked)">`
+              }
+            </td>
+            <td>${o.executed ? `✓ ${fmtEUR(o.fill_price)}` : '–'}</td>
+          </tr>
+        `).join('')}
+      </tbody>
+    </table>
+  `;
+
+  if (executeWrap) {
+    executeWrap.style.display = canExecute ? 'block' : 'none';
+  }
+}
+
+window.toggleOrderApproval = async (proposalId, orderId, approved) => {
+  try {
+    await api.patchOrderApproval(proposalId, orderId, approved);
+  } catch (e) {
+    showToast(`Fehler: ${e.message}`, 'info');
+    loadTodayProposal();
+  }
+};
+
+function initProposalExecuteButton() {
+  const btn = document.getElementById('btn-execute-proposal');
+  if (!btn) return;
+  btn.addEventListener('click', async () => {
+    if (!state.todayProposal) return;
+    btn.disabled = true;
+    btn.textContent = 'Wird ausgeführt…';
+    try {
+      const result = await api.executeProposal(state.todayProposal.id);
+      const ok = result.results.filter(r => r.success).length;
+      const fail = result.results.filter(r => !r.success).length;
+      showToast(`${ok} Order(s) ausgeführt${fail ? `, ${fail} fehlgeschlagen` : ''}`, 'info');
+      state.todayProposal = result.proposal;
+      renderProposalsPanel();
+      loadAll();
+    } catch (e) {
+      showToast(`Fehler: ${e.message}`, 'info');
+    } finally {
+      btn.disabled = false;
+      btn.textContent = '▶ Alle genehmigten Orders ausführen';
+    }
+  });
+}
+
+// ── Portfolio-Verwaltungsseite (UI-04) ───────────────────────────────────────
+
+function initPortfolioPanel() {
+  initProposalExecuteButton();
+
+  document.getElementById('btn-create-portfolio')?.addEventListener('click', () => {
+    openPortfolioForm(null);
+  });
+  document.getElementById('btn-cancel-portfolio')?.addEventListener('click', () => {
+    document.getElementById('portfolio-form-wrap').style.display = 'none';
+  });
+
+  document.getElementById('portfolio-form')?.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const id = document.getElementById('pf-id').value;
+    const payload = {
+      name: document.getElementById('pf-name').value.trim(),
+      type: document.getElementById('pf-type').value,
+      mode: document.getElementById('pf-mode').value,
+      currency: document.getElementById('pf-currency').value,
+      starting_capital: parseFloat(document.getElementById('pf-capital').value),
+    };
+    const errEl = document.getElementById('pf-form-error');
+    errEl.style.display = 'none';
+    try {
+      if (id) {
+        await api.updatePortfolio(parseInt(id), { name: payload.name });
+      } else {
+        await api.createPortfolio(payload);
+      }
+      document.getElementById('portfolio-form-wrap').style.display = 'none';
+      await loadPortfolios();
+      renderPortfoliosList();
+      showToast(id ? 'Portfolio aktualisiert' : 'Portfolio angelegt', 'info');
+    } catch (err) {
+      errEl.textContent = err.message;
+      errEl.style.display = 'block';
+    }
+  });
+
+  renderPortfoliosList();
+}
+
+function openPortfolioForm(portfolio) {
+  const wrap = document.getElementById('portfolio-form-wrap');
+  const title = document.getElementById('portfolio-form-title');
+  wrap.style.display = 'block';
+
+  if (portfolio) {
+    title.textContent = 'Portfolio bearbeiten';
+    document.getElementById('pf-id').value = portfolio.id;
+    document.getElementById('pf-name').value = portfolio.name;
+    document.getElementById('pf-type').value = portfolio.type;
+    document.getElementById('pf-type').disabled = true;
+    document.getElementById('pf-mode').value = portfolio.mode;
+    document.getElementById('pf-mode').disabled = true;
+    document.getElementById('pf-currency').value = portfolio.currency;
+    document.getElementById('pf-currency').disabled = true;
+    document.getElementById('pf-capital').value = portfolio.starting_capital;
+    document.getElementById('pf-capital').disabled = true;
+  } else {
+    title.textContent = 'Neues Portfolio';
+    document.getElementById('pf-id').value = '';
+    document.getElementById('portfolio-form').reset();
+    ['pf-type','pf-mode','pf-currency','pf-capital'].forEach(id => {
+      document.getElementById(id).disabled = false;
+    });
+  }
+}
+
+function renderPortfoliosList() {
+  const container = document.getElementById('portfolios-list');
+  if (!container) return;
+
+  if (!state.portfolios.length) {
+    container.innerHTML = '<div class="empty-state">Noch keine Portfolios vorhanden.</div>';
+    return;
+  }
+
+  container.innerHTML = state.portfolios.map(p => `
+    <div class="portfolio-card ${p.id === state.activePortfolio?.id ? 'portfolio-card--active' : ''}">
+      <div class="portfolio-card-info">
+        <div class="portfolio-card-name">${p.name}</div>
+        <div class="portfolio-card-meta">
+          ${p.type} · ${p.mode === 'approval' ? 'Approval' : 'Auto'} · ${p.currency} · ${fmtEUR(p.starting_capital)} Startkapital
+        </div>
+      </div>
+      <div class="portfolio-card-badges">
+        <span class="badge ${p.status === 'active' ? 'badge-active' : 'badge-inactive'}">${p.status === 'active' ? 'Aktiv' : 'Inaktiv'}</span>
+        ${p.id === state.activePortfolio?.id ? '<span class="badge badge-current">Aktuell</span>' : ''}
+      </div>
+      <div class="portfolio-card-actions">
+        <button class="btn-secondary btn-sm" onclick="handleActivatePortfolio(${p.id})">Wechseln</button>
+        <button class="btn-secondary btn-sm" onclick="handleEditPortfolio(${p.id})">Bearbeiten</button>
+        <button class="btn-secondary btn-sm" onclick="handleTogglePortfolioStatus(${p.id})">${p.status === 'active' ? 'Deaktivieren' : 'Aktivieren'}</button>
+      </div>
+    </div>
+  `).join('');
+}
+
+window.handleActivatePortfolio = async (id) => {
+  try {
+    await api.activatePortfolio(id);
+    await loadPortfolios();
+    renderPortfoliosList();
+    loadAll();
+    showToast('Portfolio gewechselt', 'info');
+  } catch (e) { showToast(e.message, 'info'); }
+};
+
+window.handleEditPortfolio = (id) => {
+  const p = state.portfolios.find(p => p.id === id);
+  if (p) openPortfolioForm(p);
+};
+
+window.handleTogglePortfolioStatus = async (id) => {
+  try {
+    await api.togglePortfolioStatus(id);
+    await loadPortfolios();
+    renderPortfoliosList();
+    showToast('Status geändert', 'info');
+  } catch (e) { showToast(e.message, 'info'); }
+};
+
+// ── WebSocket ────────────────────────────────────────────────────────────────
 
 function initWebSocket() {
   socket = io();
@@ -86,6 +467,7 @@ async function loadAll() {
     loadEquity(),
     loadSimulations(),
     loadStrategies(),
+    loadTodayProposal(),
   ]);
 }
 
@@ -649,6 +1031,7 @@ function populateSimulationStrategySelect() {
 }
 
 function switchTab(tab) {
+  if (tab === 'admin' && state.currentUser?.role !== 'admin') return;
   state.activeTab = tab;
   localStorage.setItem('tp_active_tab', tab);
   document.querySelectorAll('.nav-btn').forEach((b) => b.classList.toggle('active', b.dataset.tab === tab));
@@ -658,6 +1041,16 @@ function switchTab(tab) {
   if (tab === 'algorithm') loadAlgoParams();
   if (tab === 'simulations') loadSimulations();
   if (tab === 'strategies') loadStrategies();
+  if (tab === 'portfolios') renderPortfoliosList();
+  if (tab === 'proposals') loadTodayProposal();
+  if (tab === 'admin') switchAdminTab(adminState.activeSubTab);
+
+  // IBKR: Auto-Refresh starten/stoppen
+  if (ibkrState.refreshTimer) { clearInterval(ibkrState.refreshTimer); ibkrState.refreshTimer = null; }
+  if (tab === 'ibkr') {
+    loadIbkrData();
+    ibkrState.refreshTimer = setInterval(loadIbkrData, 30_000);
+  }
 }
 
 function initPeriodButtons() {
@@ -714,5 +1107,584 @@ async function triggerOptimize() {
       btn.disabled = false;
       btn.textContent = '⚙ Neu optimieren';
     }
+  }
+}
+
+// ── Admin Panel ───────────────────────────────────────────────────────────────
+
+const adminState = {
+  users: [],
+  allPortfolios: [],
+  userMap: {},
+  activeSubTab: 'users',
+};
+
+// ── IBKR-Panel ───────────────────────────────────────────────────────────────
+
+const ibkrState = { portfolios: [], selectedPortfolioId: null, refreshTimer: null };
+
+async function initIbkrPanel() {
+  let status;
+  try { status = await api.ibkrStatus(); } catch { return; }
+
+  if (!status.has_ibkr) return;
+
+  const navBtn = document.getElementById('nav-ibkr');
+  if (navBtn) navBtn.style.display = '';
+
+  ibkrState.portfolios = status.portfolios || [];
+
+  const sel = document.getElementById('ibkr-portfolio-select');
+  if (sel) {
+    sel.innerHTML = ibkrState.portfolios.map(p =>
+      `<option value="${p.id}">${p.name} (${p.type})</option>`
+    ).join('');
+    ibkrState.selectedPortfolioId = ibkrState.portfolios[0]?.id ?? null;
+    sel.addEventListener('change', () => {
+      ibkrState.selectedPortfolioId = parseInt(sel.value, 10);
+      loadIbkrData();
+    });
+  }
+
+  document.getElementById('btn-ibkr-start-gateway')?.addEventListener('click', async () => {
+    const btn = document.getElementById('btn-ibkr-start-gateway');
+    btn.disabled = true; btn.textContent = '…';
+    try {
+      const data = await api.ibkrGatewayStart();
+      showToast(data.message || 'Gateway gestartet', 'info');
+      // Auto-Login braucht ~15s, danach Status und Verbindung versuchen
+      setTimeout(async () => { await loadIbkrStatus(); await api.ibkrConnect(); await loadIbkrData(); }, 18000);
+    } catch (e) { showToast(e.message || 'Gateway nicht gefunden', 'error'); }
+    finally { btn.disabled = false; btn.textContent = '▶ Gateway starten'; }
+  });
+
+  document.getElementById('btn-ibkr-stop-gateway')?.addEventListener('click', async () => {
+    const btn = document.getElementById('btn-ibkr-stop-gateway');
+    btn.disabled = true; btn.textContent = '…';
+    try {
+      const data = await api.ibkrGatewayStop();
+      showToast(data.message || 'Gateway gestoppt', 'info');
+      await loadIbkrStatus();
+    } catch (e) { showToast(e.message || 'Fehler beim Stoppen', 'error'); }
+    finally { btn.disabled = false; btn.textContent = '■ Gateway stoppen'; }
+  });
+
+  document.getElementById('btn-ibkr-connect')?.addEventListener('click', async () => {
+    const btn = document.getElementById('btn-ibkr-connect');
+    btn.disabled = true; btn.textContent = '…';
+    try {
+      await api.ibkrConnect();
+      await loadIbkrStatus();
+    } catch (e) { showToast(`IBKR Verbindung fehlgeschlagen: ${e.message}`, 'error'); }
+    finally { btn.disabled = false; btn.textContent = '⚡ Verbinden'; }
+  });
+
+  document.getElementById('btn-ibkr-refresh')?.addEventListener('click', loadIbkrData);
+
+  // Sortierung initialisieren
+  _initSortHeaders('ibkr-positions-table', 'positions', renderIbkrPositions);
+  _initSortHeaders('ibkr-signals-table',   'signals',   renderIbkrSignals);
+
+  // Alle auswählen — Positionen
+  document.getElementById('ibkr-pos-select-all')?.addEventListener('change', (e) => {
+    document.querySelectorAll('.ibkr-pos-cb').forEach(cb => { cb.checked = e.target.checked; });
+    _updatePosActionBar();
+  });
+
+  // Alle auswählen — Signale
+  document.getElementById('ibkr-sig-select-all')?.addEventListener('change', (e) => {
+    document.querySelectorAll('.ibkr-sig-cb:not(:disabled)').forEach(cb => { cb.checked = e.target.checked; });
+    _updateSigActionBar();
+  });
+
+  // Ausgewählte verkaufen
+  document.getElementById('btn-ibkr-sell-selected')?.addEventListener('click', async () => {
+    const selected = [...document.querySelectorAll('.ibkr-pos-cb:checked')];
+    if (!selected.length) return;
+    if (!confirm(`${selected.length} Position(en) verkaufen?`)) return;
+    const btn = document.getElementById('btn-ibkr-sell-selected');
+    btn.disabled = true;
+    for (const cb of selected) {
+      try {
+        await api.ibkrOrder({ portfolio_id: ibkrState.selectedPortfolioId, symbol: cb.dataset.symbol, qty: parseInt(cb.dataset.qty, 10), action: 'SELL' });
+        showToast(`SELL ${cb.dataset.symbol} ausgeführt`, 'info');
+      } catch (e) { showToast(`SELL ${cb.dataset.symbol} fehlgeschlagen: ${e.message}`, 'error'); }
+    }
+    btn.disabled = false;
+    await loadIbkrData();
+  });
+
+  // Ausgewählte kaufen
+  document.getElementById('btn-ibkr-buy-selected')?.addEventListener('click', async () => {
+    const selected = [...document.querySelectorAll('.ibkr-sig-cb:checked')];
+    if (!selected.length) return;
+    const qty = parseInt(document.getElementById('ibkr-bulk-qty')?.value || '1', 10);
+    if (!confirm(`${selected.length} Aktie(n) à ${qty} Stück kaufen?`)) return;
+    const btn = document.getElementById('btn-ibkr-buy-selected');
+    btn.disabled = true;
+    for (const cb of selected) {
+      try {
+        await api.ibkrOrder({ portfolio_id: ibkrState.selectedPortfolioId, symbol: cb.dataset.symbol, qty, action: 'BUY' });
+        showToast(`BUY ${cb.dataset.symbol} ausgeführt`, 'info');
+      } catch (e) { showToast(`BUY ${cb.dataset.symbol} fehlgeschlagen: ${e.message}`, 'error'); }
+    }
+    btn.disabled = false;
+    await loadIbkrData();
+  });
+
+  document.getElementById('ibkr-btn-buy')?.addEventListener('click',  () => submitIbkrOrder('BUY'));
+  document.getElementById('ibkr-btn-sell')?.addEventListener('click', () => submitIbkrOrder('SELL'));
+
+  _updateIbkrStatus(status);
+}
+
+async function loadIbkrStatus() {
+  try {
+    const status = await api.ibkrStatus();
+    _updateIbkrStatus(status);
+  } catch { /* Gateway nicht erreichbar */ }
+}
+
+function _updateIbkrStatus(status) {
+  const dot  = document.getElementById('ibkr-status-dot');
+  const text = document.getElementById('ibkr-status-text');
+  if (!dot) return;
+  if (status.connected) {
+    dot.style.background  = 'var(--green-bright, #3fb950)';
+    text.textContent = 'Verbunden';
+  } else {
+    dot.style.background  = 'var(--red-bright, #f85149)';
+    text.textContent = 'Nicht verbunden';
+  }
+}
+
+async function loadIbkrData() {
+  const pid = ibkrState.selectedPortfolioId;
+  if (!pid) return;
+  await Promise.all([loadIbkrAccount(pid), loadIbkrPositions(pid), loadIbkrSignals(pid), loadIbkrStatus()]);
+  const el = document.getElementById('ibkr-last-update');
+  if (el) el.textContent = 'Stand: ' + new Date().toLocaleTimeString('de-AT');
+}
+
+async function loadIbkrAccount(portfolioId) {
+  try {
+    const d = await api.ibkrAccount(portfolioId);
+    const fmt = (v) => v != null ? v.toLocaleString('de-AT', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' $' : '–';
+    document.getElementById('ibkr-cash').textContent          = fmt(d.cash);
+    document.getElementById('ibkr-equity').textContent        = fmt(d.equity);
+    document.getElementById('ibkr-buying-power').textContent  = fmt(d.buying_power);
+    const pnlEl = document.getElementById('ibkr-unrealized-pnl');
+    pnlEl.textContent = fmt(d.unrealized_pnl);
+    pnlEl.className   = 'stat-value ' + (d.unrealized_pnl >= 0 ? 'positive' : 'negative');
+  } catch {
+    ['ibkr-cash','ibkr-equity','ibkr-buying-power','ibkr-unrealized-pnl']
+      .forEach(id => { const el = document.getElementById(id); if (el) el.textContent = 'n/v'; });
+  }
+}
+
+// ── Tabellen-Sortierung ───────────────────────────────────────────────────────
+
+const _ibkrSort = { positions: { col: 'symbol', dir: 1 }, signals: { col: 'score', dir: -1 } };
+
+function _sortData(data, col, dir, type) {
+  return [...data].sort((a, b) => {
+    const av = a[col] ?? (type === 'num' ? -Infinity : '');
+    const bv = b[col] ?? (type === 'num' ? -Infinity : '');
+    return type === 'num' ? (av - bv) * dir : String(av).localeCompare(String(bv)) * dir;
+  });
+}
+
+function _initSortHeaders(tableId, stateKey, renderFn) {
+  const table = document.getElementById(tableId);
+  if (!table) return;
+  table.querySelectorAll('th.sortable').forEach(th => {
+    th.style.cursor = 'pointer';
+    th.addEventListener('click', () => {
+      const col  = th.dataset.col;
+      const type = th.dataset.type || 'str';
+      if (_ibkrSort[stateKey].col === col) _ibkrSort[stateKey].dir *= -1;
+      else { _ibkrSort[stateKey].col = col; _ibkrSort[stateKey].dir = type === 'num' ? -1 : 1; }
+      renderFn();
+    });
+  });
+}
+
+// ── Positionen ────────────────────────────────────────────────────────────────
+
+let _ibkrPositionsData = [];
+
+async function loadIbkrPositions(portfolioId) {
+  const tbody = document.getElementById('ibkr-positions-tbody');
+  if (!tbody) return;
+  try {
+    _ibkrPositionsData = await api.ibkrPositions(portfolioId);
+    renderIbkrPositions();
+  } catch {
+    tbody.innerHTML = '<tr><td colspan="8" style="text-align:center;color:var(--text-muted);padding:16px">Gateway nicht erreichbar</td></tr>';
+  }
+}
+
+function renderIbkrPositions() {
+  const tbody = document.getElementById('ibkr-positions-tbody');
+  if (!tbody) return;
+  const { col, dir } = _ibkrSort.positions;
+  const type = col === 'symbol' || col === 'account' ? 'str' : 'num';
+  const sorted = _sortData(_ibkrPositionsData, col, dir, type);
+
+  if (!sorted.length) {
+    tbody.innerHTML = '<tr><td colspan="9" style="text-align:center;color:var(--text-muted);padding:20px">Keine Positionen vorhanden</td></tr>';
+    _updatePosActionBar();
+    return;
+  }
+
+  const fmt = (v, dec=2) => v != null ? v.toLocaleString('de-AT', { minimumFractionDigits: dec, maximumFractionDigits: dec }) : '–';
+  tbody.innerHTML = sorted.map(p => {
+    const gv       = p.unrealized_pnl ?? null;
+    const gvPct    = p.pnl_pct ?? null;
+    const color    = (gv ?? 0) >= 0 ? 'var(--green-bright,#3fb950)' : 'var(--red-bright,#f85149)';
+    const sign     = (gv ?? 0) >= 0 ? '+' : '';
+    return `<tr>
+      <td><input type="checkbox" class="ibkr-pos-cb" data-symbol="${p.symbol}" data-qty="${p.qty}"></td>
+      <td style="font-weight:600">${p.symbol}</td>
+      <td>${fmt(p.qty, 0)}</td>
+      <td>${fmt(p.avg_cost)} $</td>
+      <td>${p.market_price != null ? fmt(p.market_price) + ' $' : '–'}</td>
+      <td>${p.market_value != null ? fmt(p.market_value) + ' $' : '–'}</td>
+      <td style="font-weight:600;color:${color}">${gv != null ? sign + fmt(gv) + ' $' : '–'}</td>
+      <td style="font-weight:600;color:${color}">${gvPct != null ? sign + fmt(gvPct) + ' %' : '–'}</td>
+      <td style="color:var(--text-muted);font-size:.8rem">${p.account}</td>
+    </tr>`;
+  }).join('');
+
+  // Checkbox-Events nach Render verdrahten
+  tbody.querySelectorAll('.ibkr-pos-cb').forEach(cb =>
+    cb.addEventListener('change', _updatePosActionBar)
+  );
+  _updatePosActionBar();
+}
+
+function _updatePosActionBar() {
+  const checked = [...document.querySelectorAll('.ibkr-pos-cb:checked')];
+  const bar     = document.getElementById('ibkr-pos-action-bar');
+  const countEl = document.getElementById('ibkr-pos-selected-count');
+  if (bar) {
+    bar.style.display = checked.length ? 'flex' : 'none';
+  }
+  if (countEl) countEl.textContent = `${checked.length} ausgewählt`;
+}
+
+function _updateSigActionBar() {
+  const checked = document.querySelectorAll('.ibkr-sig-cb:checked');
+  const countEl = document.getElementById('ibkr-sig-selected-count');
+  if (countEl) countEl.textContent = `${checked.length} ausgewählt`;
+}
+
+let _ibkrSignalsData = [];
+
+async function loadIbkrSignals(portfolioId) {
+  const tbody  = document.getElementById('ibkr-signals-tbody');
+  const dateEl = document.getElementById('ibkr-signals-date');
+  if (!tbody) return;
+  try {
+    _ibkrSignalsData = await api.ibkrSignals(portfolioId);
+    if (dateEl && _ibkrSignalsData[0]?.date) dateEl.textContent = 'Stand: ' + _ibkrSignalsData[0].date;
+    renderIbkrSignals();
+  } catch {
+    tbody.innerHTML = '<tr><td colspan="9" style="text-align:center;color:var(--text-muted);padding:16px">Fehler beim Laden</td></tr>';
+  }
+}
+
+function renderIbkrSignals() {
+  const tbody = document.getElementById('ibkr-signals-tbody');
+  if (!tbody) return;
+  const { col, dir } = _ibkrSort.signals;
+  const type   = ['score','price_eur','rsi'].includes(col) ? 'num' : 'str';
+  const sorted = _sortData(_ibkrSignalsData, col, dir, type);
+
+  if (!sorted.length) {
+    tbody.innerHTML = '<tr><td colspan="9" style="text-align:center;color:var(--text-muted);padding:20px">Keine Signale vorhanden</td></tr>';
+    return;
+  }
+
+  tbody.innerHTML = sorted.map(s => {
+    const scoreColor  = s.score >= 80 ? 'var(--green-bright,#3fb950)' : s.score >= 65 ? 'var(--yellow,#e3b341)' : 'var(--text-muted)';
+    const rsiColor    = (s.rsi??50) < 40 ? 'var(--green-bright,#3fb950)' : (s.rsi??50) > 65 ? 'var(--red-bright,#f85149)' : 'var(--text-secondary)';
+    const price       = s.price_eur ? `${s.price_eur.toFixed(2)} €` : (s.price ? `${s.price.toFixed(2)} ${s.currency}` : '–');
+    const statusBadge = s.in_portfolio
+      ? '<span style="font-size:.72rem;padding:2px 6px;border-radius:4px;background:rgba(63,185,80,.15);color:var(--green-bright,#3fb950)">offen</span>'
+      : '';
+    const orderBtn = s.in_portfolio ? '' : `<button class="btn btn-ghost" style="font-size:.75rem;padding:3px 8px" onclick="ibkrPreFillOrder('${s.symbol}')">→ Order</button>`;
+    const cbDisabled = s.in_portfolio ? 'disabled' : '';
+    return `<tr>
+      <td><input type="checkbox" class="ibkr-sig-cb" data-symbol="${s.symbol}" ${cbDisabled}></td>
+      <td style="font-weight:700;color:${scoreColor}">${s.score}</td>
+      <td style="font-weight:600">${s.symbol}</td>
+      <td style="color:var(--text-secondary);font-size:.82rem;max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${s.name}">${s.name}</td>
+      <td style="color:var(--text-muted);font-size:.8rem">${s.sector}</td>
+      <td>${price}</td>
+      <td style="color:${rsiColor}">${s.rsi ?? '–'}</td>
+      <td>${statusBadge}</td>
+      <td>${orderBtn}</td>
+    </tr>`;
+  }).join('');
+
+  tbody.querySelectorAll('.ibkr-sig-cb').forEach(cb =>
+    cb.addEventListener('change', _updateSigActionBar)
+  );
+  _updateSigActionBar();
+}
+
+function ibkrPreFillOrder(symbol) {
+  const symEl = document.getElementById('ibkr-order-symbol');
+  const qtyEl = document.getElementById('ibkr-order-qty');
+  if (symEl) { symEl.value = symbol; }
+  if (qtyEl) { qtyEl.focus(); }
+  // Sanft zum Order-Formular scrollen
+  document.getElementById('ibkr-order-form')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+}
+
+async function submitIbkrOrder(action) {
+  const symbol = (document.getElementById('ibkr-order-symbol')?.value || '').trim().toUpperCase();
+  const qty    = parseInt(document.getElementById('ibkr-order-qty')?.value || '0', 10);
+  const result = document.getElementById('ibkr-order-result');
+
+  if (!symbol || qty <= 0) {
+    if (result) { result.style.display = 'block'; result.style.background = 'rgba(248,81,73,.15)'; result.style.color = 'var(--red-bright)'; result.textContent = 'Symbol und Stückzahl > 0 eingeben.'; }
+    return;
+  }
+
+  const [buyBtn, sellBtn] = [document.getElementById('ibkr-btn-buy'), document.getElementById('ibkr-btn-sell')];
+  if (buyBtn)  buyBtn.disabled  = true;
+  if (sellBtn) sellBtn.disabled = true;
+
+  try {
+    const data = await api.ibkrOrder({ portfolio_id: ibkrState.selectedPortfolioId, symbol, qty, action });
+    if (result) {
+      result.style.display    = 'block';
+      result.style.background = 'rgba(63,185,80,.15)';
+      result.style.color      = 'var(--green-bright, #3fb950)';
+      result.textContent      = data.message || `${action} ausgeführt`;
+    }
+    document.getElementById('ibkr-order-symbol').value = '';
+    document.getElementById('ibkr-order-qty').value    = '';
+    await loadIbkrData();
+  } catch (e) {
+    if (result) {
+      result.style.display    = 'block';
+      result.style.background = 'rgba(248,81,73,.15)';
+      result.style.color      = 'var(--red-bright, #f85149)';
+      result.textContent      = e.message || 'Order fehlgeschlagen';
+    }
+  } finally {
+    if (buyBtn)  buyBtn.disabled  = false;
+    if (sellBtn) sellBtn.disabled = false;
+  }
+}
+
+function initAdminPanel() {
+  const navBtn = document.getElementById('nav-admin');
+  if (state.currentUser?.role === 'admin') {
+    if (navBtn) navBtn.style.display = '';
+  } else {
+    if (localStorage.getItem('tp_active_tab') === 'admin') {
+      localStorage.setItem('tp_active_tab', 'dashboard');
+    }
+    return;
+  }
+
+  document.querySelectorAll('.admin-tab-btn').forEach(btn => {
+    btn.addEventListener('click', () => switchAdminTab(btn.dataset.adminTab));
+  });
+
+  document.getElementById('btn-create-user')?.addEventListener('click', () => {
+    const wrap = document.getElementById('user-create-wrap');
+    wrap.style.display = wrap.style.display === 'none' ? 'block' : 'none';
+    if (wrap.style.display === 'block') document.getElementById('new-user-username').focus();
+  });
+
+  document.getElementById('btn-cancel-create-user')?.addEventListener('click', () => {
+    document.getElementById('user-create-wrap').style.display = 'none';
+    document.getElementById('user-create-form').reset();
+    document.getElementById('user-create-error').style.display = 'none';
+  });
+
+  document.getElementById('user-create-form')?.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const errEl = document.getElementById('user-create-error');
+    errEl.style.display = 'none';
+    const payload = {
+      username: document.getElementById('new-user-username').value.trim(),
+      email: document.getElementById('new-user-email').value.trim() || null,
+      password: document.getElementById('new-user-password').value,
+      role: document.getElementById('new-user-role').value,
+    };
+    try {
+      await api.createUser(payload);
+      document.getElementById('user-create-wrap').style.display = 'none';
+      document.getElementById('user-create-form').reset();
+      await loadAdminUsers();
+      showToast(`Benutzer "${payload.username}" angelegt`, 'info');
+    } catch (err) {
+      errEl.textContent = err.message;
+      errEl.style.display = 'block';
+    }
+  });
+
+  document.getElementById('btn-cancel-pw-reset')?.addEventListener('click', () => {
+    document.getElementById('user-pw-wrap').style.display = 'none';
+    document.getElementById('user-pw-form').reset();
+    document.getElementById('user-pw-error').style.display = 'none';
+  });
+
+  document.getElementById('user-pw-form')?.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const errEl = document.getElementById('user-pw-error');
+    errEl.style.display = 'none';
+    const userId = parseInt(document.getElementById('pw-reset-user-id').value);
+    const newPassword = document.getElementById('pw-reset-new').value;
+    try {
+      await api.adminResetPassword(userId, newPassword);
+      document.getElementById('user-pw-wrap').style.display = 'none';
+      document.getElementById('user-pw-form').reset();
+      showToast('Passwort zurückgesetzt', 'info');
+    } catch (err) {
+      errEl.textContent = err.message;
+      errEl.style.display = 'block';
+    }
+  });
+
+  document.getElementById('btn-admin-refresh-status')?.addEventListener('click', loadAdminSystem);
+}
+
+function switchAdminTab(tab) {
+  adminState.activeSubTab = tab;
+  document.querySelectorAll('.admin-tab-btn').forEach(btn => {
+    const active = btn.dataset.adminTab === tab;
+    btn.style.background = active ? 'var(--accent)' : '';
+    btn.style.color = active ? '#fff' : '';
+    btn.style.borderColor = active ? 'var(--accent)' : '';
+  });
+  document.querySelectorAll('.admin-panel').forEach(panel => {
+    panel.style.display = panel.dataset.adminTab === tab ? 'block' : 'none';
+  });
+
+  if (tab === 'users') loadAdminUsers();
+  else if (tab === 'portfolios') loadAdminPortfolios();
+  else if (tab === 'system') loadAdminSystem();
+}
+
+async function loadAdminUsers() {
+  try {
+    adminState.users = await api.getUsers();
+    adminState.userMap = Object.fromEntries(adminState.users.map(u => [u.id, u.username]));
+    renderAdminUsers();
+  } catch (e) {
+    console.warn('Admin users:', e);
+  }
+}
+
+function renderAdminUsers() {
+  const tbody = document.getElementById('admin-users-tbody');
+  if (!tbody) return;
+
+  if (!adminState.users.length) {
+    tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;color:var(--text-muted);padding:20px">Keine Benutzer gefunden</td></tr>';
+    return;
+  }
+
+  tbody.innerHTML = adminState.users.map(u => {
+    const isMe = u.id === state.currentUser?.id;
+    const statusBadge = u.is_active
+      ? '<span class="badge badge-active">Aktiv</span>'
+      : '<span class="badge badge-inactive">Inaktiv</span>';
+    const roleBadge = u.role === 'admin'
+      ? '<span class="badge" style="background:rgba(255,200,0,.15);color:var(--yellow)">Admin</span>'
+      : '<span class="badge" style="background:rgba(88,166,255,.1);color:var(--accent)">User</span>';
+    return `
+      <tr>
+        <td class="mono" style="color:var(--text-muted)">${u.id}</td>
+        <td><strong>${escapeHtml(u.username)}</strong>${isMe ? ' <span style="color:var(--text-muted);font-size:.7rem">(du)</span>' : ''}</td>
+        <td style="color:var(--text-secondary);font-size:.82rem">${escapeHtml(u.email || '–')}</td>
+        <td>${roleBadge}</td>
+        <td>${statusBadge}</td>
+        <td>
+          <div style="display:flex;gap:6px;flex-wrap:wrap">
+            ${!isMe ? `<button class="btn btn-ghost" style="font-size:.73rem;padding:3px 8px" onclick="adminToggleUser(${u.id})">${u.is_active ? 'Deaktivieren' : 'Aktivieren'}</button>` : '<span style="color:var(--text-muted);font-size:.73rem">–</span>'}
+            <button class="btn btn-ghost" style="font-size:.73rem;padding:3px 8px" onclick="adminOpenPwReset(${u.id}, '${escapeHtml(u.username)}')">PW Reset</button>
+          </div>
+        </td>
+      </tr>`;
+  }).join('');
+}
+
+window.adminToggleUser = async (userId) => {
+  try {
+    await api.toggleUserStatus(userId);
+    await loadAdminUsers();
+    showToast('Status geändert', 'info');
+  } catch (e) {
+    showToast(e.message, 'info');
+  }
+};
+
+window.adminOpenPwReset = (userId, username) => {
+  document.getElementById('pw-reset-user-id').value = userId;
+  document.getElementById('user-pw-title').textContent = `Passwort zurücksetzen: ${username}`;
+  document.getElementById('user-pw-wrap').style.display = 'block';
+  document.getElementById('pw-reset-new').value = '';
+  document.getElementById('user-pw-error').style.display = 'none';
+  document.getElementById('pw-reset-new').focus();
+};
+
+async function loadAdminPortfolios() {
+  try {
+    const [portfolios, users] = await Promise.all([api.getPortfolios(), api.getUsers()]);
+    adminState.allPortfolios = portfolios;
+    adminState.userMap = Object.fromEntries(users.map(u => [u.id, u.username]));
+    renderAdminPortfolios();
+  } catch (e) {
+    console.warn('Admin portfolios:', e);
+  }
+}
+
+function renderAdminPortfolios() {
+  const tbody = document.getElementById('admin-portfolios-tbody');
+  if (!tbody) return;
+
+  if (!adminState.allPortfolios.length) {
+    tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;color:var(--text-muted);padding:20px">Keine Portfolios gefunden</td></tr>';
+    return;
+  }
+
+  tbody.innerHTML = adminState.allPortfolios.map(p => {
+    const owner = escapeHtml(adminState.userMap[p.user_id] || `#${p.user_id}`);
+    const statusBadge = p.status === 'active'
+      ? '<span class="badge badge-active">Aktiv</span>'
+      : '<span class="badge badge-inactive">Inaktiv</span>';
+    const modeLabel = p.mode === 'approval' ? 'Approval' : 'Auto';
+    return `
+      <tr>
+        <td class="mono" style="color:var(--text-muted)">${p.id}</td>
+        <td style="color:var(--text-secondary)">${owner}</td>
+        <td><strong>${escapeHtml(p.name)}</strong></td>
+        <td><span class="badge" style="background:rgba(88,166,255,.1);color:var(--accent);font-size:.7rem">${escapeHtml(p.type)}</span></td>
+        <td style="color:var(--text-secondary);font-size:.82rem">${modeLabel}</td>
+        <td>${statusBadge}</td>
+        <td class="mono">${fmtEUR(p.starting_capital)}</td>
+      </tr>`;
+  }).join('');
+}
+
+async function loadAdminSystem() {
+  try {
+    const status = await api.getStatus();
+    setEl('sys-ready', status.ready ? '✓ Bereit' : '✗ Fehler');
+    setEl('sys-stocks', status.stocks_loaded ?? '–');
+    setEl('sys-positions', status.open_positions ?? '–');
+    setEl('sys-trades', status.total_trades ?? '–');
+    setEl('sys-equity', fmtEUR(status.equity_eur));
+    setEl('sys-signal', status.last_signal ? fmtDateTime(status.last_signal) : '–');
+  } catch (e) {
+    console.warn('Admin system:', e);
   }
 }

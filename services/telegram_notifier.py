@@ -59,20 +59,47 @@ def _enqueue_message(text: str):
 def _handle_command(text: str, app):
     cmd = text.strip().lower().split()[0] if text.strip() else ''
 
-    if cmd in ('/status', 'status'):
-        with app.app_context():
-            from services.scenario_store import list_scenario_batches
-            batches = list_scenario_batches()
-            running = [b for b in batches if b.get('status') == 'running']
-            if running:
-                lines = ['⏳ <b>Laufende Batches:</b>']
-                for b in running:
-                    idx = b.get('current_index', 0)
-                    total = len(b.get('scenario_ids', []))
-                    lines.append(f"• {b.get('name', b['id'])}: {idx}/{total}")
-                send_message('\n'.join(lines))
-            else:
-                send_message('✅ Kein Batch läuft gerade.')
+    if cmd in ('/stop_bot', 'stop_bot'):
+        send_message('🔴 <b>Bot wird gestoppt…</b>\nSende /start_bot zum Starten (Watcher übernimmt).')
+        import subprocess as _sp
+        _sp.Popen(['systemctl', 'stop', 'tradeplatform'])
+
+    elif cmd in ('/restart_bot', 'restart_bot'):
+        send_message('🔄 <b>Bot wird neu gestartet…</b>')
+        import subprocess as _sp
+        _sp.Popen(['systemctl', 'restart', 'tradeplatform'])
+
+    elif cmd in ('/status_bot', 'status_bot'):
+        import subprocess as _sp
+        lines = ['📡 <b>Service-Status</b>']
+        for svc in ('tradeplatform', 'ibgateway'):
+            r = _sp.run(['systemctl', 'is-active', svc], capture_output=True, text=True)
+            state = r.stdout.strip()
+            lines.append(f'{"✅" if state == "active" else "❌"} {svc}: {state}')
+        from services.ibkr_connector import IBKRConnectionPool
+        for g in IBKRConnectionPool.status():
+            icon = '🟢' if g['connected'] else ('⏸' if g.get('circuit_breaker_active') else '🔴')
+            lines.append(f'{icon} IBKR :{g["port"]}: {"verbunden" if g["connected"] else "getrennt"}')
+        send_message('\n'.join(lines))
+
+    elif cmd in ('/pause', 'pause', '/stopp', 'stopp'):
+        try:
+            from app import scheduler
+            scheduler.pause_job('trading_cycle')
+            send_message('⏸ <b>Trading pausiert.</b>\nKeine neuen Orders bis /weiter.')
+        except Exception as e:
+            send_message(f'❌ Fehler: {e}')
+
+    elif cmd in ('/weiter', 'weiter', '/resume', 'resume'):
+        try:
+            from app import scheduler
+            scheduler.resume_job('trading_cycle')
+            send_message('▶️ <b>Trading fortgesetzt.</b>\nNächster Zyklus in max. 15 Min.')
+        except Exception as e:
+            send_message(f'❌ Fehler: {e}')
+
+    elif cmd in ('/status', 'status'):
+        _handle_command('/status_bot', app)
 
     elif cmd in ('/top10', 'top10'):
         with app.app_context():
@@ -117,13 +144,96 @@ def _handle_command(text: str, app):
         except Exception as e:
             send_message(f'❌ Fehler: {e}')
 
+    elif cmd in ('/portfolio', 'portfolio'):
+        with app.app_context():
+            import psycopg, os
+            try:
+                conn = psycopg.connect(
+                    host=os.environ.get('POSTGRES_HOST', 'localhost'),
+                    port=int(os.environ.get('POSTGRES_PORT', 5432)),
+                    dbname=os.environ.get('POSTGRES_DB', 'Tradebot'),
+                    user=os.environ.get('POSTGRES_USER', 'openclaw'),
+                    password=os.environ.get('POSTGRES_PASSWORD', ''),
+                    sslmode=os.environ.get('POSTGRES_SSLMODE', 'prefer'),
+                )
+                cur = conn.cursor()
+                cur.execute("""
+                    SELECT st.symbol, pos.shares, pos.entry_price_eur,
+                           p.close_eur, pos.stop_loss
+                    FROM positions pos
+                    JOIN stocks st ON st.id = pos.stock_id
+                    LEFT JOIN (
+                        SELECT DISTINCT ON (stock_id) stock_id, close_eur
+                        FROM prices ORDER BY stock_id, date DESC
+                    ) p ON p.stock_id = pos.stock_id
+                    ORDER BY pos.entry_price_eur * pos.shares DESC
+                """)
+                rows = cur.fetchall()
+                conn.close()
+                if not rows:
+                    send_message('📂 Keine offenen Positionen.')
+                    return
+                lines = [f'📂 <b>Positionen ({len(rows)})</b>']
+                for sym, shares, entry, curr, sl in rows:
+                    curr = curr or entry
+                    pnl = (curr - entry) * shares
+                    pnl_str = f'{pnl:+.0f}€'
+                    lines.append(f'• <b>{sym}</b> {shares:.1f}Stk @{entry:.2f}→{curr:.2f} {pnl_str}')
+                send_message('\n'.join(lines))
+            except Exception as e:
+                send_message(f'❌ Portfolio-Fehler: {e}')
+
+    elif cmd in ('/signals', 'signals'):
+        with app.app_context():
+            try:
+                from datetime import date, timedelta
+                import psycopg, os
+                conn = psycopg.connect(
+                    host=os.environ.get('POSTGRES_HOST', 'localhost'),
+                    port=int(os.environ.get('POSTGRES_PORT', 5432)),
+                    dbname=os.environ.get('POSTGRES_DB', 'Tradebot'),
+                    user=os.environ.get('POSTGRES_USER', 'openclaw'),
+                    password=os.environ.get('POSTGRES_PASSWORD', ''),
+                    sslmode=os.environ.get('POSTGRES_SSLMODE', 'prefer'),
+                )
+                cur = conn.cursor()
+                cur.execute(
+                    "SELECT MAX(date) FROM signals WHERE action='BUY' AND date >= %s",
+                    (date.today() - timedelta(days=5),)
+                )
+                sig_date = cur.fetchone()[0]
+                if not sig_date:
+                    send_message('📊 Keine aktuellen Signale.')
+                    conn.close()
+                    return
+                cur.execute("""
+                    SELECT st.symbol, sig.score, sig.rsi, p.close_eur
+                    FROM signals sig JOIN stocks st ON st.id = sig.stock_id
+                    LEFT JOIN (
+                        SELECT DISTINCT ON (stock_id) stock_id, close_eur
+                        FROM prices ORDER BY stock_id, date DESC
+                    ) p ON p.stock_id = sig.stock_id
+                    WHERE sig.action='BUY' AND sig.date=%s
+                    ORDER BY sig.score DESC LIMIT 8
+                """, (sig_date,))
+                rows = cur.fetchall()
+                conn.close()
+                lines = [f'📊 <b>BUY-Signale {sig_date}</b>']
+                for sym, score, rsi, eur in rows:
+                    lines.append(f'• <b>{sym}</b> Score {score:.0f} RSI {(rsi or 0):.0f} @€{(eur or 0):.2f}')
+                send_message('\n'.join(lines))
+            except Exception as e:
+                send_message(f'❌ Signal-Fehler: {e}')
+
     elif cmd in ('/help', 'help'):
         send_message(
-            '📖 <b>Schnell-Kommandos (sofort):</b>\n'
-            '/status — laufende Batches\n'
-            '/top10 — beste 10 Runs\n'
-            '/batches — alle Batches\n'
-            '/start &lt;batch_id&gt; — Batch starten\n\n'
+            '📖 <b>Kommandos:</b>\n\n'
+            '🔴 /pause — Trading stoppen\n'
+            '🟢 /weiter — Trading fortsetzen\n'
+            '📡 /status — System- &amp; IBKR-Status\n'
+            '📂 /portfolio — offene Positionen\n'
+            '📊 /signals — aktuelle BUY-Signale\n'
+            '🏆 /top10 — beste 10 Backtest-Runs\n\n'
             '💬 <b>Alles andere</b> → Claude verarbeitet (~60s)'
         )
 
@@ -294,3 +404,48 @@ def notify_run_complete(run_name: str, total_return_pct: float, sharpe: float, m
         f'Sharpe: {sharpe:.3f} | MaxDD: {max_dd:.1f}%'
     )
     send_message(msg)
+
+
+def notify_signals(signals: list):
+    """Morgen-Zusammenfassung der BUY-Signale via Telegram."""
+    buys = [s for s in signals if s.get('action') == 'BUY']
+    if not buys:
+        send_message('📊 <b>Tages-Signale</b>\nHeute keine BUY-Signale.')
+        return
+    lines = [f'📊 <b>Tages-Signale — {len(buys)} BUY</b>']
+    for s in buys[:10]:
+        rsi = s.get('rsi') or 0
+        eur = s.get('current_price_eur') or 0
+        lines.append(
+            f'• <b>{s["symbol"]}</b>  Score {s["score"]:.0f}  RSI {rsi:.0f}  @€{eur:.2f}  {(s.get("sector") or "")[:15]}'
+        )
+    send_message('\n'.join(lines))
+
+
+def notify_trade(action: str, symbol: str, qty: int, price_eur: float,
+                 pnl_eur: float | None = None, portfolio_name: str = ''):
+    """Bestätigung eines ausgeführten IBKR-Trades via Telegram."""
+    port_str = f' [{portfolio_name}]' if portfolio_name else ''
+    if action == 'BUY':
+        total = qty * price_eur
+        msg = (f'🟢 <b>KAUF{port_str}</b>\n'
+               f'{symbol}: {qty} Stk @ €{price_eur:.2f}\n'
+               f'Investiert: €{total:,.0f}')
+    else:
+        pnl_str = f'\nP&amp;L: {pnl_eur:+.0f} EUR' if pnl_eur is not None else ''
+        emoji = '🟡' if (pnl_eur or 0) >= 0 else '🔴'
+        msg = (f'{emoji} <b>VERKAUF{port_str}</b>\n'
+               f'{symbol}: {qty} Stk @ €{price_eur:.2f}{pnl_str}')
+    send_message(msg)
+
+
+def notify_live_cycle(actions: list, portfolio_names: list):
+    """Zusammenfassung eines abgeschlossenen Live-Zyklus (nur bei Aktionen)."""
+    if not actions:
+        return
+    lines = [f'⚡ <b>Live-Zyklus abgeschlossen</b> ({len(actions)} Aktionen)']
+    for a in actions[:6]:
+        lines.append(f'• {a[:80]}')
+    if len(actions) > 6:
+        lines.append(f'… und {len(actions) - 6} weitere')
+    send_message('\n'.join(lines))

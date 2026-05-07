@@ -10,8 +10,13 @@ from dotenv import load_dotenv
 from flask import Flask, render_template
 from flask_socketio import SocketIO
 from flask_cors import CORS
+from flask_migrate import Migrate
+from flask_login import LoginManager
+from flask_limiter import Limiter
+from flask_limiter.util import get_remote_address
 from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.triggers.interval import IntervalTrigger
+from apscheduler.triggers.cron import CronTrigger
 from sqlalchemy import text
 from sqlalchemy.exc import SQLAlchemyError
 
@@ -26,15 +31,25 @@ log = logging.getLogger(__name__)
 
 socketio = SocketIO()
 scheduler = BackgroundScheduler(timezone='Europe/Vienna')
+migrate = Migrate()
+login_manager = LoginManager()
+limiter = Limiter(key_func=get_remote_address)
 
 
-def create_app():
-    load_dotenv(os.path.join(os.path.dirname(os.path.abspath(__file__)), '.env'))
+def create_app(test_config: dict | None = None):
+    base_dir = os.path.dirname(os.path.abspath(__file__))
+    if not test_config:
+        load_dotenv(os.path.join(base_dir, '.env'))
+        load_dotenv(os.path.join(base_dir, '.env.local'), override=True)
     app = Flask(__name__)
     app.config['SECRET_KEY'] = config.SECRET_KEY
     app.config['SQLALCHEMY_DATABASE_URI'] = config.SQLALCHEMY_DATABASE_URI
     app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
     app.config['SEND_FILE_MAX_AGE_DEFAULT'] = 0
+    app.config['SESSION_COOKIE_HTTPONLY'] = True
+    app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
+    app.config['REMEMBER_COOKIE_HTTPONLY'] = True
+    app.config['REMEMBER_COOKIE_SAMESITE'] = 'Lax'
     app.config['SQLALCHEMY_ENGINE_OPTIONS'] = {
         'connect_args': {
             'connect_timeout': 10,
@@ -42,14 +57,49 @@ def create_app():
         'pool_pre_ping': True,
     }
 
+    if test_config:
+        app.config.update(test_config)
+
     # Extensions
     db.init_app(app)
+    migrate.init_app(app, db)
     CORS(app)
     socketio.init_app(app, cors_allowed_origins='*', async_mode='eventlet')
+    login_manager.init_app(app)
+    limiter.init_app(app)
+    login_manager.login_view = 'auth.login'
+
+    @login_manager.unauthorized_handler
+    def unauthorized():
+        from flask import jsonify as _jsonify
+        return _jsonify({'error': 'Anmeldung erforderlich'}), 401
+
+    @login_manager.user_loader
+    def load_user(user_id):
+        from models import User
+        return User.query.get(int(user_id))
 
     # Blueprints
     from routes.api import api
+    from routes.auth import auth_bp
+    from routes.users import users_bp
+    from routes.portfolios import portfolios_bp
+    from routes.proposals import proposals_bp
+    from routes.trading import trading_bp
+    from routes.simulations import simulations_bp
+    from routes.scenarios import scenarios_bp
+    from routes.strategies import strategies_bp
+    from routes.ibkr import ibkr_bp
     app.register_blueprint(api)
+    app.register_blueprint(auth_bp)
+    app.register_blueprint(users_bp)
+    app.register_blueprint(portfolios_bp)
+    app.register_blueprint(proposals_bp)
+    app.register_blueprint(trading_bp)
+    app.register_blueprint(simulations_bp)
+    app.register_blueprint(scenarios_bp)
+    app.register_blueprint(strategies_bp)
+    app.register_blueprint(ibkr_bp)
 
     # Hauptseite
     @app.route('/')
@@ -59,16 +109,20 @@ def create_app():
     # Datenbank & Startdaten initialisieren
     with app.app_context():
         db.create_all()
-        _init_account()
-        _init_performance_indexes(app)
-        _cleanup_stuck_simulation_runs()
-        log.info("Datenbank initialisiert.")
+        if not test_config:
+            try:
+                _init_account()
+                _init_admin_user()
+                _init_performance_indexes(app)
+                _cleanup_stuck_simulation_runs()
+                log.info("Datenbank initialisiert.")
+            except Exception as e:
+                db.session.rollback()
+                log.warning("Startup-Initialisierung übersprungen (Schema-Migration ausstehend?): %s", e)
 
-    # Scheduler starten
-    _setup_scheduler(app)
-
-    # Initialer Datenladevorgang (im Hintergrund)
-    _initial_data_load(app)
+    if not test_config:
+        _setup_scheduler(app)
+        _initial_data_load(app)
 
     return app
 
@@ -112,35 +166,109 @@ def _cleanup_stuck_simulation_runs():
     log.warning('Startup-Cleanup: %d unterbrochene Runs auf failed gesetzt.', len(stuck))
 
 
-def _init_account():
-    """Erstellt das Konto falls es nicht existiert."""
-    if not Account.query.first():
+def _init_account(portfolio=None):
+    """Implements: P-05, DB-03"""
+    if portfolio is None:
+        # Legacy-Guard: bestehende Account-Row ohne portfolio_id (vor Migration)
+        if not Account.query.filter_by(portfolio_id=None).first():
+            return
+        return
+    if not Account.query.filter_by(portfolio_id=portfolio.id).first():
         account = Account(
-            cash_eur=config.STARTING_CAPITAL,
-            equity_eur=config.STARTING_CAPITAL,
+            portfolio_id=portfolio.id,
+            cash_eur=portfolio.starting_capital,
+            equity_eur=portfolio.starting_capital,
         )
         db.session.add(account)
         db.session.commit()
-        log.info(f"Neues Konto erstellt: {config.STARTING_CAPITAL} EUR Startkapital")
+        log.info("Account für Portfolio '%s' angelegt: %.2f EUR", portfolio.name, portfolio.starting_capital)
+
+
+def _init_admin_user():
+    """Legt einen Admin-User an, falls die User-Tabelle leer ist. Implements: DB-03, U-06"""
+    import secrets
+    from models import User, Portfolio
+    if User.query.first():
+        return
+    default_pw = os.environ.get('ADMIN_DEFAULT_PASSWORD') or secrets.token_urlsafe(16)
+    admin = User(username='admin', email=None, role='admin')
+    admin.set_password(default_pw)
+    db.session.add(admin)
+    db.session.flush()  # admin.id verfügbar machen
+
+    portfolio = Portfolio(
+        user_id=admin.id,
+        name='Default',
+        type='sim',
+        mode='auto',
+        status='active',
+        currency='EUR',
+        starting_capital=config.STARTING_CAPITAL,
+    )
+    db.session.add(portfolio)
+    db.session.flush()  # portfolio.id verfügbar machen
+
+    db.session.commit()
+    _init_account(portfolio)
+
+    if not os.environ.get('ADMIN_DEFAULT_PASSWORD'):
+        print(f"[SETUP] Admin-Passwort (einmalig): {default_pw}", flush=True)
+    log.warning("Admin-User angelegt — Passwort sofort ändern! (PUT /api/users/1/password)")
+
+
+def _ensure_ibkr_gateway():
+    """Startet ibgateway via systemd falls nicht verbunden. Wartet nicht auf Ready."""
+    import subprocess, time as _time
+    from services.ibkr_connector import IBKRConnectionPool
+    conn = IBKRConnectionPool.get(config.IBKR_HOST, config.IBKR_PAPER_PORT, config.IBKR_CLIENT_ID)
+    if conn.is_connected():
+        return
+    if _time.time() < conn._backoff_until:
+        return  # Circuit-Breaker aktiv — systemd startet den Gateway bereits
+    try:
+        result = subprocess.run(
+            ['systemctl', 'start', 'ibgateway'],
+            capture_output=True, text=True, timeout=10,
+        )
+        if result.returncode == 0:
+            log.info('ibgateway.service gestartet (auto-recovery).')
+        else:
+            subprocess.Popen(
+                ['/home/martin/ibgateway/run_gateway.sh'],
+                stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+            )
+            log.info('ibgateway direkt gestartet (run_gateway.sh).')
+    except Exception as e:
+        log.warning('Gateway-Auto-Start fehlgeschlagen: %s', e)
 
 
 def _setup_scheduler(app):
     """Richtet den autonomen Handelstakt ein."""
 
     def trading_job():
-        if config.LIVE_TRADING:
-            from services.live_runner import run_live_trading_cycle
-            cycle_fn = run_live_trading_cycle
-        else:
-            from services.trading_engine import run_trading_cycle
-            cycle_fn = run_trading_cycle
+        all_actions = []
+
+        # Sim-Portfolios — immer aktiv
         try:
-            actions = cycle_fn(app)
-            if actions:
-                socketio.emit('trading_actions', {'actions': actions})
-            socketio.emit('portfolio_update', _get_portfolio_snapshot(app))
+            from services.trading_engine import run_trading_cycle
+            actions = run_trading_cycle(app)
+            all_actions.extend(actions)
         except Exception as e:
-            log.error(f"Scheduler-Fehler: {e}")
+            log.error("Sim-Handelszyklus fehlgeschlagen: %s", e)
+
+        # IBKR-Portfolios — nur wenn Live-Trading aktiviert
+        if config.LIVE_TRADING:
+            _ensure_ibkr_gateway()
+            try:
+                from services.live_runner import run_live_trading_cycle
+                actions = run_live_trading_cycle(app)
+                all_actions.extend(actions)
+            except Exception as e:
+                log.error("IBKR-Handelszyklus fehlgeschlagen: %s", e)
+
+        if all_actions:
+            socketio.emit('trading_actions', {'actions': all_actions})
+        socketio.emit('portfolio_update', _get_portfolio_snapshot(app))
 
     def equity_broadcast():
         """Pusht Echtzeit-Portfolio-Daten ans Frontend."""
@@ -162,6 +290,47 @@ def _setup_scheduler(app):
         equity_broadcast,
         trigger=IntervalTrigger(minutes=1),
         id='equity_broadcast',
+        replace_existing=True,
+    )
+
+    # Implements: PR-03 — Tagesvorschläge + Signal-Notification um 8:00 Uhr MEZ
+    def proposal_generate_job():
+        from services.proposal_generator import generate_daily_proposals
+        try:
+            count = generate_daily_proposals(app)
+            log.info("Proposal-Generierung abgeschlossen: %d neue Proposals.", count)
+        except Exception as e:
+            log.error("Proposal-Generierung fehlgeschlagen: %s", e)
+
+        try:
+            from services.algorithm import generate_signals
+            from services.telegram_notifier import notify_signals
+            signals = generate_signals(app)
+            notify_signals(signals)
+            log.info("Tages-Signale via Telegram verschickt.")
+        except Exception as e:
+            log.error("Signal-Notification fehlgeschlagen: %s", e)
+
+    scheduler.add_job(
+        proposal_generate_job,
+        trigger=CronTrigger(hour=8, minute=0, timezone='Europe/Vienna'),
+        id='proposal_generate',
+        replace_existing=True,
+    )
+
+    # Implements: PR-09 — Veraltete Proposals um 22:00 Uhr auf 'expired' setzen
+    def proposal_expire_job():
+        from services.proposal_generator import expire_stale_proposals
+        try:
+            count = expire_stale_proposals(app)
+            log.info("Proposal-Expiry abgeschlossen: %d Proposals abgelaufen.", count)
+        except Exception as e:
+            log.error("Proposal-Expiry fehlgeschlagen: %s", e)
+
+    scheduler.add_job(
+        proposal_expire_job,
+        trigger=CronTrigger(hour=22, minute=0, timezone='Europe/Vienna'),
+        id='proposal_expire',
         replace_existing=True,
     )
 
@@ -292,15 +461,30 @@ def _initial_data_load(app):
     thread.start()
 
 
-def _get_portfolio_snapshot(app) -> dict:
-    """Snapshot des aktuellen Portfolio-Stands für WebSocket-Push."""
+def _get_portfolio_snapshot(app, portfolio_id=None) -> dict:
+    """Implements: G-02, P-05"""
+    from models import Account, Position, Portfolio
     with app.app_context():
-        account = Account.query.first()
+        account = None
+        if portfolio_id:
+            account = Account.query.filter_by(portfolio_id=portfolio_id).first()
+        if not account:
+            # Fallback: Admin-Portfolio (Scheduler-Kontext ohne User-Session)
+            admin_portfolio = Portfolio.query.join(
+                __import__('models').User,
+                Portfolio.user_id == __import__('models').User.id
+            ).filter(
+                __import__('models').User.role == 'admin'
+            ).order_by(Portfolio.id).first()
+            if admin_portfolio:
+                account = Account.query.filter_by(portfolio_id=admin_portfolio.id).first()
+                portfolio_id = admin_portfolio.id if admin_portfolio else None
         if not account:
             return {}
         positions = []
         pos_value = 0.0
-        for p in __import__('models').Position.query.all():
+        pos_query = Position.query.filter_by(portfolio_id=account.portfolio_id) if account.portfolio_id else Position.query
+        for p in pos_query.all():
             pnl = p.unrealized_pnl_eur()
             pos_value += (p.current_price_eur or p.entry_price_eur) * p.shares
             positions.append({
@@ -311,13 +495,13 @@ def _get_portfolio_snapshot(app) -> dict:
                 'pnl_eur': round(pnl, 2),
                 'pnl_pct': round(p.unrealized_pnl_pct(), 2),
             })
-
+        initial_capital = account.portfolio.starting_capital if account.portfolio_id and account.portfolio else 10000.0
         return {
             'cash_eur': round(account.cash_eur, 2),
             'equity_eur': round(account.equity_eur, 2),
             'positions_value': round(pos_value, 2),
             'positions': positions,
-            'total_return_pct': round((account.equity_eur - 10000.0) / 10000.0 * 100, 2),
+            'total_return_pct': round((account.equity_eur - initial_capital) / initial_capital * 100, 2),
             'timestamp': datetime.now(timezone.utc).isoformat(),
         }
 
@@ -326,9 +510,16 @@ def _get_portfolio_snapshot(app) -> dict:
 
 @socketio.on('connect')
 def on_connect():
-    log.info('Client verbunden')
+    from flask_login import current_user
+    from flask import session
+    if not current_user.is_authenticated:
+        return False
+    log.info('Client verbunden: %s', current_user.username)
     from flask import current_app
-    socketio.emit('portfolio_update', _get_portfolio_snapshot(current_app._get_current_object()))
+    portfolio_id = session.get('active_portfolio_id')
+    socketio.emit('portfolio_update', _get_portfolio_snapshot(
+        current_app._get_current_object(), portfolio_id=portfolio_id
+    ))
 
 
 @socketio.on('disconnect')
@@ -338,8 +529,12 @@ def on_disconnect():
 
 @socketio.on('request_update')
 def on_request_update():
-    from flask import current_app
-    socketio.emit('portfolio_update', _get_portfolio_snapshot(current_app._get_current_object()))
+    from flask_login import current_user
+    from flask import session, current_app
+    portfolio_id = session.get('active_portfolio_id') if current_user.is_authenticated else None
+    socketio.emit('portfolio_update', _get_portfolio_snapshot(
+        current_app._get_current_object(), portfolio_id=portfolio_id
+    ))
 
 
 if __name__ == '__main__':

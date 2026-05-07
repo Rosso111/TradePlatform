@@ -109,7 +109,31 @@ Was wurde verworfen und warum?
 - Rekonstruieren welche Alternativen existiert haetten
 - Den impliziten Grund explizit machen
 
-### 4. Technische Schulden identifizieren und priorisieren
+### 4. Requirements Engineering & Ist-Spezifikation
+
+ARLO schreibt nicht nur Architektur-Dokumente — er erstellt auch funktionale Spezifikationen und Ist-Zustand-Beschreibungen, die als Grundlage fuer Weiterentwicklungen dienen.
+
+**Ist-Spezifikation (As-Is Spec):**
+- Bestehende Applikation vollstaendig beschreiben: DB-Schema, API-Endpunkte, Services, Konfiguration
+- Problem-Stellen fuer geplante Erweiterungen explizit markieren ("Was muss sich aendern?")
+- Fuer jede Tabelle/jeden Service: aktueller Zustand + Defizit-Analyse
+
+**Anforderungs-Spezifikation (Soll-Spec):**
+- Numerierte, testbare Requirements (G-xx Ziele, U-xx User, P-xx Portfolio etc.)
+- Jedes Requirement: eindeutige ID, klare Aussage, Akzeptanzkriterium
+- Traceability-Vorbereitung: Requirements-IDs die spaeter im Code (`# Implements: X-xx`) und in Tests (`"""X-xx"""`) referenziert werden
+- Offene Fragen und Entscheidungspunkte explizit markieren
+
+**Bauphasen-Planung:**
+- Implementierung in priorisierte Schritte unterteilen (Migration → Models → Auth → Services → API → UI → Tests)
+- Pro Schritt: Was wird gebaut, welche Requirements werden erfuellt, welche Abhaengigkeiten bestehen
+
+**Format:**
+- Dokumente in `/docs` als Markdown
+- SPEC-Prefix fuer Spezifikationen, ARCH-Prefix fuer Architektur-Dokumente
+- Requirements-IDs numeriert und konsistent durch alle Dokumente
+
+### 5. Technische Schulden identifizieren und priorisieren
 
 **Drei Schulden-Kategorien:**
 - **Kluge Schulden:** Bewusste Trade-offs die dokumentiert sein muessen (ADR!)

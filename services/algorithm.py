@@ -98,6 +98,10 @@ def add_indicators(df: pd.DataFrame, params: dict) -> pd.DataFrame:
     # EMA200 (für Trend-Filter bei Mean-Reversion / Dual Momentum)
     df['ema_200'] = close.ewm(span=200, adjust=False).mean()
 
+    # 52-Wochen-Hoch (für 52week_high-Strategie); shift(1) verhindert Look-ahead
+    df['high_52w'] = high.rolling(252, min_periods=200).max()
+    df['high_52w_prev'] = df['high_52w'].shift(1)
+
     return df
 
 
@@ -120,20 +124,24 @@ def compute_score(row: pd.Series, params: dict,
     """
     score = 0.0
 
-    # 1. RSI (25 Punkte)
+    # 1. RSI (25 Punkte) — stetige lineare Interpolation über 0-100
+    # Stützpunkte: RSI=0→100, RSI=oversold→75, RSI=50→50, RSI=overbought→25, RSI=100→0
     rsi = row.get('rsi')
     if rsi is not None and not np.isnan(rsi):
         oversold = params.get('rsi_oversold', 35)
         overbought = params.get('rsi_overbought', 65)
-        if rsi < oversold:
-            # Stark überverkauft → bullisch
-            rsi_score = 80 + (oversold - rsi) / oversold * 20
-        elif rsi > overbought:
-            # Stark überkauft → bearisch
-            rsi_score = 20 - (rsi - overbought) / (100 - overbought) * 20
+        if rsi <= oversold:
+            # Segment [0, oversold]: 100 → 75
+            rsi_score = 100 - (rsi / oversold) * 25
+        elif rsi <= 50:
+            # Segment [oversold, 50]: 75 → 50
+            rsi_score = 75 - ((rsi - oversold) / (50 - oversold)) * 25
+        elif rsi <= overbought:
+            # Segment [50, overbought]: 50 → 25
+            rsi_score = 50 - ((rsi - 50) / (overbought - 50)) * 25
         else:
-            # Neutral: 50er-Bereich = 50, Mitte neutral
-            rsi_score = 50 + (50 - rsi) * 0.5
+            # Segment [overbought, 100]: 25 → 0
+            rsi_score = 25 - ((rsi - overbought) / (100 - overbought)) * 25
         score += min(max(rsi_score, 0), 100) * 0.25
 
     # 2. MACD (20 Punkte)
@@ -141,11 +149,15 @@ def compute_score(row: pd.Series, params: dict,
     macd_sig = row.get('macd_signal')
     macd_hist = row.get('macd_hist')
     if all(v is not None and not np.isnan(v) for v in [macd, macd_sig, macd_hist]):
+        # Normalisierung mit kombiniertem Divisor — verhindert künstliche Aufblähung
+        # bei MACD nahe 0 (Seitwärtsmarkt)
+        macd_divisor = abs(macd) + abs(macd_sig) + 1e-6
+        macd_strength = min(abs(macd_hist) / macd_divisor, 1.0)
         if macd > macd_sig:
             # MACD über Signal = bullisch
-            macd_score = 65 + min(abs(macd_hist) / max(abs(macd), 0.001) * 35, 35)
+            macd_score = 65 + macd_strength * 35
         else:
-            macd_score = 35 - min(abs(macd_hist) / max(abs(macd), 0.001) * 35, 35)
+            macd_score = 35 - macd_strength * 35
         score += min(max(macd_score, 0), 100) * 0.20
 
     # 3. EMA-Crossover (20 Punkte)
@@ -174,6 +186,7 @@ def compute_score(row: pd.Series, params: dict,
         band_width = bb_up - bb_lo
         if band_width > 0:
             position = (close - bb_lo) / band_width  # 0=unteres Band, 1=oberes Band
+            position = max(0.0, min(1.0, position))  # Fix 5: auf [0,1] clampen
             if position < 0.2:
                 bb_score = 80 + (0.2 - position) / 0.2 * 20
             elif position > 0.8:
@@ -247,55 +260,61 @@ def backtest_strategy(df: pd.DataFrame, params: dict,
     df = df.dropna()
 
     capital = 1000.0
-    position = 0.0
+    shares_held = 0.0
     entry_price = 0.0
-    returns = []
     trades = []
+    # Tägliche Equity für korrekte Sharpe-Berechnung (Mark-to-Market)
+    daily_equity = []
 
     for i in range(1, len(df)):
         row = df.iloc[i]
         prev = df.iloc[i - 1]
-        score = compute_score(row, params)
+        # Fix 1: Signal auf Basis von Vortag (prev), Ausführung zum heutigen Close
+        score = compute_score(prev, params)
 
-        if position == 0 and score >= 65:
-            # Kaufen
+        if shares_held == 0 and score >= 65:
+            # Kaufen zum heutigen Close
             cost = capital * 0.95
             commission = cost * commission_rate
-            shares = (cost - commission) / row['Close']
-            position = shares
+            shares_held = (cost - commission) / row['Close']
             entry_price = row['Close']
             capital -= cost
 
-        elif position > 0 and (score <= 35 or
-                                row['Close'] < entry_price * 0.95):  # 5% Stop-Loss
-            # Verkaufen
-            revenue = position * row['Close']
+        elif shares_held > 0 and (score <= 35 or
+                                   row['Close'] < entry_price * 0.95):  # 5% Stop-Loss
+            # Verkaufen zum heutigen Close
+            revenue = shares_held * row['Close']
             commission = revenue * commission_rate
-            pnl = revenue - commission - (position * entry_price)
+            pnl = revenue - commission - (shares_held * entry_price)
             trades.append(pnl > 0)
-            daily_ret = pnl / (position * entry_price)
-            returns.append(daily_ret)
             capital += revenue - commission
-            position = 0
-            entry_price = 0
+            shares_held = 0.0
+            entry_price = 0.0
+
+        # Fix 2: tägliche Mark-to-Market Equity tracken
+        market_value = shares_held * row['Close'] if shares_held > 0 else 0.0
+        daily_equity.append(capital + market_value)
 
     # Offene Position schließen
-    if position > 0:
+    if shares_held > 0:
         last_close = df.iloc[-1]['Close']
-        revenue = position * last_close
+        revenue = shares_held * last_close
         commission = revenue * commission_rate
-        pnl = revenue - commission - (position * entry_price)
+        pnl = revenue - commission - (shares_held * entry_price)
         trades.append(pnl > 0)
-        returns.append(pnl / (position * entry_price) if entry_price > 0 else 0)
         capital += revenue - commission
+        shares_held = 0.0
 
     total_return = (capital - 1000.0) / 1000.0 * 100
     win_rate = (sum(trades) / len(trades) * 100) if trades else 0
 
-    if len(returns) > 1:
-        ret_arr = np.array(returns)
-        sharpe = (np.mean(ret_arr) / np.std(ret_arr) * np.sqrt(252)
-                  if np.std(ret_arr) > 0 else 0.0)
+    # Fix 2: Sharpe aus täglichen Returns — √252 ist nur für tägliche Returns korrekt
+    if len(daily_equity) > 1:
+        eq_arr = np.array(daily_equity)
+        daily_returns = np.diff(eq_arr) / eq_arr[:-1]
+        std_dr = np.std(daily_returns)
+        sharpe = (np.mean(daily_returns) / std_dr * np.sqrt(252)
+                  if std_dr > 0 else 0.0)
     else:
         sharpe = 0.0
 
@@ -309,10 +328,23 @@ def backtest_strategy(df: pd.DataFrame, params: dict,
 
 def optimize_parameters(df: pd.DataFrame, commission_rate: float = 0.001) -> dict:
     """
-    Grid-Search über Parameter-Kombinationen → beste Sharpe-Ratio.
+    Grid-Search über Parameter-Kombinationen → beste OOS-Sharpe-Ratio.
+    Fix 3: Walk-Forward-Split 70/30 — Optimierung auf IS, Bewertung auf OOS.
     Reduziertes Grid für Performance.
     """
+    # Mindestlänge: 60 für train + 20 für test → brauchen mind. ~115 Zeilen nach dropna;
+    # Wir prüfen grob vor dem Split.
     if len(df) < 100:
+        return _default_params()
+
+    # Walk-Forward-Split: erste 70% In-Sample, letzte 30% Out-of-Sample
+    split_idx = int(len(df) * 0.7)
+    train_df = df.iloc[:split_idx]
+    test_df  = df.iloc[split_idx:]
+
+    # Sicherheitsprüfung nach dem Split
+    if len(train_df) < 60 or len(test_df) < 20:
+        log.warning("Walk-Forward-Split zu klein — verwende Default-Parameter.")
         return _default_params()
 
     param_grid = {
@@ -328,7 +360,7 @@ def optimize_parameters(df: pd.DataFrame, commission_rate: float = 0.001) -> dic
         'bb_std':        [2.0],
     }
 
-    best_sharpe = -999
+    best_oos_sharpe = -999
     best_params = _default_params()
 
     for (rsi_p, rsi_os, rsi_ob, ema_f, ema_s) in product(
@@ -347,13 +379,20 @@ def optimize_parameters(df: pd.DataFrame, commission_rate: float = 0.001) -> dic
             'macd_slow': 26, 'macd_signal': 9,
             'bb_period': 20, 'bb_std': 2.0,
         }
-        result = backtest_strategy(df, params, commission_rate)
-        if result['sharpe'] > best_sharpe and result['trades'] >= 3:
-            best_sharpe = result['sharpe']
-            best_params = params.copy()
-            best_params['_backtest'] = result
+        # IS-Backtest: nur zur Vorauswahl (mind. 3 Trades nötig)
+        is_result = backtest_strategy(train_df, params, commission_rate)
+        if is_result['trades'] < 3:
+            continue
 
-    log.info(f"Optimale Parameter: Sharpe={best_sharpe:.2f}, "
+        # OOS-Backtest: entscheidet welche Parameter gewählt werden
+        oos_result = backtest_strategy(test_df, params, commission_rate)
+        if oos_result['sharpe'] > best_oos_sharpe and oos_result['trades'] >= 1:
+            best_oos_sharpe = oos_result['sharpe']
+            best_params = params.copy()
+            # _backtest enthält OOS-Metriken (nicht IS)
+            best_params['_backtest'] = oos_result
+
+    log.info(f"Optimale Parameter (OOS): Sharpe={best_oos_sharpe:.2f}, "
              f"Return={best_params.get('_backtest', {}).get('total_return', 0):.1f}%")
     return best_params
 
