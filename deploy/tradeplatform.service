@@ -1,0 +1,18 @@
+[Unit]
+Description=TradePlatform Flask App
+After=network-online.target postgresql.service ibgateway.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=martin
+WorkingDirectory=/home/martin/.openclaw/workspace/TradePlatform_multiuser
+EnvironmentFile=/home/martin/.openclaw/workspace/TradePlatform_multiuser/.env
+ExecStart=/home/martin/TradePlatform/.venv/bin/python run.py
+Restart=always
+RestartSec=15
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target
