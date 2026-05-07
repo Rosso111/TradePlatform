@@ -249,6 +249,81 @@ def execute_live_sell(position: Position, fx_rates: dict, reason: str) -> tuple[
     return True, msg
 
 
+# ── Fill-Reconciliation ───────────────────────────────────────────────────────
+
+def reconcile_pending_positions(portfolio: Portfolio, fx_rates: dict) -> list[str]:
+    """Gleicht PENDING-Positionen (Schätzpreis) mit echten IBKR-Fill-Preisen ab.
+    Wird nach dem Account-Sync aufgerufen. Gibt eine Liste von Aktionsmeldungen zurück."""
+    actions = []
+    pending_positions = Position.query.filter(
+        Position.portfolio_id == portfolio.id,
+        Position.reason.like('%[IBKR PENDING]%'),
+    ).all()
+    if not pending_positions:
+        return actions
+
+    try:
+        conn = _get_connector(portfolio)
+        ibkr_positions = {p['symbol']: p for p in conn.get_positions(portfolio.ibkr_account_id or '')}
+    except Exception as e:
+        log.warning(f"Reconciliation: IBKR-Positionen nicht abrufbar — {e}")
+        return actions
+
+    for pos in pending_positions:
+        symbol = pos.stock.symbol
+        ibkr_pos = ibkr_positions.get(symbol)
+        if not ibkr_pos:
+            log.info(f"Reconciliation {symbol}: noch keine IBKR-Position — Order evtl. noch offen")
+            continue
+
+        avg_cost = ibkr_pos.get('avg_cost', 0)
+        if not avg_cost or avg_cost <= 0:
+            continue
+
+        # avg_cost bei EUR-Aktien ist in EUR, bei USD in USD
+        currency = pos.stock.currency
+        fx_rate  = fx_rates.get(currency, pos.entry_rate or 1.0)
+        avg_cost_eur = avg_cost / fx_rate if currency != 'EUR' else avg_cost
+
+        diff_pct = abs(avg_cost_eur - pos.entry_price_eur) / pos.entry_price_eur if pos.entry_price_eur else 1.0
+        if diff_pct < 0.001:
+            # Preisdifferenz < 0.1% — Schätzkurs war nah genug, nur Marker entfernen
+            pos.reason = pos.reason.replace('[IBKR PENDING]', '[IBKR LIVE]')
+            db.session.commit()
+            log.info(f"Reconciliation {symbol}: Fill-Preis stimmt überein ({avg_cost_eur:.4f} EUR)")
+            continue
+
+        old_price_eur = pos.entry_price_eur
+        shares        = pos.shares
+
+        pos.entry_price     = avg_cost
+        pos.entry_price_eur = avg_cost_eur
+        pos.current_price   = avg_cost
+        pos.current_price_eur = avg_cost_eur
+        pos.cost_eur        = shares * avg_cost_eur + (pos.commission_eur or 0)
+        pos.reason          = pos.reason.replace('[IBKR PENDING]', '[IBKR LIVE]')
+
+        # Auch den dazugehörigen Trade-Eintrag korrigieren
+        matching_trade = (Trade.query
+                          .filter_by(portfolio_id=portfolio.id, stock_id=pos.stock_id, action='BUY')
+                          .order_by(Trade.executed_at.desc())
+                          .first())
+        if matching_trade and 'IBKR Pending' in (matching_trade.reason or ''):
+            matching_trade.price     = avg_cost
+            matching_trade.price_eur = avg_cost_eur
+            matching_trade.total_eur = shares * avg_cost_eur + (matching_trade.commission_eur or 0)
+            matching_trade.reason    = matching_trade.reason.replace('IBKR Pending', 'IBKR Fill')
+
+        db.session.commit()
+
+        msg = (f"Reconciliation {symbol}: Schätzkurs {old_price_eur:.4f} EUR → "
+               f"echter Fill-Preis {avg_cost_eur:.4f} EUR (Δ {diff_pct*100:+.2f}%)")
+        log.info(msg)
+        actions.append(msg)
+
+    return actions
+
+
 # ── Positionen überwachen (SL/TP via IBKR) ───────────────────────────────────
 
 def update_live_positions(fx_rates: dict, portfolio_id: int) -> tuple[list[str], set[int]]:
@@ -373,6 +448,12 @@ def run_live_trading_cycle(app, portfolio_id: int | None = None) -> list[str]:
                              f"Equity={ibkr_data['equity']:.2f}€")
             except Exception as e:
                 log.warning(f"IBKR-Account-Sync Portfolio {portfolio.id} fehlgeschlagen: {e}")
+
+            try:
+                recon_actions = reconcile_pending_positions(portfolio, fx_rates)
+                all_actions.extend(recon_actions)
+            except Exception as e:
+                log.warning(f"Fill-Reconciliation Portfolio {portfolio.id}: {e}")
 
             sold_stock_ids: set[int] = set()
             try:
