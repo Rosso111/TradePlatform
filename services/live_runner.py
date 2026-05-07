@@ -8,7 +8,7 @@ from datetime import date
 from models import db, Account, Position, Trade, Stock, Price, EquityHistory, Portfolio
 import config
 import config as _config
-from services.ibkr_connector import IBKRConnectionPool
+from services.ibkr_connector import IBKRConnectionPool, OrderPendingError
 
 
 def _get_connector(portfolio):
@@ -26,26 +26,29 @@ log = logging.getLogger(__name__)
 
 # ── Kauf via IBKR ─────────────────────────────────────────────────────────────
 
-def _calc_shares(signal: dict, account: Account) -> int:
+def _calc_shares(signal: dict, account: Account, params: dict | None = None) -> int:
     """Berechnet ganzzahlige Stückzahl für IBKR (kein Bruchteil)."""
-    equity = account.equity_eur
+    p         = params or {}
+    equity    = account.equity_eur
     entry_eur = signal['current_price_eur']
-    atr = signal.get('atr')
+    atr       = signal.get('atr')
+    mult      = p.get('atr_stop_multiplier',   config.ATR_STOP_MULTIPLIER)
+    risk_pct  = p.get('risk_per_trade',        config.RISK_PER_TRADE)
+    sl_pct    = p.get('default_stop_loss_pct', config.DEFAULT_STOP_LOSS_PCT)
+    max_pct   = p.get('max_position_size',     config.MAX_POSITION_SIZE)
+    min_pct   = p.get('min_position_size',     config.MIN_POSITION_SIZE)
 
     if atr and atr > 0 and entry_eur > 0:
-        atr_eur = (atr / signal['current_price']) * entry_eur
-        risk_per_share = config.ATR_STOP_MULTIPLIER * atr_eur
-        risk_amount = equity * config.RISK_PER_TRADE
-        size_by_risk = (risk_amount / risk_per_share) * entry_eur
+        atr_eur        = (atr / signal['current_price']) * entry_eur
+        risk_per_share = mult * atr_eur
+        size_by_risk   = (equity * risk_pct / risk_per_share) * entry_eur
     else:
-        size_by_risk = equity * config.RISK_PER_TRADE / config.DEFAULT_STOP_LOSS_PCT
+        size_by_risk = equity * risk_pct / sl_pct
 
-    score_factor = (signal['score'] - 65) / 35
+    score_factor  = (signal['score'] - 65) / 35
     size_adjusted = size_by_risk * (1 + score_factor * 0.5)
 
-    max_size = equity * config.MAX_POSITION_SIZE
-    min_size = equity * config.MIN_POSITION_SIZE
-    position_eur = min(max(size_adjusted, min_size), max_size)
+    position_eur = min(max(size_adjusted, equity * min_pct), equity * max_pct)
     position_eur = min(position_eur, account.cash_eur * 0.98)
 
     shares = int(position_eur / entry_eur)
@@ -54,23 +57,27 @@ def _calc_shares(signal: dict, account: Account) -> int:
 
 def execute_live_buy(signal: dict, fx_rates: dict, portfolio: Portfolio) -> tuple[bool, str]:
     """Kauft via IBKR und trägt die Position in die DB ein."""
-    account = Account.query.filter_by(portfolio_id=portfolio.id).first()
+    from services.strategy_resolver import resolve
+    from models import Stock as _Stock
+
+    account  = Account.query.filter_by(portfolio_id=portfolio.id).first()
     if not account:
         return False, f"Kein Konto für Portfolio {portfolio.id}"
-    symbol  = signal['symbol']
+    symbol   = signal['symbol']
     stock_id = signal['stock_id']
+    stock    = _Stock.query.get(stock_id)
+    params   = resolve(portfolio, stock)
 
-    # Portfolio-Checks
-    if get_open_positions_count(portfolio.id) >= config.MAX_POSITIONS:
+    if get_open_positions_count(portfolio.id) >= params['max_positions']:
         return False, f"{symbol}: Portfolio voll"
-    if get_sector_position_count(signal['sector'], portfolio.id) >= config.MAX_POSITIONS_PER_SECTOR:
+    if get_sector_position_count(signal['sector'], portfolio.id) >= params['max_positions_per_sector']:
         return False, f"{symbol}: Sektor voll"
     if already_in_position(stock_id, portfolio.id):
         return False, f"{symbol}: Position bereits offen"
-    if signal['score'] < config.SIGNAL_THRESHOLD_BUY:
+    if signal['score'] < params['buy_threshold']:
         return False, f"{symbol}: Score zu niedrig"
 
-    shares = _calc_shares(signal, account)
+    shares = _calc_shares(signal, account, params)
     if shares <= 0:
         return False, f"{symbol}: Stückzahl 0 (zu wenig Kapital)"
 
@@ -80,27 +87,41 @@ def execute_live_buy(signal: dict, fx_rates: dict, portfolio: Portfolio) -> tupl
         return False, f"{symbol}: Nicht genug Kapital"
 
     # ── IBKR Order ────────────────────────────────────────────────────────────
-    ibkr_account = portfolio.ibkr_account_id or ''
+    if not portfolio.ibkr_account_id:
+        return False, f"{symbol}: Portfolio {portfolio.id} hat keine IBKR-Account-ID"
+
+    ibkr_account = portfolio.ibkr_account_id
+    currency = signal['currency']
+    fx_rate  = fx_rates.get(currency, 1.0)
+    pending  = False
+
     try:
         conn = _get_connector(portfolio)
-        fill_price_usd, fill_qty = conn.place_market_order(symbol, shares, 'BUY', account=ibkr_account)
+        fill_price_usd, fill_qty = conn.place_market_order(
+            symbol, shares, 'BUY', account=ibkr_account,
+            currency=signal.get('currency'),
+        )
+    except OrderPendingError as e:
+        # Börse geschlossen — Order liegt bei IBKR, mit Schätzkurs in DB eintragen
+        pending        = True
+        fill_price_usd = signal['current_price']
+        fill_qty       = shares
+        log.info(f"{symbol}: Order ausstehend (orderId={e.order_id}) — DB-Eintrag mit Schätzkurs")
     except Exception as e:
         return False, f"{symbol}: IBKR Order fehlgeschlagen — {e}"
 
-    currency = signal['currency']
-    fx_rate  = fx_rates.get(currency, 1.0)
     fill_price_eur = fill_price_usd / fx_rate if currency != 'EUR' else fill_price_usd
+    position_eur   = fill_qty * fill_price_eur
+    commission     = calc_commission(position_eur, params)
+    spread         = 0.0 if pending else calc_spread_cost(position_eur, params)
+    total_cost     = position_eur + commission + spread
 
-    position_eur = fill_qty * fill_price_eur
-    commission   = calc_commission(position_eur)
-    spread       = calc_spread_cost(position_eur)
-    total_cost   = position_eur + commission + spread
-
-    atr = signal.get('atr')
-    stop_loss   = calc_stop_loss(fill_price_usd, atr)
-    take_profit = calc_take_profit(fill_price_usd, stop_loss)
+    atr         = signal.get('atr')
+    stop_loss   = calc_stop_loss(fill_price_usd, atr, params)
+    take_profit = calc_take_profit(fill_price_usd, stop_loss, params)
 
     # ── DB-Eintrag ────────────────────────────────────────────────────────────
+    reason_suffix = ' [IBKR PENDING]' if pending else ' [IBKR LIVE]'
     pos = Position(
         portfolio_id=portfolio.id,
         stock_id=stock_id,
@@ -116,10 +137,11 @@ def execute_live_buy(signal: dict, fx_rates: dict, portfolio: Portfolio) -> tupl
         highest_price=fill_price_usd,
         cost_eur=total_cost,
         commission_eur=commission,
-        reason=signal.get('reason', '') + ' [IBKR LIVE]',
+        reason=signal.get('reason', '') + reason_suffix,
     )
     db.session.add(pos)
 
+    trade_reason = f"IBKR Pending @ ~{fill_price_usd:.2f}" if pending else f"IBKR Fill @ {fill_price_usd:.2f}"
     trade = Trade(
         portfolio_id=portfolio.id,
         stock_id=stock_id,
@@ -131,7 +153,7 @@ def execute_live_buy(signal: dict, fx_rates: dict, portfolio: Portfolio) -> tupl
         commission_eur=commission,
         total_eur=total_cost,
         pnl_eur=0.0,
-        reason=f"IBKR Fill @ ${fill_price_usd:.2f}",
+        reason=trade_reason,
     )
     db.session.add(trade)
 
@@ -140,9 +162,15 @@ def execute_live_buy(signal: dict, fx_rates: dict, portfolio: Portfolio) -> tupl
     account.total_commission += commission
     db.session.commit()
 
-    msg = (f"IBKR KAUF {symbol}: {fill_qty} Stück @ ${fill_price_usd:.2f} "
+    status_label = "PENDING" if pending else "KAUF"
+    msg = (f"IBKR {status_label} {symbol}: {fill_qty} Stück @ {fill_price_usd:.2f} "
            f"(= {fill_price_eur:.4f} EUR), Kosten: {total_cost:.2f} EUR")
     log.info(msg)
+    try:
+        from services.telegram_notifier import notify_trade
+        notify_trade('BUY', symbol, fill_qty, fill_price_eur, portfolio_name=portfolio.name)
+    except Exception:
+        pass
     return True, msg
 
 
@@ -150,6 +178,9 @@ def execute_live_buy(signal: dict, fx_rates: dict, portfolio: Portfolio) -> tupl
 
 def execute_live_sell(position: Position, fx_rates: dict, reason: str) -> tuple[bool, str]:
     """Verkauft via IBKR und schließt die Position in der DB."""
+    from services.strategy_resolver import resolve
+    from models import Portfolio as _Portfolio
+
     symbol   = position.stock.symbol
     qty      = int(position.shares)
     currency = position.stock.currency
@@ -158,9 +189,8 @@ def execute_live_sell(position: Position, fx_rates: dict, reason: str) -> tuple[
     if qty <= 0:
         return False, f"{symbol}: Stückzahl 0"
 
-    # Portfolio holen um richtigen Connector + Account zu bestimmen
-    from models import Portfolio as _Portfolio
     _portfolio = _Portfolio.query.get(position.portfolio_id)
+    params       = resolve(_portfolio, position.stock) if _portfolio else None
     ibkr_account = _portfolio.ibkr_account_id if _portfolio else ''
     try:
         conn = _get_connector(_portfolio) if _portfolio else IBKRConnectionPool.get(
@@ -173,8 +203,8 @@ def execute_live_sell(position: Position, fx_rates: dict, reason: str) -> tuple[
     fill_price_eur = fill_price_usd / fx_rate if currency != 'EUR' else fill_price_usd
 
     revenue    = qty * fill_price_eur
-    commission = calc_commission(revenue)
-    spread     = calc_spread_cost(revenue)
+    commission = calc_commission(revenue, params)
+    spread     = calc_spread_cost(revenue, params)
     net_revenue = revenue - commission - spread
 
     cost_basis = position.shares * position.entry_price_eur
@@ -210,6 +240,12 @@ def execute_live_sell(position: Position, fx_rates: dict, reason: str) -> tuple[
     msg = (f"IBKR VERKAUF {symbol}: {qty} Stück @ ${fill_price_usd:.2f}, "
            f"P&L: {pnl_eur:+.2f} EUR ({pnl_pct:+.1f}%), Grund: {reason}")
     log.info(msg)
+    try:
+        from services.telegram_notifier import notify_trade
+        port_name = _portfolio.name if _portfolio else ''
+        notify_trade('SELL', symbol, qty, fill_price_eur, pnl_eur=pnl_eur, portfolio_name=port_name)
+    except Exception:
+        pass
     return True, msg
 
 
@@ -217,11 +253,15 @@ def execute_live_sell(position: Position, fx_rates: dict, reason: str) -> tuple[
 
 def update_live_positions(fx_rates: dict, portfolio_id: int) -> list[str]:
     """Prüft SL/TP für alle offenen Positionen eines Portfolios und sendet ggf. Sell-Orders."""
-    actions = []
+    from services.strategy_resolver import resolve
+    actions   = []
+    portfolio = Portfolio.query.get(portfolio_id)
+
     for pos in Position.query.filter_by(portfolio_id=portfolio_id).all():
         stock    = pos.stock
         currency = stock.currency
         fx_rate  = fx_rates.get(currency, 1.0)
+        params   = resolve(portfolio, stock) if portfolio else {}
 
         latest = (Price.query
                   .filter_by(stock_id=stock.id)
@@ -236,10 +276,10 @@ def update_live_positions(fx_rates: dict, portfolio_id: int) -> list[str]:
         pos.current_price     = current_price
         pos.current_price_eur = current_price_eur
 
-        # Trailing-Stop nachziehen
+        trailing_pct = params.get('trailing_stop_pct', config.TRAILING_STOP_PCT)
         if current_price > (pos.highest_price or pos.entry_price):
             pos.highest_price = current_price
-            new_trailing = current_price * (1 - config.TRAILING_STOP_PCT)
+            new_trailing = current_price * (1 - trailing_pct)
             if new_trailing > (pos.trailing_stop or 0):
                 pos.trailing_stop = new_trailing
 
@@ -314,6 +354,20 @@ def run_live_trading_cycle(app, portfolio_id: int | None = None) -> list[str]:
         sell_signals = {s['stock_id']: s for s in signals if s['action'] == 'SELL'}
 
         for portfolio in portfolios:
+            # Kontostand von IBKR holen und in DB synchronisieren
+            try:
+                conn = _get_connector(portfolio)
+                ibkr_data = conn.get_account_values(portfolio.ibkr_account_id or '')
+                account = Account.query.filter_by(portfolio_id=portfolio.id).first()
+                if account and ibkr_data:
+                    account.cash_eur   = ibkr_data['cash']
+                    account.equity_eur = ibkr_data['equity']
+                    db.session.commit()
+                    log.info(f"Portfolio {portfolio.id}: IBKR-Cash={ibkr_data['cash']:.2f}€, "
+                             f"Equity={ibkr_data['equity']:.2f}€")
+            except Exception as e:
+                log.warning(f"IBKR-Account-Sync Portfolio {portfolio.id} fehlgeschlagen: {e}")
+
             try:
                 actions = update_live_positions(fx_rates, portfolio.id)
                 all_actions.extend(actions)

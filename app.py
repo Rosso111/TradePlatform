@@ -89,6 +89,7 @@ def create_app(test_config: dict | None = None):
     from routes.simulations import simulations_bp
     from routes.scenarios import scenarios_bp
     from routes.strategies import strategies_bp
+    from routes.ibkr import ibkr_bp
     app.register_blueprint(api)
     app.register_blueprint(auth_bp)
     app.register_blueprint(users_bp)
@@ -98,6 +99,7 @@ def create_app(test_config: dict | None = None):
     app.register_blueprint(simulations_bp)
     app.register_blueprint(scenarios_bp)
     app.register_blueprint(strategies_bp)
+    app.register_blueprint(ibkr_bp)
 
     # Hauptseite
     @app.route('/')
@@ -214,6 +216,32 @@ def _init_admin_user():
     log.warning("Admin-User angelegt — Passwort sofort ändern! (PUT /api/users/1/password)")
 
 
+def _ensure_ibkr_gateway():
+    """Startet ibgateway via systemd falls nicht verbunden. Wartet nicht auf Ready."""
+    import subprocess, time as _time
+    from services.ibkr_connector import IBKRConnectionPool
+    conn = IBKRConnectionPool.get(config.IBKR_HOST, config.IBKR_PAPER_PORT, config.IBKR_CLIENT_ID)
+    if conn.is_connected():
+        return
+    if _time.time() < conn._backoff_until:
+        return  # Circuit-Breaker aktiv — systemd startet den Gateway bereits
+    try:
+        result = subprocess.run(
+            ['systemctl', 'start', 'ibgateway'],
+            capture_output=True, text=True, timeout=10,
+        )
+        if result.returncode == 0:
+            log.info('ibgateway.service gestartet (auto-recovery).')
+        else:
+            subprocess.Popen(
+                ['/home/martin/ibgateway/run_gateway.sh'],
+                stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+            )
+            log.info('ibgateway direkt gestartet (run_gateway.sh).')
+    except Exception as e:
+        log.warning('Gateway-Auto-Start fehlgeschlagen: %s', e)
+
+
 def _setup_scheduler(app):
     """Richtet den autonomen Handelstakt ein."""
 
@@ -230,6 +258,7 @@ def _setup_scheduler(app):
 
         # IBKR-Portfolios — nur wenn Live-Trading aktiviert
         if config.LIVE_TRADING:
+            _ensure_ibkr_gateway()
             try:
                 from services.live_runner import run_live_trading_cycle
                 actions = run_live_trading_cycle(app)
@@ -264,7 +293,7 @@ def _setup_scheduler(app):
         replace_existing=True,
     )
 
-    # Implements: PR-03 — Tagesvorschläge für Approval-Portfolios um 8:00 Uhr MEZ
+    # Implements: PR-03 — Tagesvorschläge + Signal-Notification um 8:00 Uhr MEZ
     def proposal_generate_job():
         from services.proposal_generator import generate_daily_proposals
         try:
@@ -272,6 +301,15 @@ def _setup_scheduler(app):
             log.info("Proposal-Generierung abgeschlossen: %d neue Proposals.", count)
         except Exception as e:
             log.error("Proposal-Generierung fehlgeschlagen: %s", e)
+
+        try:
+            from services.algorithm import generate_signals
+            from services.telegram_notifier import notify_signals
+            signals = generate_signals(app)
+            notify_signals(signals)
+            log.info("Tages-Signale via Telegram verschickt.")
+        except Exception as e:
+            log.error("Signal-Notification fehlgeschlagen: %s", e)
 
     scheduler.add_job(
         proposal_generate_job,

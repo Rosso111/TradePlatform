@@ -267,6 +267,7 @@ def run_historical_replay(app, run_id: int) -> SimulationRun:
                 strategy_params_day = (replay_data or {}).get('strategy_params', {})
                 strategy_mode_day = (replay_data or {}).get('strategy_mode', 'score')
                 t1_execution = strategy_params_day.get('t1_execution', False)
+                t1_open_price = strategy_params_day.get('t1_open_price', False)
                 whole_shares = strategy_params_day.get('whole_shares_only', False)
 
                 # T+1: pending BUY-Orders vom Vortag ausführen
@@ -278,8 +279,15 @@ def run_historical_replay(app, run_id: int) -> SimulationRun:
                         _t1_price = _get_cached_price(_pending_stock_id, sim_date, replay_data)
                         if not _t1_price:
                             continue
-                        _t1_eur = float(_t1_price.close_eur or _t1_price.close)
-                        _t1_native = float(_t1_price.close)
+                        # t1_open_price=True: Eröffnungskurs des nächsten Tags (realistischer)
+                        if t1_open_price and _t1_price.open and float(_t1_price.open) > 0:
+                            _t1_native = float(_t1_price.open)
+                            _cl = float(_t1_price.close or 0)
+                            _cl_eur = float(_t1_price.close_eur or _cl)
+                            _t1_eur = _t1_native * (_cl_eur / _cl) if _cl > 0 else _t1_native
+                        else:
+                            _t1_eur = float(_t1_price.close_eur or _t1_price.close)
+                            _t1_native = float(_t1_price.close)
                         if _t1_eur <= 0:
                             continue
                         _budget = float(_pending_sig.get('_budget_eur', 0))
@@ -367,6 +375,7 @@ def run_historical_replay(app, run_id: int) -> SimulationRun:
 
                 _buf_before_positions = len(trade_buffer)
                 cash_eur += _update_open_positions_in_memory(run, sim_date, replay_data, open_positions, trade_buffer)
+
                 # Realisierte Gewinne/Verluste aus Stop-Exits für Tax-Tracker erfassen
                 if _tax_rate > 0:
                     for _t in trade_buffer[_buf_before_positions:]:
@@ -405,6 +414,17 @@ def run_historical_replay(app, run_id: int) -> SimulationRun:
                 regime_data = replay_data.get('regime_data', {}) if replay_data else {}
                 regime_bullish = _is_regime_bullish(sim_date, regime_data)
                 regime_blocks_buys = regime_bullish is False  # None = kein Filter aktiv
+
+                # adaptive: alle Positionen sofort schließen wenn Regime bearish
+                if strategy_mode_day == 'adaptive' and regime_bullish is False and open_positions:
+                    for _sid in list(open_positions.keys()):
+                        cash_eur += _close_position_state(
+                            run.id, open_positions[_sid], sim_date,
+                            'Adaptive: Regime bearish (Benchmark < EMA200)',
+                            trade_buffer, strategy_params=strategy_params_day,
+                        )
+                        open_position_stock_ids.discard(_sid)
+                    open_positions.clear()
 
                 for signal in signals:
                     action = signal.get('action', 'HOLD')
@@ -539,12 +559,13 @@ def run_historical_replay(app, run_id: int) -> SimulationRun:
                         }
 
                         if t1_execution:
-                            # T+1: Signal heute → Kauf morgen zu Tagesschlusskurs
+                            # T+1: Signal heute → Kauf morgen (Open wenn t1_open_price=True, sonst Close)
                             signal['_budget_eur'] = budget_eur
                             pending_buy_orders[signal['stock_id']] = signal
+                            _t1_label = 'T+1 Open: Kauf morgen zu Eröffnungskurs' if t1_open_price else 'T+1: Kauf morgen'
                             decision_log_buffer.append(_build_decision_log_mapping(
                                 run.id, signal, sim_date, executed=False,
-                                execution_note='T+1: Kauf morgen',
+                                execution_note=_t1_label,
                             ))
                             open_position_stock_ids.add(signal['stock_id'])
                             continue
@@ -1373,13 +1394,13 @@ def _extract_strategy_params_override(run: SimulationRun) -> dict:
 
 
 
-def _build_regime_filter_data(run: SimulationRun, strategy_params: dict) -> dict:
+def _build_regime_filter_data(run: SimulationRun, strategy_params: dict, strategy_mode: str = '') -> dict:
     """Precompute benchmark SMA series for the Market Regime Filter.
 
     Returns a dict with sorted date list and (price, sma) tuples, or empty dict
     if the filter is disabled or the benchmark symbol has no data.
     """
-    if not strategy_params.get('market_regime_filter', False):
+    if not strategy_params.get('market_regime_filter', False) and strategy_mode != 'adaptive':
         return {}
 
     benchmark_symbol = str(strategy_params.get('regime_filter_symbol', 'SPY'))
@@ -1432,7 +1453,7 @@ def _build_replay_data_cache(run: SimulationRun) -> dict:
     strategy = get_strategy(run.strategy_name) or {'id': DEFAULT_STRATEGY_NAME, 'mode': 'score', 'params': {}}
     strategy_params = strategy.get('params', {}) or {}
     strategy_params = {**strategy_params, **_extract_strategy_params_override(run)}
-    strategy_mode = strategy.get('mode') or 'score'
+    strategy_mode = strategy_params.get('strategy_mode_override') or strategy.get('mode') or 'score'
 
     universe = get_universe(run.universe_name) or {'id': DEFAULT_UNIVERSE_NAME, 'symbols': []}
     universe_symbols = [symbol for symbol in (universe.get('symbols') or []) if symbol]
@@ -1612,8 +1633,26 @@ def _build_replay_data_cache(run: SimulationRun) -> dict:
         log.info('Cache: %d Rebalancing-Termine, %d Tax-Abrechnung-Termine, %d CSM-Aktien.',
                  len(csm_rebalance_dates), len(tax_harvest_dates), len(momentum_csm_by_stock))
 
+    # vol_adj_momentum: tagesweise ATR%-Schwellwert (konfigurierbares Percentil) über das Universum
+    atr_pct_universe_median: dict = {}
+    if strategy_mode == 'vol_adj_momentum':
+        vol_filter_pct = float(strategy_params.get('vol_filter_percentile', 0.50))
+        atr_by_date: dict = {}
+        for sid, df in frames_by_stock.items():
+            if 'atr_pct' in df.columns:
+                for d, v in df['atr_pct'].to_dict().items():
+                    if isinstance(v, float) and not math.isnan(v) and v > 0:
+                        atr_by_date.setdefault(d, []).append(v)
+        for d, vals in atr_by_date.items():
+            if vals:
+                sv = sorted(vals)
+                idx = max(0, min(int(len(sv) * vol_filter_pct) - 1, len(sv) - 1))
+                atr_pct_universe_median[d] = sv[idx]
+        log.info('vol_adj_momentum: ATR%%-Schwellwert (pct=%.0f%%) für %d Tage vorberechnet.',
+                 vol_filter_pct * 100, len(atr_pct_universe_median))
+
     # Market Regime Filter: Benchmark SMA
-    regime_data = _build_regime_filter_data(run, strategy_params)
+    regime_data = _build_regime_filter_data(run, strategy_params, strategy_mode)
 
     return {
         'stocks': stocks,
@@ -1635,6 +1674,7 @@ def _build_replay_data_cache(run: SimulationRun) -> dict:
         'tax_harvest_dates': tax_harvest_dates,
         'sharpe_mom_by_stock': sharpe_mom_by_stock,
         'multi_mom_by_stock': multi_mom_by_stock,
+        'atr_pct_universe_median': atr_pct_universe_median,
         'strategy': strategy,
         'strategy_mode': strategy_mode,
         'strategy_params': strategy_params,
@@ -1711,10 +1751,12 @@ def _generate_signals_from_cache(run: SimulationRun, sim_date, replay_data: dict
                           if all_raw_12m_multi.get(sid, -1) > abs_threshold}
         ranked_multi = sorted(multi_eligible, key=lambda s: multi_eligible[s], reverse=True)
 
-    # Dual Momentum: Ranking aller Aktien nach 12M-Return für diesen Tag
-    if strategy_mode == 'dual_momentum':
+    # Dual Momentum + vol_adj_momentum: Ranking aller Aktien nach 12M-Return für diesen Tag
+    all_mom: dict = {}
+    eligible_ids: set = set()
+    ranked_ids: list = []
+    if strategy_mode in ('dual_momentum', 'vol_adj_momentum'):
         abs_threshold = float(strategy_params.get('absolute_momentum_threshold', 0.0))
-        all_mom = {}
         for stock in replay_data.get('stocks', []):
             m = momentum_12m_by_stock.get(stock.id, {}).get(sim_date)
             if m is not None and not (isinstance(m, float) and math.isnan(m)):
@@ -1920,6 +1962,95 @@ def _generate_signals_from_cache(run: SimulationRun, sim_date, replay_data: dict
                     action = 'SELL'
                     score = 0.0
                 elif not trend_ok:
+                    action = 'SELL'
+                    score = 0.0
+                else:
+                    action = 'HOLD'
+
+            elif strategy_mode == 'vol_adj_momentum':
+                # Low-Volatility + Momentum: Top-N nach 12M-Return, aber nur Aktien
+                # mit ATR% unterhalb des täglichen Universums-Medians (Low-Vol-Filter).
+                top_n_vm = int(strategy_params.get('top_n_signals', 10))
+                atr_pct_median = replay_data.get('atr_pct_universe_median', {}).get(sim_date)
+                atr_pct_val = (atr_value / latest_close * 100
+                               if atr_value and latest_close > 0 else None)
+                low_vol = (atr_pct_val is not None and atr_pct_median is not None
+                           and atr_pct_val <= atr_pct_median)
+                mom_12m = all_mom.get(stock.id)
+                in_top = stock.id in ranked_ids[:top_n_vm]
+
+                if low_vol and stock.id in eligible_ids and in_top:
+                    action = 'BUY'
+                    # Score: Momentum-Anteil + Bonus für niedrige Volatilität
+                    mom_score = min(50 + float(mom_12m or 0) * 50, 95)
+                    vol_bonus = (atr_pct_median - atr_pct_val) / atr_pct_median * 10 if atr_pct_median > 0 else 0
+                    score = min(mom_score + vol_bonus, 100)
+                elif mom_12m is not None and float(mom_12m) < 0:
+                    action = 'SELL'
+                    score = 0.0
+                else:
+                    action = 'HOLD'
+
+            elif strategy_mode == '52week_high':
+                # 52-Wochen-Hoch Momentum (George & Hwang 2004):
+                # Kaufe wenn Kurs nahe am 52W-Hoch UND EMA-Trend + MACD bestätigen.
+                high_52w_prev = row.get('high_52w_prev')
+                proximity_pct = float(strategy_params.get('proximity_pct', 0.05))
+                ema_trend_ok = (
+                    ema_fast_value is not None and ema_slow_value is not None
+                    and ema_fast_value >= ema_slow_value * 0.995
+                )
+                macd_ok = (
+                    macd_value is not None and macd_signal_value is not None
+                    and macd_value >= macd_signal_value
+                )
+                h52 = (float(high_52w_prev)
+                       if high_52w_prev is not None
+                       and not (isinstance(high_52w_prev, float) and math.isnan(high_52w_prev))
+                       else None)
+                near_high = (h52 is not None and h52 > 0
+                             and latest_close >= h52 * (1.0 - proximity_pct))
+
+                if near_high and ema_trend_ok and macd_ok:
+                    action = 'BUY'
+                    # Score: je näher am 52W-Hoch, desto besser
+                    ratio = latest_close / h52 if h52 > 0 else 0.0
+                    score = min(50 + (ratio - (1.0 - proximity_pct)) / proximity_pct * 50, 100)
+                elif rsi_value is not None and rsi_value > float(strategy_params.get('rsi_exit', 80)):
+                    action = 'SELL'
+                    score = 0.0
+                else:
+                    action = 'HOLD'
+
+            elif strategy_mode == 'adaptive':
+                # Regime-adaptiv: TQ-Signale in Bullenmärkten, sofortiger Exit in Bärenmärkten.
+                # Die eigentliche Regime-Logik (Close-All) läuft im Haupt-Loop;
+                # hier werden dieselben Entry-Signale wie trend_quality erzeugt.
+                price_ok = (not strategy_params.get('require_price_above_ema_fast')) or (
+                    ema_fast_value is not None and latest_close >= ema_fast_value * 0.995
+                )
+                ema_ok = (not strategy_params.get('require_ema_fast_above_slow')) or (
+                    ema_fast_value is not None and ema_slow_value is not None
+                    and ema_fast_value >= ema_slow_value * 0.995
+                )
+                macd_ok_adp = (not strategy_params.get('require_macd_above_signal')) or (
+                    macd_value is not None and macd_signal_value is not None
+                    and macd_value >= macd_signal_value
+                )
+                rsi_ok = (rsi_value is not None
+                          and strategy_params.get('min_rsi', 0) <= rsi_value
+                          <= strategy_params.get('max_rsi', 100))
+                sector_ok = sector_score >= strategy_params.get('min_sector_score', 0)
+
+                tq_buy_threshold  = float(strategy_params.get('buy_threshold', 65))
+                tq_sell_threshold = float(strategy_params.get('sell_threshold', 35))
+                tq_score = _compute_score_fast(row, params, 50.0, sector_score)
+
+                filters_ok = all([price_ok, ema_ok, macd_ok_adp, rsi_ok, sector_ok])
+                if filters_ok and tq_score >= tq_buy_threshold:
+                    action = 'BUY'
+                    score = tq_score
+                elif tq_score <= tq_sell_threshold or not filters_ok:
                     action = 'SELL'
                     score = 0.0
                 else:

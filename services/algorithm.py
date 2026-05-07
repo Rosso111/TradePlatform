@@ -98,6 +98,10 @@ def add_indicators(df: pd.DataFrame, params: dict) -> pd.DataFrame:
     # EMA200 (für Trend-Filter bei Mean-Reversion / Dual Momentum)
     df['ema_200'] = close.ewm(span=200, adjust=False).mean()
 
+    # 52-Wochen-Hoch (für 52week_high-Strategie); shift(1) verhindert Look-ahead
+    df['high_52w'] = high.rolling(252, min_periods=200).max()
+    df['high_52w_prev'] = df['high_52w'].shift(1)
+
     return df
 
 

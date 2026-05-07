@@ -73,7 +73,8 @@
       <button class="nav-btn" data-tab="algorithm">Algorithmus</button>
       <button class="nav-btn" data-tab="portfolios">Portfolios</button>
       <button class="nav-btn" id="nav-proposals" data-tab="proposals" style="display:none">Proposals</button>
-      <button class="nav-btn" id="nav-admin" data-tab="admin" style="display:none">Admin</button>
+      <button class="nav-btn" id="nav-ibkr"     data-tab="ibkr"      style="display:none">IBKR</button>
+      <button class="nav-btn" id="nav-admin"     data-tab="admin"     style="display:none">Admin</button>
     </nav>
 
     <div class="header-status">
@@ -579,7 +580,120 @@
       <div id="proposals-history"></div>
     </div>
 
-    <!-- ── Admin Panel (nur für Admins) ─────────────────────────────────── -->
+    <!-- ── IBKR-Panel ────────────────────────────────────────────────────── -->
+    <div class="view-panel" data-tab="ibkr">
+
+      <!-- Toolbar -->
+      <div style="display:flex;align-items:center;gap:12px;margin-bottom:20px;flex-wrap:wrap">
+        <span id="ibkr-status-dot" style="width:12px;height:12px;border-radius:50%;background:var(--text-muted);display:inline-block;flex-shrink:0"></span>
+        <span id="ibkr-status-text" style="font-size:.85rem;color:var(--text-secondary)">Nicht verbunden</span>
+        <select id="ibkr-portfolio-select" style="padding:4px 8px;border-radius:6px;border:1px solid var(--border);background:var(--bg-secondary);color:var(--text-primary);font-size:.85rem"></select>
+        <button class="btn btn-ghost" id="btn-ibkr-start-gateway" style="font-size:.82rem">▶ Gateway starten</button>
+        <button class="btn btn-ghost" id="btn-ibkr-stop-gateway"  style="font-size:.82rem">■ Gateway stoppen</button>
+        <button class="btn btn-ghost" id="btn-ibkr-connect"       style="font-size:.82rem">⚡ Verbinden</button>
+        <button class="btn btn-ghost" id="btn-ibkr-refresh"       style="font-size:.82rem">↻ Aktualisieren</button>
+        <span style="margin-left:auto;font-size:.75rem;color:var(--text-muted)" id="ibkr-last-update"></span>
+      </div>
+
+      <!-- Kontozusammenfassung -->
+      <div class="stats-bar" style="margin-bottom:20px">
+        <div class="stat-card"><div class="stat-label">Cash</div><div class="stat-value" id="ibkr-cash">–</div></div>
+        <div class="stat-card"><div class="stat-label">Equity (Net Liq)</div><div class="stat-value" id="ibkr-equity">–</div></div>
+        <div class="stat-card"><div class="stat-label">Buying Power</div><div class="stat-value" id="ibkr-buying-power">–</div></div>
+        <div class="stat-card"><div class="stat-label">Unrealisierter P&amp;L</div><div class="stat-value" id="ibkr-unrealized-pnl">–</div></div>
+      </div>
+
+      <!-- Offene Positionen -->
+      <div class="card" style="margin-bottom:16px">
+        <div class="card-title">Aktienbestand</div>
+        <div style="overflow-x:auto">
+          <table class="positions-table" id="ibkr-positions-table">
+            <thead>
+              <tr>
+                <th style="width:32px"><input type="checkbox" id="ibkr-pos-select-all" title="Alle auswählen"></th>
+                <th class="sortable" data-col="symbol"       data-type="str">Symbol ↕</th>
+                <th class="sortable" data-col="qty"          data-type="num">Stück ↕</th>
+                <th class="sortable" data-col="avg_cost"     data-type="num">Kaufpreis ↕</th>
+                <th class="sortable" data-col="market_price" data-type="num">Kurs aktuell ↕</th>
+                <th class="sortable" data-col="market_value"   data-type="num">Marktwert ↕</th>
+                <th class="sortable" data-col="unrealized_pnl" data-type="num">G/V $ ↕</th>
+                <th class="sortable" data-col="pnl_pct"        data-type="num">G/V % ↕</th>
+                <th class="sortable" data-col="account"        data-type="str">Account ↕</th>
+              </tr>
+            </thead>
+            <tbody id="ibkr-positions-tbody">
+              <tr><td colspan="9" style="text-align:center;color:var(--text-muted);padding:20px">Keine Daten</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <!-- Aktionsleiste — nur sichtbar wenn Positionen ausgewählt -->
+        <div id="ibkr-pos-action-bar" style="display:none;margin-top:12px;padding-top:12px;border-top:1px solid var(--border);align-items:center;gap:12px;flex-wrap:wrap">
+          <span id="ibkr-pos-selected-count" style="font-size:.82rem;color:var(--text-secondary)">0 ausgewählt</span>
+          <button class="btn btn-ghost" id="btn-ibkr-sell-selected" style="color:var(--red-bright,#f85149);border-color:var(--red-bright,#f85149)">Ausgewählte verkaufen</button>
+        </div>
+      </div>
+
+      <!-- Kaufsignale + Manuelle Order nebeneinander -->
+      <div style="display:grid;grid-template-columns:1fr 320px;gap:16px;align-items:start">
+
+        <!-- Kaufsignale -->
+        <div class="card">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
+            <div class="card-title" style="margin:0">Kaufsignale</div>
+            <span id="ibkr-signals-date" style="font-size:.75rem;color:var(--text-muted)"></span>
+          </div>
+          <div style="overflow-x:auto">
+            <table class="positions-table" id="ibkr-signals-table">
+              <thead>
+                <tr>
+                  <th style="width:32px"><input type="checkbox" id="ibkr-sig-select-all" title="Alle auswählen"></th>
+                  <th class="sortable" data-col="score"     data-type="num">Score ↕</th>
+                  <th class="sortable" data-col="symbol"    data-type="str">Symbol ↕</th>
+                  <th>Name</th>
+                  <th class="sortable" data-col="sector"    data-type="str">Sektor ↕</th>
+                  <th class="sortable" data-col="price_eur" data-type="num">Preis ↕</th>
+                  <th class="sortable" data-col="rsi"       data-type="num">RSI ↕</th>
+                  <th>Status</th>
+                  <th></th>
+                </tr>
+              </thead>
+              <tbody id="ibkr-signals-tbody">
+                <tr><td colspan="9" style="text-align:center;color:var(--text-muted);padding:20px">Lädt...</td></tr>
+              </tbody>
+            </table>
+          </div>
+          <!-- Sammel-Kauf -->
+          <div style="margin-top:12px;padding-top:12px;border-top:1px solid var(--border);display:flex;align-items:center;gap:12px;flex-wrap:wrap">
+            <span id="ibkr-sig-selected-count" style="font-size:.82rem;color:var(--text-secondary)">0 ausgewählt</span>
+            <label style="font-size:.82rem;color:var(--text-secondary)">Stück:</label>
+            <input type="number" id="ibkr-bulk-qty" value="1" min="1" style="width:70px;padding:4px 8px;border-radius:6px;border:1px solid var(--border);background:var(--bg-secondary);color:var(--text-primary)">
+            <button class="btn btn-primary" id="btn-ibkr-buy-selected" style="font-size:.82rem">Ausgewählte kaufen</button>
+          </div>
+        </div>
+
+        <!-- Manuelle Order -->
+        <div class="card">
+          <div class="card-title">Manuelle Order</div>
+          <form id="ibkr-order-form" style="display:flex;flex-direction:column;gap:10px">
+            <div>
+              <label style="font-size:.8rem;color:var(--text-secondary);display:block;margin-bottom:4px">Symbol</label>
+              <input type="text" id="ibkr-order-symbol" placeholder="z.B. AAPL" style="width:100%;text-transform:uppercase">
+            </div>
+            <div>
+              <label style="font-size:.8rem;color:var(--text-secondary);display:block;margin-bottom:4px">Stückzahl</label>
+              <input type="number" id="ibkr-order-qty" placeholder="z.B. 10" min="1" style="width:100%">
+            </div>
+            <div style="display:flex;gap:8px">
+              <button type="button" class="btn btn-primary" id="ibkr-btn-buy"  style="flex:1">Kaufen</button>
+              <button type="button" class="btn btn-ghost"   id="ibkr-btn-sell" style="flex:1">Verkaufen</button>
+            </div>
+            <div id="ibkr-order-result" style="font-size:.8rem;padding:8px;border-radius:6px;display:none"></div>
+          </form>
+        </div>
+
+      </div>
+    </div><!-- /ibkr -->
+
     <div class="view-panel" data-tab="admin">
 
       <!-- Sub-Navigation -->
@@ -756,6 +870,6 @@
 
 </div>
 
-<script type="module" src="/static/js/app.js?v=13"></script>
+<script type="module" src="/static/js/app.js?v=19"></script>
 </body>
 </html>

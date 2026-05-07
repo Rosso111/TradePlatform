@@ -103,6 +103,7 @@ async function bootApp() {
   initSimulationControls();
   initStrategyEditor();
   initPortfolioPanel();
+  await initIbkrPanel();
   initAdminPanel();
   initSplitPanes();
   const savedTab = localStorage.getItem('tp_active_tab') || 'dashboard';
@@ -1043,6 +1044,13 @@ function switchTab(tab) {
   if (tab === 'portfolios') renderPortfoliosList();
   if (tab === 'proposals') loadTodayProposal();
   if (tab === 'admin') switchAdminTab(adminState.activeSubTab);
+
+  // IBKR: Auto-Refresh starten/stoppen
+  if (ibkrState.refreshTimer) { clearInterval(ibkrState.refreshTimer); ibkrState.refreshTimer = null; }
+  if (tab === 'ibkr') {
+    loadIbkrData();
+    ibkrState.refreshTimer = setInterval(loadIbkrData, 30_000);
+  }
 }
 
 function initPeriodButtons() {
@@ -1110,6 +1118,368 @@ const adminState = {
   userMap: {},
   activeSubTab: 'users',
 };
+
+// ── IBKR-Panel ───────────────────────────────────────────────────────────────
+
+const ibkrState = { portfolios: [], selectedPortfolioId: null, refreshTimer: null };
+
+async function initIbkrPanel() {
+  let status;
+  try { status = await api.ibkrStatus(); } catch { return; }
+
+  if (!status.has_ibkr) return;
+
+  const navBtn = document.getElementById('nav-ibkr');
+  if (navBtn) navBtn.style.display = '';
+
+  ibkrState.portfolios = status.portfolios || [];
+
+  const sel = document.getElementById('ibkr-portfolio-select');
+  if (sel) {
+    sel.innerHTML = ibkrState.portfolios.map(p =>
+      `<option value="${p.id}">${p.name} (${p.type})</option>`
+    ).join('');
+    ibkrState.selectedPortfolioId = ibkrState.portfolios[0]?.id ?? null;
+    sel.addEventListener('change', () => {
+      ibkrState.selectedPortfolioId = parseInt(sel.value, 10);
+      loadIbkrData();
+    });
+  }
+
+  document.getElementById('btn-ibkr-start-gateway')?.addEventListener('click', async () => {
+    const btn = document.getElementById('btn-ibkr-start-gateway');
+    btn.disabled = true; btn.textContent = '…';
+    try {
+      const data = await api.ibkrGatewayStart();
+      showToast(data.message || 'Gateway gestartet', 'info');
+      // Auto-Login braucht ~15s, danach Status und Verbindung versuchen
+      setTimeout(async () => { await loadIbkrStatus(); await api.ibkrConnect(); await loadIbkrData(); }, 18000);
+    } catch (e) { showToast(e.message || 'Gateway nicht gefunden', 'error'); }
+    finally { btn.disabled = false; btn.textContent = '▶ Gateway starten'; }
+  });
+
+  document.getElementById('btn-ibkr-stop-gateway')?.addEventListener('click', async () => {
+    const btn = document.getElementById('btn-ibkr-stop-gateway');
+    btn.disabled = true; btn.textContent = '…';
+    try {
+      const data = await api.ibkrGatewayStop();
+      showToast(data.message || 'Gateway gestoppt', 'info');
+      await loadIbkrStatus();
+    } catch (e) { showToast(e.message || 'Fehler beim Stoppen', 'error'); }
+    finally { btn.disabled = false; btn.textContent = '■ Gateway stoppen'; }
+  });
+
+  document.getElementById('btn-ibkr-connect')?.addEventListener('click', async () => {
+    const btn = document.getElementById('btn-ibkr-connect');
+    btn.disabled = true; btn.textContent = '…';
+    try {
+      await api.ibkrConnect();
+      await loadIbkrStatus();
+    } catch (e) { showToast(`IBKR Verbindung fehlgeschlagen: ${e.message}`, 'error'); }
+    finally { btn.disabled = false; btn.textContent = '⚡ Verbinden'; }
+  });
+
+  document.getElementById('btn-ibkr-refresh')?.addEventListener('click', loadIbkrData);
+
+  // Sortierung initialisieren
+  _initSortHeaders('ibkr-positions-table', 'positions', renderIbkrPositions);
+  _initSortHeaders('ibkr-signals-table',   'signals',   renderIbkrSignals);
+
+  // Alle auswählen — Positionen
+  document.getElementById('ibkr-pos-select-all')?.addEventListener('change', (e) => {
+    document.querySelectorAll('.ibkr-pos-cb').forEach(cb => { cb.checked = e.target.checked; });
+    _updatePosActionBar();
+  });
+
+  // Alle auswählen — Signale
+  document.getElementById('ibkr-sig-select-all')?.addEventListener('change', (e) => {
+    document.querySelectorAll('.ibkr-sig-cb:not(:disabled)').forEach(cb => { cb.checked = e.target.checked; });
+    _updateSigActionBar();
+  });
+
+  // Ausgewählte verkaufen
+  document.getElementById('btn-ibkr-sell-selected')?.addEventListener('click', async () => {
+    const selected = [...document.querySelectorAll('.ibkr-pos-cb:checked')];
+    if (!selected.length) return;
+    if (!confirm(`${selected.length} Position(en) verkaufen?`)) return;
+    const btn = document.getElementById('btn-ibkr-sell-selected');
+    btn.disabled = true;
+    for (const cb of selected) {
+      try {
+        await api.ibkrOrder({ portfolio_id: ibkrState.selectedPortfolioId, symbol: cb.dataset.symbol, qty: parseInt(cb.dataset.qty, 10), action: 'SELL' });
+        showToast(`SELL ${cb.dataset.symbol} ausgeführt`, 'info');
+      } catch (e) { showToast(`SELL ${cb.dataset.symbol} fehlgeschlagen: ${e.message}`, 'error'); }
+    }
+    btn.disabled = false;
+    await loadIbkrData();
+  });
+
+  // Ausgewählte kaufen
+  document.getElementById('btn-ibkr-buy-selected')?.addEventListener('click', async () => {
+    const selected = [...document.querySelectorAll('.ibkr-sig-cb:checked')];
+    if (!selected.length) return;
+    const qty = parseInt(document.getElementById('ibkr-bulk-qty')?.value || '1', 10);
+    if (!confirm(`${selected.length} Aktie(n) à ${qty} Stück kaufen?`)) return;
+    const btn = document.getElementById('btn-ibkr-buy-selected');
+    btn.disabled = true;
+    for (const cb of selected) {
+      try {
+        await api.ibkrOrder({ portfolio_id: ibkrState.selectedPortfolioId, symbol: cb.dataset.symbol, qty, action: 'BUY' });
+        showToast(`BUY ${cb.dataset.symbol} ausgeführt`, 'info');
+      } catch (e) { showToast(`BUY ${cb.dataset.symbol} fehlgeschlagen: ${e.message}`, 'error'); }
+    }
+    btn.disabled = false;
+    await loadIbkrData();
+  });
+
+  document.getElementById('ibkr-btn-buy')?.addEventListener('click',  () => submitIbkrOrder('BUY'));
+  document.getElementById('ibkr-btn-sell')?.addEventListener('click', () => submitIbkrOrder('SELL'));
+
+  _updateIbkrStatus(status);
+}
+
+async function loadIbkrStatus() {
+  try {
+    const status = await api.ibkrStatus();
+    _updateIbkrStatus(status);
+  } catch { /* Gateway nicht erreichbar */ }
+}
+
+function _updateIbkrStatus(status) {
+  const dot  = document.getElementById('ibkr-status-dot');
+  const text = document.getElementById('ibkr-status-text');
+  if (!dot) return;
+  if (status.connected) {
+    dot.style.background  = 'var(--green-bright, #3fb950)';
+    text.textContent = 'Verbunden';
+  } else {
+    dot.style.background  = 'var(--red-bright, #f85149)';
+    text.textContent = 'Nicht verbunden';
+  }
+}
+
+async function loadIbkrData() {
+  const pid = ibkrState.selectedPortfolioId;
+  if (!pid) return;
+  await Promise.all([loadIbkrAccount(pid), loadIbkrPositions(pid), loadIbkrSignals(pid), loadIbkrStatus()]);
+  const el = document.getElementById('ibkr-last-update');
+  if (el) el.textContent = 'Stand: ' + new Date().toLocaleTimeString('de-AT');
+}
+
+async function loadIbkrAccount(portfolioId) {
+  try {
+    const d = await api.ibkrAccount(portfolioId);
+    const fmt = (v) => v != null ? v.toLocaleString('de-AT', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' $' : '–';
+    document.getElementById('ibkr-cash').textContent          = fmt(d.cash);
+    document.getElementById('ibkr-equity').textContent        = fmt(d.equity);
+    document.getElementById('ibkr-buying-power').textContent  = fmt(d.buying_power);
+    const pnlEl = document.getElementById('ibkr-unrealized-pnl');
+    pnlEl.textContent = fmt(d.unrealized_pnl);
+    pnlEl.className   = 'stat-value ' + (d.unrealized_pnl >= 0 ? 'positive' : 'negative');
+  } catch {
+    ['ibkr-cash','ibkr-equity','ibkr-buying-power','ibkr-unrealized-pnl']
+      .forEach(id => { const el = document.getElementById(id); if (el) el.textContent = 'n/v'; });
+  }
+}
+
+// ── Tabellen-Sortierung ───────────────────────────────────────────────────────
+
+const _ibkrSort = { positions: { col: 'symbol', dir: 1 }, signals: { col: 'score', dir: -1 } };
+
+function _sortData(data, col, dir, type) {
+  return [...data].sort((a, b) => {
+    const av = a[col] ?? (type === 'num' ? -Infinity : '');
+    const bv = b[col] ?? (type === 'num' ? -Infinity : '');
+    return type === 'num' ? (av - bv) * dir : String(av).localeCompare(String(bv)) * dir;
+  });
+}
+
+function _initSortHeaders(tableId, stateKey, renderFn) {
+  const table = document.getElementById(tableId);
+  if (!table) return;
+  table.querySelectorAll('th.sortable').forEach(th => {
+    th.style.cursor = 'pointer';
+    th.addEventListener('click', () => {
+      const col  = th.dataset.col;
+      const type = th.dataset.type || 'str';
+      if (_ibkrSort[stateKey].col === col) _ibkrSort[stateKey].dir *= -1;
+      else { _ibkrSort[stateKey].col = col; _ibkrSort[stateKey].dir = type === 'num' ? -1 : 1; }
+      renderFn();
+    });
+  });
+}
+
+// ── Positionen ────────────────────────────────────────────────────────────────
+
+let _ibkrPositionsData = [];
+
+async function loadIbkrPositions(portfolioId) {
+  const tbody = document.getElementById('ibkr-positions-tbody');
+  if (!tbody) return;
+  try {
+    _ibkrPositionsData = await api.ibkrPositions(portfolioId);
+    renderIbkrPositions();
+  } catch {
+    tbody.innerHTML = '<tr><td colspan="8" style="text-align:center;color:var(--text-muted);padding:16px">Gateway nicht erreichbar</td></tr>';
+  }
+}
+
+function renderIbkrPositions() {
+  const tbody = document.getElementById('ibkr-positions-tbody');
+  if (!tbody) return;
+  const { col, dir } = _ibkrSort.positions;
+  const type = col === 'symbol' || col === 'account' ? 'str' : 'num';
+  const sorted = _sortData(_ibkrPositionsData, col, dir, type);
+
+  if (!sorted.length) {
+    tbody.innerHTML = '<tr><td colspan="9" style="text-align:center;color:var(--text-muted);padding:20px">Keine Positionen vorhanden</td></tr>';
+    _updatePosActionBar();
+    return;
+  }
+
+  const fmt = (v, dec=2) => v != null ? v.toLocaleString('de-AT', { minimumFractionDigits: dec, maximumFractionDigits: dec }) : '–';
+  tbody.innerHTML = sorted.map(p => {
+    const gv       = p.unrealized_pnl ?? null;
+    const gvPct    = p.pnl_pct ?? null;
+    const color    = (gv ?? 0) >= 0 ? 'var(--green-bright,#3fb950)' : 'var(--red-bright,#f85149)';
+    const sign     = (gv ?? 0) >= 0 ? '+' : '';
+    return `<tr>
+      <td><input type="checkbox" class="ibkr-pos-cb" data-symbol="${p.symbol}" data-qty="${p.qty}"></td>
+      <td style="font-weight:600">${p.symbol}</td>
+      <td>${fmt(p.qty, 0)}</td>
+      <td>${fmt(p.avg_cost)} $</td>
+      <td>${p.market_price != null ? fmt(p.market_price) + ' $' : '–'}</td>
+      <td>${p.market_value != null ? fmt(p.market_value) + ' $' : '–'}</td>
+      <td style="font-weight:600;color:${color}">${gv != null ? sign + fmt(gv) + ' $' : '–'}</td>
+      <td style="font-weight:600;color:${color}">${gvPct != null ? sign + fmt(gvPct) + ' %' : '–'}</td>
+      <td style="color:var(--text-muted);font-size:.8rem">${p.account}</td>
+    </tr>`;
+  }).join('');
+
+  // Checkbox-Events nach Render verdrahten
+  tbody.querySelectorAll('.ibkr-pos-cb').forEach(cb =>
+    cb.addEventListener('change', _updatePosActionBar)
+  );
+  _updatePosActionBar();
+}
+
+function _updatePosActionBar() {
+  const checked = [...document.querySelectorAll('.ibkr-pos-cb:checked')];
+  const bar     = document.getElementById('ibkr-pos-action-bar');
+  const countEl = document.getElementById('ibkr-pos-selected-count');
+  if (bar) {
+    bar.style.display = checked.length ? 'flex' : 'none';
+  }
+  if (countEl) countEl.textContent = `${checked.length} ausgewählt`;
+}
+
+function _updateSigActionBar() {
+  const checked = document.querySelectorAll('.ibkr-sig-cb:checked');
+  const countEl = document.getElementById('ibkr-sig-selected-count');
+  if (countEl) countEl.textContent = `${checked.length} ausgewählt`;
+}
+
+let _ibkrSignalsData = [];
+
+async function loadIbkrSignals(portfolioId) {
+  const tbody  = document.getElementById('ibkr-signals-tbody');
+  const dateEl = document.getElementById('ibkr-signals-date');
+  if (!tbody) return;
+  try {
+    _ibkrSignalsData = await api.ibkrSignals(portfolioId);
+    if (dateEl && _ibkrSignalsData[0]?.date) dateEl.textContent = 'Stand: ' + _ibkrSignalsData[0].date;
+    renderIbkrSignals();
+  } catch {
+    tbody.innerHTML = '<tr><td colspan="9" style="text-align:center;color:var(--text-muted);padding:16px">Fehler beim Laden</td></tr>';
+  }
+}
+
+function renderIbkrSignals() {
+  const tbody = document.getElementById('ibkr-signals-tbody');
+  if (!tbody) return;
+  const { col, dir } = _ibkrSort.signals;
+  const type   = ['score','price_eur','rsi'].includes(col) ? 'num' : 'str';
+  const sorted = _sortData(_ibkrSignalsData, col, dir, type);
+
+  if (!sorted.length) {
+    tbody.innerHTML = '<tr><td colspan="9" style="text-align:center;color:var(--text-muted);padding:20px">Keine Signale vorhanden</td></tr>';
+    return;
+  }
+
+  tbody.innerHTML = sorted.map(s => {
+    const scoreColor  = s.score >= 80 ? 'var(--green-bright,#3fb950)' : s.score >= 65 ? 'var(--yellow,#e3b341)' : 'var(--text-muted)';
+    const rsiColor    = (s.rsi??50) < 40 ? 'var(--green-bright,#3fb950)' : (s.rsi??50) > 65 ? 'var(--red-bright,#f85149)' : 'var(--text-secondary)';
+    const price       = s.price_eur ? `${s.price_eur.toFixed(2)} €` : (s.price ? `${s.price.toFixed(2)} ${s.currency}` : '–');
+    const statusBadge = s.in_portfolio
+      ? '<span style="font-size:.72rem;padding:2px 6px;border-radius:4px;background:rgba(63,185,80,.15);color:var(--green-bright,#3fb950)">offen</span>'
+      : '';
+    const orderBtn = s.in_portfolio ? '' : `<button class="btn btn-ghost" style="font-size:.75rem;padding:3px 8px" onclick="ibkrPreFillOrder('${s.symbol}')">→ Order</button>`;
+    const cbDisabled = s.in_portfolio ? 'disabled' : '';
+    return `<tr>
+      <td><input type="checkbox" class="ibkr-sig-cb" data-symbol="${s.symbol}" ${cbDisabled}></td>
+      <td style="font-weight:700;color:${scoreColor}">${s.score}</td>
+      <td style="font-weight:600">${s.symbol}</td>
+      <td style="color:var(--text-secondary);font-size:.82rem;max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${s.name}">${s.name}</td>
+      <td style="color:var(--text-muted);font-size:.8rem">${s.sector}</td>
+      <td>${price}</td>
+      <td style="color:${rsiColor}">${s.rsi ?? '–'}</td>
+      <td>${statusBadge}</td>
+      <td>${orderBtn}</td>
+    </tr>`;
+  }).join('');
+
+  tbody.querySelectorAll('.ibkr-sig-cb').forEach(cb =>
+    cb.addEventListener('change', _updateSigActionBar)
+  );
+  _updateSigActionBar();
+}
+
+function ibkrPreFillOrder(symbol) {
+  const symEl = document.getElementById('ibkr-order-symbol');
+  const qtyEl = document.getElementById('ibkr-order-qty');
+  if (symEl) { symEl.value = symbol; }
+  if (qtyEl) { qtyEl.focus(); }
+  // Sanft zum Order-Formular scrollen
+  document.getElementById('ibkr-order-form')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+}
+
+async function submitIbkrOrder(action) {
+  const symbol = (document.getElementById('ibkr-order-symbol')?.value || '').trim().toUpperCase();
+  const qty    = parseInt(document.getElementById('ibkr-order-qty')?.value || '0', 10);
+  const result = document.getElementById('ibkr-order-result');
+
+  if (!symbol || qty <= 0) {
+    if (result) { result.style.display = 'block'; result.style.background = 'rgba(248,81,73,.15)'; result.style.color = 'var(--red-bright)'; result.textContent = 'Symbol und Stückzahl > 0 eingeben.'; }
+    return;
+  }
+
+  const [buyBtn, sellBtn] = [document.getElementById('ibkr-btn-buy'), document.getElementById('ibkr-btn-sell')];
+  if (buyBtn)  buyBtn.disabled  = true;
+  if (sellBtn) sellBtn.disabled = true;
+
+  try {
+    const data = await api.ibkrOrder({ portfolio_id: ibkrState.selectedPortfolioId, symbol, qty, action });
+    if (result) {
+      result.style.display    = 'block';
+      result.style.background = 'rgba(63,185,80,.15)';
+      result.style.color      = 'var(--green-bright, #3fb950)';
+      result.textContent      = data.message || `${action} ausgeführt`;
+    }
+    document.getElementById('ibkr-order-symbol').value = '';
+    document.getElementById('ibkr-order-qty').value    = '';
+    await loadIbkrData();
+  } catch (e) {
+    if (result) {
+      result.style.display    = 'block';
+      result.style.background = 'rgba(248,81,73,.15)';
+      result.style.color      = 'var(--red-bright, #f85149)';
+      result.textContent      = e.message || 'Order fehlgeschlagen';
+    }
+  } finally {
+    if (buyBtn)  buyBtn.disabled  = false;
+    if (sellBtn) sellBtn.disabled = false;
+  }
+}
 
 function initAdminPanel() {
   const navBtn = document.getElementById('nav-admin');

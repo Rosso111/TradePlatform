@@ -14,76 +14,67 @@ log = logging.getLogger(__name__)
 
 # ─── Handelskosten ───────────────────────────────────────────────────────────
 
-def calc_commission(value_eur: float) -> float:
-    """Provision: 0.1% des Handelswertes, mind. 1 EUR"""
-    commission = value_eur * config.COMMISSION_RATE
-    return max(commission, config.MIN_COMMISSION)
+def calc_commission(value_eur: float, params: dict | None = None) -> float:
+    p = params or {}
+    rate  = p.get('commission_rate', config.COMMISSION_RATE)
+    min_c = p.get('min_commission',  config.MIN_COMMISSION)
+    return max(value_eur * rate, min_c)
 
 
-def calc_spread_cost(value_eur: float) -> float:
-    """Spread-Kosten: 0.05% pro Seite"""
-    return value_eur * config.SPREAD_RATE
+def calc_spread_cost(value_eur: float, params: dict | None = None) -> float:
+    p = params or {}
+    return value_eur * p.get('spread_rate', config.SPREAD_RATE)
 
 
-def total_trade_cost(value_eur: float) -> float:
-    """Gesamtkosten eines Trades (Provision + Spread)"""
-    return calc_commission(value_eur) + calc_spread_cost(value_eur)
+def total_trade_cost(value_eur: float, params: dict | None = None) -> float:
+    return calc_commission(value_eur, params) + calc_spread_cost(value_eur, params)
 
 
 # ─── Stop-Loss & Take-Profit Berechnung ──────────────────────────────────────
 
-def calc_stop_loss(entry_price: float, atr: float | None) -> float:
-    """
-    ATR-basierter Stop-Loss: Einstieg - (ATR_MULTIPLIER × ATR)
-    Fallback: DEFAULT_STOP_LOSS_PCT vom Einstiegspreis
-    """
+def calc_stop_loss(entry_price: float, atr: float | None, params: dict | None = None) -> float:
+    p      = params or {}
+    mult   = p.get('atr_stop_multiplier',   config.ATR_STOP_MULTIPLIER)
+    sl_pct = p.get('default_stop_loss_pct', config.DEFAULT_STOP_LOSS_PCT)
     if atr and atr > 0:
-        stop = entry_price - config.ATR_STOP_MULTIPLIER * atr
+        stop = entry_price - mult * atr
     else:
-        stop = entry_price * (1 - config.DEFAULT_STOP_LOSS_PCT)
-    # Mindest-Stop: nie mehr als MAX_STOP% unter Einstieg
-    min_stop = entry_price * (1 - config.DEFAULT_STOP_LOSS_PCT * 1.5)
+        stop = entry_price * (1 - sl_pct)
+    min_stop = entry_price * (1 - sl_pct * 1.5)
     return max(stop, min_stop)
 
 
-def calc_take_profit(entry_price: float, stop_loss: float) -> float:
-    """
-    Take-Profit mit Risk/Reward >= 2:1
-    """
-    risk = entry_price - stop_loss
-    return entry_price + max(risk * 2.5, entry_price * config.DEFAULT_TAKE_PROFIT_PCT)
+def calc_take_profit(entry_price: float, stop_loss: float, params: dict | None = None) -> float:
+    p      = params or {}
+    tp_pct = p.get('default_take_profit_pct', config.DEFAULT_TAKE_PROFIT_PCT)
+    risk   = entry_price - stop_loss
+    return entry_price + max(risk * 2.5, entry_price * tp_pct)
 
 
-def calc_position_size(account: Account, signal: dict) -> float:
-    """
-    Positionsgröße in EUR basierend auf:
-    - 2% Kapital-Risiko pro Trade
-    - Maximale / minimale Positionsgröße
-    - Verfügbarem Cash
-    """
-    equity = account.equity_eur
+def calc_position_size(account: Account, signal: dict, params: dict | None = None) -> float:
+    p         = params or {}
+    equity    = account.equity_eur
     entry_eur = signal['current_price_eur']
-    atr = signal.get('atr')
+    atr       = signal.get('atr')
+    mult      = p.get('atr_stop_multiplier',    config.ATR_STOP_MULTIPLIER)
+    risk_pct  = p.get('risk_per_trade',         config.RISK_PER_TRADE)
+    sl_pct    = p.get('default_stop_loss_pct',  config.DEFAULT_STOP_LOSS_PCT)
+    max_pct   = p.get('max_position_size',      config.MAX_POSITION_SIZE)
+    min_pct   = p.get('min_position_size',      config.MIN_POSITION_SIZE)
 
-    # ATR-basiertes Risiko
     if atr and atr > 0 and entry_eur > 0:
-        atr_eur = (atr / signal['current_price']) * entry_eur
-        risk_per_share = config.ATR_STOP_MULTIPLIER * atr_eur
-        risk_amount = equity * config.RISK_PER_TRADE
-        size_by_risk = risk_amount / risk_per_share * entry_eur
+        atr_eur       = (atr / signal['current_price']) * entry_eur
+        risk_per_share = mult * atr_eur
+        size_by_risk  = (equity * risk_pct / risk_per_share) * entry_eur
     else:
-        size_by_risk = equity * config.RISK_PER_TRADE / config.DEFAULT_STOP_LOSS_PCT
+        size_by_risk = equity * risk_pct / sl_pct
 
-    # Score-gewichtete Größe: höherer Score → größere Position
-    score_factor = (signal['score'] - 65) / 35  # 0.0 bis 1.0
+    score_factor = (signal['score'] - 65) / 35
     size_adjusted = size_by_risk * (1 + score_factor * 0.5)
 
-    # Grenzen einhalten
-    max_size = equity * config.MAX_POSITION_SIZE
-    min_size = equity * config.MIN_POSITION_SIZE
+    max_size = equity * max_pct
+    min_size = equity * min_pct
     size = min(max(size_adjusted, min_size), max_size)
-
-    # Nicht mehr als verfügbares Cash
     return min(size, account.cash_eur * 0.98)
 
 
@@ -111,53 +102,53 @@ def execute_buy(signal: dict, fx_rates: dict, portfolio: Portfolio) -> tuple[boo
     Kauft eine Position wenn alle Bedingungen erfüllt sind.
     Gibt (Erfolg, Meldung) zurück.
     """
+    from services.strategy_resolver import resolve
+
     account = Account.query.filter_by(portfolio_id=portfolio.id).first()
     if not account:
         return False, f"Kein Konto für Portfolio {portfolio.id}"
 
     stock_id = signal['stock_id']
-    symbol = signal['symbol']
+    symbol   = signal['symbol']
+    stock    = Stock.query.get(stock_id)
+    params   = resolve(portfolio, stock)
 
-    # Bedingungen prüfen
-    if get_open_positions_count(portfolio.id) >= config.MAX_POSITIONS:
-        return False, f"{symbol}: Portfolio voll ({config.MAX_POSITIONS} Positionen)"
+    if get_open_positions_count(portfolio.id) >= params['max_positions']:
+        return False, f"{symbol}: Portfolio voll ({params['max_positions']} Positionen)"
 
-    if get_sector_position_count(signal['sector'], portfolio.id) >= config.MAX_POSITIONS_PER_SECTOR:
-        return False, f"{symbol}: Sektor {signal['sector']} voll ({config.MAX_POSITIONS_PER_SECTOR} Pos.)"
+    if get_sector_position_count(signal['sector'], portfolio.id) >= params['max_positions_per_sector']:
+        return False, f"{symbol}: Sektor {signal['sector']} voll ({params['max_positions_per_sector']} Pos.)"
 
     if already_in_position(stock_id, portfolio.id):
         return False, f"{symbol}: Position bereits offen"
 
-    if signal['score'] < config.SIGNAL_THRESHOLD_BUY:
-        return False, f"{symbol}: Score {signal['score']:.0f} unter Schwelle {config.SIGNAL_THRESHOLD_BUY}"
+    if signal['score'] < params['buy_threshold']:
+        return False, f"{symbol}: Score {signal['score']:.0f} unter Schwelle {params['buy_threshold']}"
 
-    # Positionsgröße berechnen
-    position_eur = calc_position_size(account, signal)
+    position_eur = calc_position_size(account, signal, params)
     if position_eur < 50:
         return False, f"{symbol}: Positionsgröße zu klein ({position_eur:.2f} EUR)"
 
-    entry_price = signal['current_price']
+    entry_price     = signal['current_price']
     entry_price_eur = signal['current_price_eur']
-    currency = signal['currency']
-    fx_rate = fx_rates.get(currency, 1.0)
+    currency        = signal['currency']
+    fx_rate         = fx_rates.get(currency, 1.0)
 
-    # Handelskosten
-    commission = calc_commission(position_eur)
-    spread = calc_spread_cost(position_eur)
+    commission = calc_commission(position_eur, params)
+    spread     = calc_spread_cost(position_eur, params)
     total_cost = position_eur + commission + spread
 
     if total_cost > account.cash_eur:
         return False, f"{symbol}: Nicht genug Kapital ({account.cash_eur:.2f} EUR < {total_cost:.2f} EUR)"
 
-    # Anzahl Aktien (inkl. Spread auf Einstiegspreis)
-    entry_price_with_spread = entry_price * (1 + config.SPREAD_RATE)
-    entry_eur_with_spread = entry_price_eur * (1 + config.SPREAD_RATE)
+    spread_rate              = params.get('spread_rate', config.SPREAD_RATE)
+    entry_price_with_spread  = entry_price * (1 + spread_rate)
+    entry_eur_with_spread    = entry_price_eur * (1 + spread_rate)
     shares = position_eur / entry_eur_with_spread
 
-    # Stop-Loss & Take-Profit
-    atr = signal.get('atr')
-    stop_loss = calc_stop_loss(entry_price, atr)
-    take_profit = calc_take_profit(entry_price, stop_loss)
+    atr         = signal.get('atr')
+    stop_loss   = calc_stop_loss(entry_price, atr, params)
+    take_profit = calc_take_profit(entry_price, stop_loss, params)
 
     # Position anlegen
     pos = Position(
@@ -215,9 +206,13 @@ def execute_sell(position: Position, current_price: float,
                  current_price_eur: float, fx_rate: float,
                  reason: str) -> tuple[bool, str]:
     """Schließt eine offene Position."""
-    revenue = position.shares * current_price_eur
-    commission = calc_commission(revenue)
-    spread = calc_spread_cost(revenue)
+    from services.strategy_resolver import resolve
+    portfolio = Portfolio.query.get(position.portfolio_id)
+    params    = resolve(portfolio, position.stock) if portfolio else None
+
+    revenue    = position.shares * current_price_eur
+    commission = calc_commission(revenue, params)
+    spread     = calc_spread_cost(revenue, params)
     net_revenue = revenue - commission - spread
 
     # Realisierter Gewinn/Verlust
@@ -267,15 +262,17 @@ def update_positions(fx_rates: dict, portfolio_id: int) -> list[str]:
     Aktualisiert Preise aller offenen Positionen eines Portfolios,
     prüft Stop-Loss / Take-Profit, aktualisiert Trailing-Stop.
     """
-    actions = []
+    from services.strategy_resolver import resolve
+    actions   = []
+    portfolio = Portfolio.query.get(portfolio_id)
     positions = Position.query.filter_by(portfolio_id=portfolio_id).all()
 
     for pos in positions:
-        stock = pos.stock
+        stock    = pos.stock
         currency = stock.currency
-        fx_rate = fx_rates.get(currency, 1.0)
+        fx_rate  = fx_rates.get(currency, 1.0)
+        params   = resolve(portfolio, stock) if portfolio else {}
 
-        # Letzten Preis aus DB holen
         latest = (Price.query
                   .filter_by(stock_id=stock.id)
                   .order_by(Price.date.desc())
@@ -283,16 +280,16 @@ def update_positions(fx_rates: dict, portfolio_id: int) -> list[str]:
         if not latest:
             continue
 
-        current_price = latest.close
+        current_price     = latest.close
         current_price_eur = latest.close_eur or (current_price / fx_rate if fx_rate > 0 else current_price)
 
-        pos.current_price = current_price
+        pos.current_price     = current_price
         pos.current_price_eur = current_price_eur
 
-        # Trailing-Stop nachziehen
+        trailing_pct = params.get('trailing_stop_pct', config.TRAILING_STOP_PCT)
         if current_price > (pos.highest_price or pos.entry_price):
             pos.highest_price = current_price
-            new_trailing = current_price * (1 - config.TRAILING_STOP_PCT)
+            new_trailing = current_price * (1 - trailing_pct)
             if new_trailing > (pos.trailing_stop or 0):
                 pos.trailing_stop = new_trailing
 
@@ -323,19 +320,19 @@ def update_positions(fx_rates: dict, portfolio_id: int) -> list[str]:
 
 def _execute_cycle_for_portfolio(portfolio: Portfolio, signals: list, fx_rates: dict) -> list[str]:
     """Führt Kauf-/Verkaufsentscheidungen für ein einzelnes Portfolio aus."""
+    from services.strategy_resolver import resolve
     actions = []
+    portfolio_params = resolve(portfolio)
 
-    # SL/TP prüfen
     try:
         sl_actions = update_positions(fx_rates, portfolio.id)
         actions.extend(sl_actions)
     except Exception as e:
         log.error(f"Positions-Update Portfolio {portfolio.id}: {e}")
 
-    # Kaufentscheidungen
     buy_signals = [s for s in signals if s['action'] == 'BUY']
     for signal in buy_signals:
-        if get_open_positions_count(portfolio.id) >= config.MAX_POSITIONS:
+        if get_open_positions_count(portfolio.id) >= portfolio_params['max_positions']:
             break
         try:
             ok, msg = execute_buy(signal, fx_rates, portfolio)

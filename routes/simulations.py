@@ -23,11 +23,8 @@ simulations_bp = Blueprint('simulations', __name__, url_prefix='/api')
 @simulations_bp.route('/simulations', methods=['GET'])
 @login_required
 def get_simulations():
-    # Implements: G-02, API-27
-    if current_user.role == 'admin':
-        runs = get_all_simulations()
-    else:
-        runs = get_simulations_for_user(current_user.id)
+    # Simulations are shared analytical results — all users see all runs.
+    runs = get_all_simulations()
     return jsonify([run.to_dict() for run in runs])
 
 
@@ -111,8 +108,6 @@ def create_simulation():
 def get_simulation(run_id):
     # Implements: G-02, API-27
     run = SimulationRun.query.get_or_404(run_id)
-    if run.user_id != current_user.id and current_user.role != 'admin':
-        return jsonify({'error': 'Keine Berechtigung'}), 403
     latest_snapshot = (SimulationDailySnapshot.query
                        .filter_by(run_id=run_id)
                        .order_by(SimulationDailySnapshot.sim_date.desc())
@@ -202,8 +197,6 @@ def cancel_simulation(run_id):
 def get_simulation_equity(run_id):
     # Implements: G-02, API-27
     run = SimulationRun.query.get_or_404(run_id)
-    if run.user_id != current_user.id and current_user.role != 'admin':
-        return jsonify({'error': 'Keine Berechtigung'}), 403
     rows = (SimulationDailySnapshot.query
             .filter_by(run_id=run_id)
             .order_by(SimulationDailySnapshot.sim_date.asc())
@@ -216,8 +209,6 @@ def get_simulation_equity(run_id):
 def get_simulation_trades(run_id):
     # Implements: G-02, API-27
     run = SimulationRun.query.get_or_404(run_id)
-    if run.user_id != current_user.id and current_user.role != 'admin':
-        return jsonify({'error': 'Keine Berechtigung'}), 403
     limit = min(int(request.args.get('limit', 300)), 1000)
     rows = (SimulationTrade.query
             .filter_by(run_id=run_id)
@@ -232,8 +223,6 @@ def get_simulation_trades(run_id):
 def get_simulation_positions(run_id):
     # Implements: G-02, API-27
     run = SimulationRun.query.get_or_404(run_id)
-    if run.user_id != current_user.id and current_user.role != 'admin':
-        return jsonify({'error': 'Keine Berechtigung'}), 403
     rows = (SimulationPosition.query
             .filter_by(run_id=run_id)
             .order_by(SimulationPosition.opened_at_sim_date.desc(), SimulationPosition.id.desc())
@@ -246,8 +235,6 @@ def get_simulation_positions(run_id):
 def get_simulation_decisions(run_id):
     # Implements: G-02, API-27
     run = SimulationRun.query.get_or_404(run_id)
-    if run.user_id != current_user.id and current_user.role != 'admin':
-        return jsonify({'error': 'Keine Berechtigung'}), 403
     query = DecisionLog.query.filter_by(run_id=run_id)
     limit = min(int(request.args.get('limit', 400)), 1000)
 
@@ -273,8 +260,6 @@ def get_simulation_decisions(run_id):
 def get_simulation_metrics(run_id):
     # Implements: G-02, API-27
     run = SimulationRun.query.get_or_404(run_id)
-    if run.user_id != current_user.id and current_user.role != 'admin':
-        return jsonify({'error': 'Keine Berechtigung'}), 403
     snapshots = (SimulationDailySnapshot.query
                  .filter_by(run_id=run_id)
                  .order_by(SimulationDailySnapshot.sim_date.asc())
@@ -383,8 +368,6 @@ def get_simulation_metrics(run_id):
 def get_simulation_benchmark(run_id):
     # Implements: G-02, API-27
     run = SimulationRun.query.get_or_404(run_id)
-    if run.user_id != current_user.id and current_user.role != 'admin':
-        return jsonify({'error': 'Keine Berechtigung'}), 403
     rows = (SimulationDailySnapshot.query
             .filter_by(run_id=run_id)
             .order_by(SimulationDailySnapshot.sim_date.asc())

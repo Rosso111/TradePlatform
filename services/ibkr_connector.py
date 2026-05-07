@@ -16,6 +16,56 @@ from ib_insync import IB, Stock, MarketOrder, util
 
 log = logging.getLogger(__name__)
 
+# Suffix → (ibkr_exchange, currency) für non-US-Aktien
+_SUFFIX_MAP: dict[str, tuple[str, str]] = {
+    '.PA': ('SMART', 'EUR'),   # Euronext Paris
+    '.DE': ('SMART', 'EUR'),   # Xetra
+    '.AS': ('SMART', 'EUR'),   # Euronext Amsterdam
+    '.MI': ('SMART', 'EUR'),   # Borsa Italiana
+    '.MC': ('SMART', 'EUR'),   # Bolsa Madrid
+    '.BR': ('SMART', 'EUR'),   # Euronext Brüssel
+    '.LS': ('SMART', 'EUR'),   # Euronext Lissabon
+    '.HE': ('SMART', 'EUR'),   # Nasdaq Helsinki
+    '.ST': ('SMART', 'SEK'),   # Nasdaq Stockholm
+    '.OL': ('SMART', 'NOK'),   # Oslo Børs
+    '.CO': ('SMART', 'DKK'),   # Nasdaq Kopenhagen
+    '.SW': ('SMART', 'CHF'),   # SIX Swiss Exchange
+    '.L':  ('SMART', 'GBP'),   # London Stock Exchange
+    '.AX': ('SMART', 'AUD'),   # ASX
+    '.T':  ('SMART', 'JPY'),   # Tokyo Stock Exchange
+    '.HK': ('SMART', 'HKD'),   # Hong Kong Exchange
+    '.KS': ('KSE',   'KRW'),   # Korea Stock Exchange
+    '.KQ': ('SMART', 'KRW'),   # KOSDAQ
+    '.SS': ('SMART', 'CNY'),   # Shanghai
+    '.SZ': ('SMART', 'CNY'),   # Shenzhen
+    '.TO': ('SMART', 'CAD'),   # Toronto Stock Exchange
+    '.V':  ('SMART', 'CAD'),   # TSX Venture
+}
+
+
+def _resolve_contract(symbol: str, currency: str | None = None) -> Stock:
+    """
+    Wandelt ein DB-Symbol (z.B. 'AI.PA', 'LIN.DE', 'TNE.AX') in einen
+    IBKR-Stock-Contract um. Suffix wird als Exchange/Currency-Hinweis genutzt
+    und vor Übergabe an IBKR entfernt.
+    """
+    for suffix, (exch, ccy) in _SUFFIX_MAP.items():
+        if symbol.upper().endswith(suffix.upper()):
+            clean = symbol[: -len(suffix)]
+            return Stock(clean, exch, currency or ccy)
+    # US-Aktie oder unbekanntes Suffix → unverändert, USD
+    return Stock(symbol, 'SMART', currency or 'USD')
+
+
+class OrderPendingError(Exception):
+    """Order ist in IBKR angekommen (PreSubmitted/Submitted), aber noch nicht gefüllt."""
+    def __init__(self, symbol: str, status: str, order_id: int = 0):
+        self.symbol   = symbol
+        self.status   = status
+        self.order_id = order_id
+        super().__init__(f"{symbol}: Order ausstehend (Status: {status})")
+
+
 # Circuit-Breaker-Schwellen
 _MAX_FAILURES = 5
 _BACKOFF_SECONDS = 300   # 5 Minuten Pause nach zu vielen Fehlern
@@ -120,10 +170,13 @@ class IBKRConnector:
         qty: int,
         action: str,
         account: str = '',
+        currency: str | None = None,
     ) -> tuple[float, int]:
         """
         Platziert eine Market-Order und wartet auf Fill.
-        account: IBKR-Account-ID (z.B. 'DU123456'). Leer = Default-Account.
+        symbol:   DB-Symbol inkl. Suffix (z.B. 'AI.PA', 'LIN.DE', 'NVDA').
+        currency: Override — falls None, wird aus dem Symbol-Suffix abgeleitet.
+        account:  IBKR-Account-ID (z.B. 'DU123456'). Leer = Default-Account.
         Gibt (fill_price, fill_qty) zurück.
         """
         if not self.ensure_connected():
@@ -132,14 +185,19 @@ class IBKRConnector:
             raise ValueError(f"Ungültige Stückzahl: {qty}")
 
         future = asyncio.run_coroutine_threadsafe(
-            self._place_order_async(symbol, qty, action, account), self._loop
+            self._place_order_async(symbol, qty, action, account, currency), self._loop
         )
-        return future.result(timeout=_ORDER_TIMEOUT)
+        try:
+            return future.result(timeout=_ORDER_TIMEOUT + 5)
+        except TimeoutError:
+            # Äußerer Timeout bevor der innere Loop fertig ist → als ausstehend behandeln
+            raise OrderPendingError(symbol, 'PreSubmitted')
 
     async def _place_order_async(
-        self, symbol: str, qty: int, action: str, account: str
+        self, symbol: str, qty: int, action: str, account: str,
+        currency: str | None = None,
     ) -> tuple[float, int]:
-        contract = Stock(symbol, 'SMART', 'USD')
+        contract = _resolve_contract(symbol, currency)
         await self._ib.qualifyContractsAsync(contract)
 
         order = MarketOrder(action, qty)
@@ -158,6 +216,8 @@ class IBKRConnector:
                 return fill_price, fill_qty
 
         status = trade.orderStatus.status
+        if status in ('PreSubmitted', 'Submitted'):
+            raise OrderPendingError(symbol, status, trade.order.orderId)
         raise TimeoutError(f"{symbol} Order nicht gefüllt nach {_ORDER_TIMEOUT}s (Status: {status})")
 
     # ── Kontodaten ────────────────────────────────────────────────────────────
@@ -205,6 +265,36 @@ class IBKRConnector:
                 'qty':      pos.position,
                 'avg_cost': pos.avgCost,
                 'account':  pos.account,
+            })
+        return result
+
+    def get_portfolio_items(self, account: str = '') -> list[dict]:
+        """Portfolio-Positionen inkl. Marktkurs, Marktwert und unrealisiertem P&L."""
+        if not self.ensure_connected():
+            return []
+        future = asyncio.run_coroutine_threadsafe(
+            self._portfolio_async(account), self._loop
+        )
+        return future.result(timeout=10)
+
+    async def _portfolio_async(self, account: str) -> list[dict]:
+        await asyncio.sleep(0.5)
+        result = []
+        for item in self._ib.portfolio():
+            if account and item.account != account:
+                continue
+            avg = item.averageCost or 0
+            mkt = item.marketPrice if (item.marketPrice and item.marketPrice > 0) else None
+            pnl_pct = round((mkt - avg) / avg * 100, 2) if (avg and mkt) else None
+            result.append({
+                'symbol':         item.contract.symbol,
+                'qty':            item.position,
+                'avg_cost':       avg,
+                'market_price':   mkt,
+                'market_value':   item.marketValue if mkt else None,
+                'unrealized_pnl': item.unrealizedPNL if mkt else None,
+                'pnl_pct':        pnl_pct,
+                'account':        item.account,
             })
         return result
 

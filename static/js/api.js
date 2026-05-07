@@ -145,4 +145,15 @@ export const api = {
   getScenarioBatch: (batchId) => request(`/scenario-batches/${batchId}`),
   deleteScenarioBatch: (batchId) => request(`/scenario-batches/${batchId}`, { method: 'DELETE' }),
   runScenarioBatch: (batchId) => request(`/scenario-batches/${batchId}/run`, { method: 'POST' }),
+
+  // ── IBKR ─────────────────────────────────────────────────────────────────
+  ibkrStatus:           ()            => request('/ibkr/status'),
+  ibkrConnect:          ()            => request('/ibkr/connect', { method: 'POST' }),
+  ibkrGatewayStart:     ()            => request('/ibkr/gateway/start',  { method: 'POST' }),
+  ibkrGatewayStop:      ()            => request('/ibkr/gateway/stop',   { method: 'POST' }),
+  ibkrGatewayStatus:    ()            => request('/ibkr/gateway/status'),
+  ibkrSignals:       (portfolioId) => request(`/ibkr/signals?portfolio_id=${portfolioId}`),
+  ibkrAccount:       (portfolioId) => request(`/ibkr/account?portfolio_id=${portfolioId}`),
+  ibkrPositions:     (portfolioId) => request(`/ibkr/positions?portfolio_id=${portfolioId}`),
+  ibkrOrder:         (payload)     => request('/ibkr/order', { method: 'POST', body: JSON.stringify(payload) }),
 };
