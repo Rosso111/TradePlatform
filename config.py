@@ -85,8 +85,18 @@ IBKR_LIVE_PORT  = int(os.environ.get('IBKR_LIVE_PORT', '4001'))
 IBKR_CLIENT_ID  = int(os.environ.get('IBKR_CLIENT_ID', '1'))
 
 # Flask
-SECRET_KEY = os.environ.get('SECRET_KEY', 'dev-secret-key-change-in-production')
-DEBUG = os.environ.get('DEBUG', 'true').lower() == 'true'
+_secret_key = os.environ.get('SECRET_KEY')
+if not _secret_key:
+    if APP_ENV in ('live', 'production'):
+        raise RuntimeError(
+            "SECRET_KEY env var ist nicht gesetzt. "
+            "In Produktion muss SECRET_KEY explizit konfiguriert sein."
+        )
+    _secret_key = 'dev-secret-key-only-for-local-use'
+SECRET_KEY = _secret_key
+
+# DEBUG: Standard False; nur in dev/staging explizit aktivierbar
+DEBUG = os.environ.get('DEBUG', 'false').lower() == 'true'
 
 # Aktien-Universum: ~60 Aktien aus verschiedenen Regionen & Sektoren
 STOCK_UNIVERSE = [
