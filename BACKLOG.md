@@ -5,8 +5,32 @@ Status: `[ ]` offen · `[~]` in Arbeit · `[x]` erledigt
 
 ---
 
+## Kritische Bugs / Datenintegrität
+
+- [ ] **Atomare Trade-Ausführung** (`trading_engine.py:170`, `live_runner.py:123`) — kein `db.session.rollback()` bei Exception zwischen `add()` und `commit()`; kann zu Orphaned Trades oder falschem Kontostand führen. Fix: try/except mit explizitem rollback um den gesamten Trade-Block.
+- [ ] **Fallback-Wechselkurs `1.0` für JPY** (`data_fetcher.py:40`) — wenn yfinance fehlschlägt, wird JPY-Rate auf 1.0 gesetzt statt ~184; überschätzt JPY-Positionen um Faktor 160+. Fix: letzten bekannten Kurs aus der DB als Fallback nehmen, nicht hartcodiert.
+- [ ] **Float-Rounding akkumuliert sich in Equity** (`data_fetcher.py`, `app.py:425`) — `close_eur` wird ohne Rounding gespeichert; über viele Zyklen entstehen Drift-Fehler. Fix: `round(..., 4)` konsequent bei allen Währungsumrechnungen.
+- [ ] **Partial Fill wird ignoriert** (`live_runner.py:199`) — `fill_price_usd, _ = conn.place_market_order(...)` verwirft `fill_qty`; bei Partial Fill weicht DB-Position vom echten IBKR-Bestand ab. Fix: `fill_qty` prüfen und bei Abweichung warnen.
+- [ ] **Fehlender Kurspreis → Stop-Loss nicht geprüft** (`trading_engine.py:287`) — wenn `Price.latest` nicht existiert, wird `continue` ausgeführt; SL/TP-Check wird übersprungen. Fix: Positions ohne aktuellen Kurs als stale markieren und separat loggen.
+
+---
+
+## Sicherheit
+
+- [ ] **`SECRET_KEY` Default ist bekannt** (`config.py`) — Fallback `'dev-secret-key-change-in-production'`; bei falschem Deployment kompromittiert das alle Sessions. Fix: `raise RuntimeError` wenn `SECRET_KEY` nicht gesetzt.
+- [ ] **`DEBUG=true` als Default** (`config.py`) — exposes Stack-Traces und REPL in Produktion. Fix: Default auf `false` ändern, nur explizit in Dev aktivieren.
+- [ ] **Admin-Passwort wird in stdout/Logs gedruckt** (`app.py:215`) — kann in Container-Logs oder Bash-History landen. Fix: Passwort nicht loggen, nur Hinweis "Admin angelegt, bitte ändern".
+- [ ] **Kein CSRF-Schutz auf POST-Endpoints** (`routes/portfolios.py`, `routes/trading.py`) — alle state-ändernden Endpoints ohne CSRF-Token. Fix: `flask-wtf` CSRF-Protection oder `SameSite=Strict` Cookie-Policy.
+- [ ] **Strategy-Params ohne Schema-Validierung** (`routes/strategies.py`) — User kann beliebige Keys in JSON-Feld schreiben. Fix: Whitelist erlaubter Parameter mit Typ- und Range-Prüfung.
+
+---
+
 ## Architektur & Code-Qualität
 
+- [ ] **Duplizierte Position-Sizing-Logik** (`trading_engine.py:54`, `live_runner.py:29`) — `calc_position_size()` und `_calc_shares()` sind fast identisch; Bug muss 2× gefixt werden. Fix: gemeinsames `services/position_sizing.py` extrahieren.
+- [ ] **`_get_portfolio_snapshot()` ist God-Function** (`app.py:464`) — mischt DB-Queries, Business-Logik, WebSocket-Serialisierung und Fallback-Logik in ~45 Zeilen. Fix: aufteilen in `_calculate_portfolio_metrics()` + Serialisierungs-Wrapper.
+- [ ] **`trading_engine.py` ist zu groß** (500+ Zeilen, 5 verschiedene Concerns) — Position-Sizing, Trade-Execution, SL/TP-Checks, Equity-Update und Hauptschleife in einer Datei. Fix: schrittweise in `execution.py`, `risk_management.py`, `equity.py` aufteilen.
+- [ ] **Services nehmen `app`-Objekt als Parameter** (`trading_engine.py:417`, `live_runner.py:307`) — macht Unit-Testing ohne vollständige Flask-App unmöglich. Fix: Abhängigkeiten (session, config, fx_rates) injizierbar machen.
 - [ ] Code-Kommentare von Deutsch auf Englisch übersetzen (kein Eile, schrittweise)
 - [ ] Toter Code / ungenutzte Imports aufräumen (nach größeren Feature-Sprints)
 
@@ -15,12 +39,11 @@ Status: `[ ]` offen · `[~]` in Arbeit · `[x]` erledigt
 ## IBKR / Live-Trading
 
 - [ ] **Live-Trading mit echtem Geld aktivieren** — Portfolio mit `type='ibkr_live'` anlegen, echte IBKR Account-ID eintragen, Live Gateway auf Port 4001 einrichten. Empfehlung: zuerst im `approval`-Modus starten (System schlägt vor, User bestätigt per Telegram) bevor auf `auto` gewechselt wird. Voraussetzungen: echte IBKR Account-ID, Live Gateway als separater Systemd-Service auf Port 4001.
-
 - [ ] **Orderbuch / Order-History** — Übersicht aller platzierten IBKR-Orders mit Status (Filled, PreSubmitted, Submitted, Cancelled). Felder: Symbol, Action, Stückzahl, Fill-Preis, Zeitstempel, Account, Status. Datenquelle: entweder IBKR-API (`ib.trades()` / `ib.executions()`) live abfragen oder eigene `ibkr_orders`-Tabelle in der DB führen die bei jedem `place_market_order`-Aufruf befüllt wird. UI: eigener Tab im IBKR-Panel mit Filtermöglichkeit nach Status/Datum.
 - [ ] **Position-Reconciliation DB ↔ IBKR** — nach jedem Trade DB-Positionen mit IBKR-Positionen abgleichen; Abweichungen in `position_reconciliation_logs` protokollieren (Priority 5 aus Spec)
+- [ ] **Circuit-Breaker-Status ans Frontend melden** (`ibkr_connector.py`) — wenn der Circuit-Breaker auslöst (5 Failures → 5 Min Pause), weiß das Frontend nicht davon; IBKR-Portfolio läuft scheinbar normal. Fix: Portfolio-Status-Flag `ibkr_disconnected` setzen, UI zeigt Warnung.
 - [ ] Per-Order Error-Handling vertiefen — aktuell gibt `execute_live_buy/-sell` `(False, msg)` zurück; Retry-Logik oder Dead-Letter-Queue bei transienten Fehlern überlegen
 - [ ] IBKR-Kontostand automatisch in `Account.equity_eur` synchronisieren (statt nur aus DB-Positionen berechnen)
-- [ ] **IBKR-Connector: Currency/Exchange für non-US-Aktien** — `_place_order_async` in `ibkr_connector.py` nutzt hardcoded `'USD'`; EU-/AU-/sonstige Aktien (z.B. `AI.PA`, `LIN.DE`, `TNE.AX`) schlagen mit Error 200 fehl. Fix: `stock.currency` und `stock.region` aus DB auslesen, daraus Exchange (`SMART`) + Currency (`EUR`/`AUD`/…) ableiten. Symbol-Suffix (`.PA`, `.DE`, `.AX`) vor Übergabe an IBKR entfernen.
 
 ---
 
@@ -51,17 +74,26 @@ Status: `[ ]` offen · `[~]` in Arbeit · `[x]` erledigt
 
 ---
 
+## Performance
+
+- [ ] **N+1-Query in Watchlist-Route** (`routes/trading.py`) — 150 Aktien × 4 Queries = ~600 DB-Queries pro Request (~5–10 Sek.). Fix: einen JOIN mit Subquery für `latest_price`, `latest_signal`, `prev_price` und offene Positionen.
+- [ ] **Fehlende Indizes** (`models.py`) — `positions(portfolio_id, stock_id)`, `signals(portfolio_id, date DESC)` fehlen. Fix: in `_init_performance_indexes()` ergänzen.
+- [ ] **`EquityHistory`-Query ohne Limit** (`trading_engine.py:395`) — scannt potenziell alle Einträge für `yesterday`. Fix: `.limit(1)` ergänzen.
+
+---
+
 ## Testing & Qualitätssicherung
 
 - [ ] Integrationstests für IBKR-Connector (gegen Paper-Gateway mit Mock-Daten)
 - [ ] E2E-Test für den kompletten Handelszyklus (sim + live_runner)
 - [ ] CI-Pipeline einrichten (GitHub Actions: Tests + Lint bei jedem Push)
+- [ ] **Mock-Points für externe APIs** (`data_fetcher.py`, `ibkr_connector.py`) — `fetch_exchange_rates()` und `place_market_order()` rufen direkt yfinance/IBKR auf; kein Interface für Mocking. Fix: `DataFetcherInterface` + `MockDataFetcher` als Test-Double.
 
 ---
 
 ## Infrastruktur & Deployment
 
-- [ ] Branch `feature/multi-user-portfolios` nach GitHub pushen
+- [x] Branch `feature/multi-user-portfolios` nach GitHub pushen
 - [ ] Docker-Compose-Setup für einfaches lokales Deployment
 - [ ] Produktions-Deployment-Anleitung (Postgres, Gunicorn, Nginx, SSL)
 - [ ] Alembic-Migrations-Workflow dokumentieren
