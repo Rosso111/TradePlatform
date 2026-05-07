@@ -43,6 +43,14 @@ _SUFFIX_MAP: dict[str, tuple[str, str]] = {
 }
 
 
+def clean_symbol(symbol: str) -> str:
+    """Gibt das IBKR-Symbol ohne Börsen-Suffix zurück (z.B. 'BAS.DE' → 'BAS')."""
+    for suffix in _SUFFIX_MAP:
+        if symbol.upper().endswith(suffix.upper()):
+            return symbol[: -len(suffix)]
+    return symbol
+
+
 def _resolve_contract(symbol: str, currency: str | None = None) -> Stock:
     """
     Wandelt ein DB-Symbol (z.B. 'AI.PA', 'LIN.DE', 'TNE.AX') in einen
@@ -211,7 +219,7 @@ class IBKRConnector:
             if trade.orderStatus.status == 'Filled':
                 fill_price = trade.orderStatus.avgFillPrice
                 fill_qty   = int(trade.orderStatus.filled)
-                log.info("IBKR %s %dx %s @ $%.2f — Filled (account=%s)",
+                log.info("IBKR %s %dx %s @ %.4f — Filled (account=%s)",
                          action, qty, symbol, fill_price, account or 'default')
                 return fill_price, fill_qty
 

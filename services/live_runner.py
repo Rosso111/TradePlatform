@@ -8,7 +8,7 @@ from datetime import date
 from models import db, Account, Position, Trade, Stock, Price, EquityHistory, Portfolio
 import config
 import config as _config
-from services.ibkr_connector import IBKRConnectionPool, OrderPendingError
+from services.ibkr_connector import IBKRConnectionPool, OrderPendingError, clean_symbol
 
 
 def _get_connector(portfolio):
@@ -223,7 +223,7 @@ def execute_live_sell(position: Position, fx_rates: dict, reason: str) -> tuple[
         total_eur=net_revenue,
         pnl_eur=pnl_eur,
         pnl_pct=pnl_pct,
-        reason=f"IBKR Fill @ ${fill_price_usd:.2f} — {reason}",
+        reason=f"IBKR Fill @ {fill_price_usd:.4f} — {reason}",
     )
     db.session.add(trade)
 
@@ -237,7 +237,7 @@ def execute_live_sell(position: Position, fx_rates: dict, reason: str) -> tuple[
     db.session.delete(position)
     db.session.commit()
 
-    msg = (f"IBKR VERKAUF {symbol}: {qty} Stück @ ${fill_price_usd:.2f}, "
+    msg = (f"IBKR VERKAUF {symbol}: {qty} Stück @ {fill_price_usd:.4f} {currency}, "
            f"P&L: {pnl_eur:+.2f} EUR ({pnl_pct:+.1f}%), Grund: {reason}")
     log.info(msg)
     try:
@@ -264,6 +264,7 @@ def reconcile_pending_positions(portfolio: Portfolio, fx_rates: dict) -> list[st
 
     try:
         conn = _get_connector(portfolio)
+        # IBKR gibt saubere Symbole ohne Suffix zurück (z.B. 'BAS' statt 'BAS.DE')
         ibkr_positions = {p['symbol']: p for p in conn.get_positions(portfolio.ibkr_account_id or '')}
     except Exception as e:
         log.warning(f"Reconciliation: IBKR-Positionen nicht abrufbar — {e}")
@@ -271,7 +272,7 @@ def reconcile_pending_positions(portfolio: Portfolio, fx_rates: dict) -> list[st
 
     for pos in pending_positions:
         symbol = pos.stock.symbol
-        ibkr_pos = ibkr_positions.get(symbol)
+        ibkr_pos = ibkr_positions.get(clean_symbol(symbol))
         if not ibkr_pos:
             log.info(f"Reconciliation {symbol}: noch keine IBKR-Position — Order evtl. noch offen")
             continue
