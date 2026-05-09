@@ -69,8 +69,10 @@ def calc_position_size(account: Account, signal: dict, params: dict | None = Non
     else:
         size_by_risk = equity * risk_pct / sl_pct
 
-    score_factor = (signal['score'] - 65) / 35
-    size_adjusted = size_by_risk * (1 + score_factor * 0.5)
+    buy_thresh = p.get('buy_threshold', config.SIGNAL_THRESHOLD_BUY)
+    score_range = max(1, 100 - buy_thresh)
+    score_factor = max(0.0, (signal['score'] - buy_thresh)) / score_range
+    size_adjusted = size_by_risk * (0.5 + score_factor * 1.5)  # 0.5x at threshold → 2.0x at score=100
 
     max_eur  = p.get('max_position_eur', config.MAX_POSITION_EUR)
     max_size = min(equity * max_pct, max_eur)
