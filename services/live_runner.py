@@ -24,6 +24,27 @@ from services.trading_engine import (
 log = logging.getLogger(__name__)
 
 
+def _is_market_bullish(benchmark_symbol: str = 'SPY', period: int = 200) -> bool | None:
+    """Prüft ob der Markt bullish ist (Benchmark > SMA{period}). None = kein Urteil möglich."""
+    try:
+        stock = Stock.query.filter_by(symbol=benchmark_symbol, active=True).first()
+        if not stock:
+            return None
+        prices = (Price.query
+                  .filter_by(stock_id=stock.id)
+                  .order_by(Price.date.desc())
+                  .limit(period)
+                  .all())
+        if len(prices) < period:
+            return None
+        closes = [p.close_eur or p.close for p in prices]
+        sma = sum(closes) / period
+        return closes[0] >= sma
+    except Exception as e:
+        log.warning("Bear-Market-Check fehlgeschlagen: %s", e)
+        return None
+
+
 # ── Kauf via IBKR ─────────────────────────────────────────────────────────────
 
 def _calc_shares(signal: dict, account: Account, params: dict | None = None) -> int:
@@ -45,8 +66,10 @@ def _calc_shares(signal: dict, account: Account, params: dict | None = None) -> 
     else:
         size_by_risk = equity * risk_pct / sl_pct
 
-    score_factor  = (signal['score'] - 65) / 35
-    size_adjusted = size_by_risk * (1 + score_factor * 0.5)
+    buy_thresh = p.get('buy_threshold', config.SIGNAL_THRESHOLD_BUY)
+    score_range = max(1, 100 - buy_thresh)
+    score_factor = max(0.0, (signal['score'] - buy_thresh)) / score_range
+    size_adjusted = size_by_risk * (0.5 + score_factor * 1.5)  # 0.5x at threshold → 2.0x at score=100
 
     max_eur      = p.get('max_position_eur', config.MAX_POSITION_EUR)
     position_eur = min(max(size_adjusted, equity * min_pct), min(equity * max_pct, max_eur))
@@ -476,6 +499,20 @@ def run_live_trading_cycle(app, portfolio_id: int | None = None) -> list[str]:
         for portfolio in portfolios:
             from services.strategy_resolver import resolve as _resolve
             port_params = _resolve(portfolio)
+
+            # Bear-Market-Filter: strengere Schwellen wenn SPY < SMA200
+            benchmark = port_params.get('regime_filter_symbol', 'SPY')
+            regime_period = int(port_params.get('regime_filter_period', 200))
+            market_bullish = _is_market_bullish(benchmark, regime_period)
+            if market_bullish is False:
+                bear_buy_thresh = port_params.get('bear_market_buy_threshold', 65)
+                bear_max_pos = port_params.get('bear_market_max_positions', 20)
+                log.warning("Bear-Market erkannt (%s < SMA%d): buy_threshold=%s, max_positions=%s",
+                            benchmark, regime_period, bear_buy_thresh, bear_max_pos)
+                port_params = dict(port_params)
+                port_params['buy_threshold'] = bear_buy_thresh
+                port_params['max_positions'] = bear_max_pos
+
             portfolio_signals = generate_signals(app, portfolio=portfolio)
             buy_signals = sorted(
                 [s for s in portfolio_signals if s['score'] >= port_params['buy_threshold']],
