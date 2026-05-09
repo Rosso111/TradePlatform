@@ -407,15 +407,27 @@ def _default_params() -> dict:
 
 # ─── Signal-Generierung für alle Aktien ──────────────────────────────────────
 
-def generate_signals_for_date(app, as_of_date) -> list[dict]:
+def generate_signals_for_date(app, as_of_date, portfolio=None) -> list[dict]:
     """
     Berechnet Signale fuer alle aktiven Aktien mit Daten bis einschliesslich as_of_date.
     Speichert nur dann in die Signal-Tabelle, wenn as_of_date = heute ist.
+    Wenn portfolio übergeben wird, werden portfolio-spezifische Thresholds und portfolio_id verwendet.
     """
     from models import db, Stock, Price, Signal, AlgoParams
 
     sector_scores = compute_sector_scores(app)
     signals = []
+
+    # Portfolio-spezifische Thresholds und ID
+    buy_threshold = 65
+    sell_threshold = 35
+    portfolio_id = None
+    if portfolio is not None:
+        from services.strategy_resolver import resolve as _resolve_params
+        p_params = _resolve_params(portfolio)
+        buy_threshold = p_params.get('buy_threshold', 65)
+        sell_threshold = p_params.get('sell_threshold', 35)
+        portfolio_id = portfolio.id
 
     with app.app_context():
         stocks = Stock.query.filter_by(active=True).all()
@@ -461,18 +473,20 @@ def generate_signals_for_date(app, as_of_date) -> list[dict]:
                 technical_score = compute_score(last_row, params, 50.0, sector_score)
                 score = compute_score(last_row, params, analyst_score, sector_score)
 
-                if score >= 65:
+                if score >= buy_threshold:
                     action = 'BUY'
-                elif score <= 35:
+                elif score <= sell_threshold:
                     action = 'SELL'
                 else:
                     action = 'HOLD'
 
                 if as_of_date == date.today():
                     existing = Signal.query.filter_by(
-                        stock_id=stock.id, date=as_of_date
+                        stock_id=stock.id, date=as_of_date, portfolio_id=portfolio_id
                     ).first()
-                    sig_obj = existing or Signal(stock_id=stock.id, date=as_of_date)
+                    sig_obj = existing or Signal(
+                        stock_id=stock.id, date=as_of_date, portfolio_id=portfolio_id
+                    )
                     sig_obj.score = score
                     sig_obj.action = action
                     sig_obj.rsi = float(last_row['rsi']) if not np.isnan(last_row['rsi']) else None
@@ -541,12 +555,12 @@ def generate_signals_for_date(app, as_of_date) -> list[dict]:
     return signals
 
 
-def generate_signals(app) -> list[dict]:
+def generate_signals(app, portfolio=None) -> list[dict]:
     """
     Berechnet für alle aktiven Aktien den aktuellen Signal-Score.
     Gibt sortierte Liste nach Score zurück.
     """
-    return generate_signals_for_date(app, date.today())
+    return generate_signals_for_date(app, date.today(), portfolio=portfolio)
 
 
 def run_optimization_for_all(app):

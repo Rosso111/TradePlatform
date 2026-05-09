@@ -473,13 +473,19 @@ def run_live_trading_cycle(app, portfolio_id: int | None = None) -> list[str]:
                 Portfolio.type.in_(_ibkr_types),
             ).all()
 
-        buy_signals = sorted(
-            [s for s in signals if s['action'] == 'BUY'],
-            key=lambda s: s['score'], reverse=True,
-        )
-        sell_signals = {s['stock_id']: s for s in signals if s['action'] == 'SELL'}
-
         for portfolio in portfolios:
+            from services.strategy_resolver import resolve as _resolve
+            port_params = _resolve(portfolio)
+            portfolio_signals = generate_signals(app, portfolio=portfolio)
+            buy_signals = sorted(
+                [s for s in portfolio_signals if s['score'] >= port_params['buy_threshold']],
+                key=lambda s: s['score'], reverse=True,
+            )
+            sell_signals = {
+                s['stock_id']: s
+                for s in portfolio_signals if s['score'] <= port_params['sell_threshold']
+            }
+
             # Kontostand von IBKR holen und in DB synchronisieren
             try:
                 conn = _get_connector(portfolio)
@@ -511,7 +517,7 @@ def run_live_trading_cycle(app, portfolio_id: int | None = None) -> list[str]:
                 if signal['stock_id'] in sold_stock_ids:
                     log.info(f"{signal['symbol']}: Kauf übersprungen — im selben Zyklus per SL/TP verkauft")
                     continue
-                if get_open_positions_count(portfolio.id) >= config.MAX_POSITIONS:
+                if get_open_positions_count(portfolio.id) >= port_params['max_positions']:
                     break
                 try:
                     ok, msg = execute_live_buy(signal, fx_rates, portfolio)
