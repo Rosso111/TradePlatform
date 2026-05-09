@@ -7,8 +7,8 @@ Status: `[ ]` offen · `[~]` in Arbeit · `[x]` erledigt
 
 ## Kritische Bugs / Datenintegrität
 
-- [ ] **Atomare Trade-Ausführung** (`trading_engine.py:170`, `live_runner.py:123`) — kein `db.session.rollback()` bei Exception zwischen `add()` und `commit()`; kann zu Orphaned Trades oder falschem Kontostand führen. Fix: try/except mit explizitem rollback um den gesamten Trade-Block.
-- [ ] **Fallback-Wechselkurs `1.0` für JPY** (`data_fetcher.py:40`) — wenn yfinance fehlschlägt, wird JPY-Rate auf 1.0 gesetzt statt ~184; überschätzt JPY-Positionen um Faktor 160+. Fix: letzten bekannten Kurs aus der DB als Fallback nehmen, nicht hartcodiert.
+- [x] **Atomare Trade-Ausführung** (`trading_engine.py`, `live_runner.py`) — try/except mit explizitem rollback um den gesamten Trade-Block. (PR #8)
+- [x] **Fallback-Wechselkurs für alle Währungen** (`data_fetcher.py`) — bei yfinance-Ausfall: DB-Fallback (letzter bekannter Kurs aus `exchange_rates`-Tabelle), dann hardcodierter Näherungswert. Fehlende Währungen SEK/NOK/DKK/CAD/CNY ergänzt. `to_eur()` loggt Warnung statt silent 1.0. (PR #11)
 - [ ] **Float-Rounding akkumuliert sich in Equity** (`data_fetcher.py`, `app.py:425`) — `close_eur` wird ohne Rounding gespeichert; über viele Zyklen entstehen Drift-Fehler. Fix: `round(..., 4)` konsequent bei allen Währungsumrechnungen.
 - [ ] **Partial Fill wird ignoriert** (`live_runner.py:199`) — `fill_price_usd, _ = conn.place_market_order(...)` verwirft `fill_qty`; bei Partial Fill weicht DB-Position vom echten IBKR-Bestand ab. Fix: `fill_qty` prüfen und bei Abweichung warnen.
 - [ ] **Fehlender Kurspreis → Stop-Loss nicht geprüft** (`trading_engine.py:287`) — wenn `Price.latest` nicht existiert, wird `continue` ausgeführt; SL/TP-Check wird übersprungen. Fix: Positions ohne aktuellen Kurs als stale markieren und separat loggen.
@@ -17,8 +17,8 @@ Status: `[ ]` offen · `[~]` in Arbeit · `[x]` erledigt
 
 ## Sicherheit
 
-- [ ] **`SECRET_KEY` Default ist bekannt** (`config.py`) — Fallback `'dev-secret-key-change-in-production'`; bei falschem Deployment kompromittiert das alle Sessions. Fix: `raise RuntimeError` wenn `SECRET_KEY` nicht gesetzt.
-- [ ] **`DEBUG=true` als Default** (`config.py`) — exposes Stack-Traces und REPL in Produktion. Fix: Default auf `false` ändern, nur explizit in Dev aktivieren.
+- [x] **`SECRET_KEY` Default ist bekannt** (`config.py`) — raises RuntimeError wenn nicht gesetzt in Produktion. (PR #9)
+- [x] **`DEBUG=true` als Default** (`config.py`) — Default auf `false` geändert. (PR #9)
 - [ ] **Admin-Passwort wird in stdout/Logs gedruckt** (`app.py:215`) — kann in Container-Logs oder Bash-History landen. Fix: Passwort nicht loggen, nur Hinweis "Admin angelegt, bitte ändern".
 - [ ] **Kein CSRF-Schutz auf POST-Endpoints** (`routes/portfolios.py`, `routes/trading.py`) — alle state-ändernden Endpoints ohne CSRF-Token. Fix: `flask-wtf` CSRF-Protection oder `SameSite=Strict` Cookie-Policy.
 - [ ] **Strategy-Params ohne Schema-Validierung** (`routes/strategies.py`) — User kann beliebige Keys in JSON-Feld schreiben. Fix: Whitelist erlaubter Parameter mit Typ- und Range-Prüfung.
@@ -94,6 +94,9 @@ Status: `[ ]` offen · `[~]` in Arbeit · `[x]` erledigt
 ## Infrastruktur & Deployment
 
 - [x] Branch `feature/multi-user-portfolios` nach GitHub pushen
+- [x] **Position-Sizing Hard-Cap** (`config.py`, `trading_engine.py`, `live_runner.py`) — `MAX_POSITION_EUR = 20.000 EUR` verhindert Übergewichtung bei großen Konten (IBKR Paper 760k EUR → war 200k EUR/Trade). (PR #10)
+- [x] **Wochenend-Fix** (`app.py`) — `trading_job` und `proposal_generate_job` werden Sa/So übersprungen. (PR #10)
+- [x] **Automatische Berichte** (`services/report_generator.py`) — täglich/wöchentlich/monatlich/quartalsweise/jährlich als Markdown + Telegram. (PR #10)
 - [ ] Docker-Compose-Setup für einfaches lokales Deployment
 - [ ] Produktions-Deployment-Anleitung (Postgres, Gunicorn, Nginx, SSL)
 - [ ] Alembic-Migrations-Workflow dokumentieren
