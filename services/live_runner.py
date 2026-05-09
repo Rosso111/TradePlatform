@@ -79,7 +79,7 @@ def _calc_shares(signal: dict, account: Account, params: dict | None = None) -> 
     return max(shares, 0)
 
 
-def execute_live_buy(signal: dict, fx_rates: dict, portfolio: Portfolio) -> tuple[bool, str]:
+def execute_live_buy(signal: dict, fx_rates: dict, portfolio: Portfolio, notify: bool = True) -> tuple[bool, str]:
     """Kauft via IBKR und trägt die Position in die DB ein."""
     from services.strategy_resolver import resolve
     from models import Stock as _Stock
@@ -199,11 +199,12 @@ def execute_live_buy(signal: dict, fx_rates: dict, portfolio: Portfolio) -> tupl
     msg = (f"IBKR {status_label} {symbol}: {fill_qty} Stück @ {fill_price_usd:.2f} "
            f"(= {fill_price_eur:.4f} EUR), Kosten: {total_cost:.2f} EUR")
     log.info(msg)
-    try:
-        from services.telegram_notifier import notify_trade
-        notify_trade('BUY', symbol, fill_qty, fill_price_eur, portfolio_name=portfolio.name)
-    except Exception:
-        pass
+    if notify:
+        try:
+            from services.telegram_notifier import notify_trade
+            notify_trade('BUY', symbol, fill_qty, fill_price_eur, portfolio_name=portfolio.name)
+        except Exception:
+            pass
     return True, msg
 
 
@@ -550,6 +551,7 @@ def run_live_trading_cycle(app, portfolio_id: int | None = None) -> list[str]:
             except Exception as e:
                 log.error(f"Positions-Update Portfolio {portfolio.id}: {e}")
 
+            batch_buys = []  # (symbol, qty, price_eur, total_eur) für Sammel-Nachricht
             for signal in buy_signals:
                 if signal['stock_id'] in sold_stock_ids:
                     log.info(f"{signal['symbol']}: Kauf übersprungen — im selben Zyklus per SL/TP verkauft")
@@ -557,11 +559,32 @@ def run_live_trading_cycle(app, portfolio_id: int | None = None) -> list[str]:
                 if get_open_positions_count(portfolio.id) >= port_params['max_positions']:
                     break
                 try:
-                    ok, msg = execute_live_buy(signal, fx_rates, portfolio)
+                    ok, msg = execute_live_buy(signal, fx_rates, portfolio, notify=False)
                     if ok:
                         all_actions.append(msg)
+                        # Daten für Sammel-Nachricht extrahieren
+                        parts = msg.split()
+                        try:
+                            sym = signal['symbol']
+                            qty_idx = parts.index('Stück') - 1
+                            qty = int(parts[qty_idx])
+                            price_eur = signal['current_price_eur']
+                            total_eur = qty * price_eur
+                            batch_buys.append((sym, qty, price_eur, total_eur))
+                        except Exception:
+                            batch_buys.append((signal['symbol'], 0, 0, 0))
                 except Exception as e:
                     log.error(f"Live-Kauf {signal['symbol']} Portfolio {portfolio.id}: {e}")
+
+            if batch_buys:
+                try:
+                    from services.telegram_notifier import notify_buy_batch
+                    from models import Account as _Acc
+                    acc = _Acc.query.filter_by(portfolio_id=portfolio.id).first()
+                    cash = acc.cash_eur if acc else 0
+                    notify_buy_batch(batch_buys, cash, portfolio_name=portfolio.name)
+                except Exception as e:
+                    log.warning(f"Sammel-Benachrichtigung fehlgeschlagen: {e}")
 
             for pos in Position.query.filter_by(portfolio_id=portfolio.id).all():
                 if pos.stock_id in sell_signals:

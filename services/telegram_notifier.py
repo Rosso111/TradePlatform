@@ -439,6 +439,23 @@ def notify_trade(action: str, symbol: str, qty: int, price_eur: float,
     send_message(msg)
 
 
+def notify_buy_batch(buys: list, account_cash_eur: float, portfolio_name: str = ''):
+    """
+    Sammel-Benachrichtigung für mehrere Käufe in einem Zyklus.
+    buys = list of (symbol, qty, price_eur, total_eur)
+    """
+    if not buys:
+        return
+    port_str = f' [{portfolio_name}]' if portfolio_name else ''
+    total_invested = sum(b[3] for b in buys)
+    lines = [f'🟢 <b>{len(buys)} Käufe{port_str}</b> | Investiert: €{total_invested:,.0f} | Cash noch: €{account_cash_eur:,.0f}']
+    for symbol, qty, price_eur, total_eur in buys[:15]:
+        lines.append(f'• {symbol}: {qty} Stk @ €{price_eur:.2f} (€{total_eur:,.0f})')
+    if len(buys) > 15:
+        lines.append(f'… und {len(buys) - 15} weitere Käufe')
+    send_message('\n'.join(lines))
+
+
 def notify_live_cycle(actions: list, portfolio_names: list):
     """Zusammenfassung eines abgeschlossenen Live-Zyklus (nur bei Aktionen)."""
     if not actions:
