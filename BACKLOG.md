@@ -19,7 +19,7 @@ Status: `[ ]` offen · `[~]` in Arbeit · `[x]` erledigt
 
 - [x] **`SECRET_KEY` Default ist bekannt** (`config.py`) — raises RuntimeError wenn nicht gesetzt in Produktion. (PR #9)
 - [x] **`DEBUG=true` als Default** (`config.py`) — Default auf `false` geändert. (PR #9)
-- [ ] **Admin-Passwort wird in stdout/Logs gedruckt** (`app.py:215`) — kann in Container-Logs oder Bash-History landen. Fix: Passwort nicht loggen, nur Hinweis "Admin angelegt, bitte ändern".
+- [x] **Admin-Passwort wird in stdout/Logs gedruckt** (`app.py`) — `print()` mit Passwort entfernt; nur generischer Hinweis im Log. (PR #13)
 - [ ] **Kein CSRF-Schutz auf POST-Endpoints** (`routes/portfolios.py`, `routes/trading.py`) — alle state-ändernden Endpoints ohne CSRF-Token. Fix: `flask-wtf` CSRF-Protection oder `SameSite=Strict` Cookie-Policy.
 - [ ] **Strategy-Params ohne Schema-Validierung** (`routes/strategies.py`) — User kann beliebige Keys in JSON-Feld schreiben. Fix: Whitelist erlaubter Parameter mit Typ- und Range-Prüfung.
 
