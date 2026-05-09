@@ -3,6 +3,7 @@ Flask Application Factory
 Initialisiert App, Datenbank, WebSocket und den autonomen Scheduler.
 """
 import logging
+import logging.handlers
 import os
 from datetime import datetime, timezone
 
@@ -23,10 +24,22 @@ from sqlalchemy.exc import SQLAlchemyError
 import config
 from models import db, Account
 
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s [%(levelname)s] %(name)s: %(message)s'
+_LOG_FORMAT = '%(asctime)s [%(levelname)s] %(name)s: %(message)s'
+logging.basicConfig(level=logging.INFO, format=_LOG_FORMAT)
+
+_log_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'logs')
+os.makedirs(_log_dir, exist_ok=True)
+_file_handler = logging.handlers.TimedRotatingFileHandler(
+    filename=os.path.join(_log_dir, 'tradeplatform.log'),
+    when='midnight',
+    interval=1,
+    backupCount=30,
+    encoding='utf-8',
 )
+_file_handler.setFormatter(logging.Formatter(_LOG_FORMAT))
+_file_handler.setLevel(logging.INFO)
+logging.getLogger().addHandler(_file_handler)
+
 log = logging.getLogger(__name__)
 
 socketio = SocketIO()
