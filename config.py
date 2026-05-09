@@ -51,6 +51,7 @@ MAX_POSITIONS_PER_SECTOR = 3        # Max Positionen pro Sektor
 RISK_PER_TRADE = 0.02               # 2% Kapital-Risiko pro Trade
 MAX_POSITION_SIZE = 0.20            # Max 20% des Portfolios pro Position
 MIN_POSITION_SIZE = 0.03            # Min 3% des Portfolios pro Position
+MAX_POSITION_EUR  = 20_000.0        # Absolutes Hard-Cap pro Trade in EUR (verhindert Übergewichtung bei großen Konten)
 
 # Handelskosten
 COMMISSION_RATE = 0.001             # 0.1% Provision pro Trade

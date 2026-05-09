@@ -72,7 +72,8 @@ def calc_position_size(account: Account, signal: dict, params: dict | None = Non
     score_factor = (signal['score'] - 65) / 35
     size_adjusted = size_by_risk * (1 + score_factor * 0.5)
 
-    max_size = equity * max_pct
+    max_eur  = p.get('max_position_eur', config.MAX_POSITION_EUR)
+    max_size = min(equity * max_pct, max_eur)
     min_size = equity * min_pct
     size = min(max(size_adjusted, min_size), max_size)
     return min(size, account.cash_eur * 0.98)

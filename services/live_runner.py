@@ -48,7 +48,8 @@ def _calc_shares(signal: dict, account: Account, params: dict | None = None) -> 
     score_factor  = (signal['score'] - 65) / 35
     size_adjusted = size_by_risk * (1 + score_factor * 0.5)
 
-    position_eur = min(max(size_adjusted, equity * min_pct), equity * max_pct)
+    max_eur      = p.get('max_position_eur', config.MAX_POSITION_EUR)
+    position_eur = min(max(size_adjusted, equity * min_pct), min(equity * max_pct, max_eur))
     position_eur = min(position_eur, account.cash_eur * 0.98)
 
     shares = int(position_eur / entry_eur)

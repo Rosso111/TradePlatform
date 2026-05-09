@@ -246,6 +246,10 @@ def _setup_scheduler(app):
     """Richtet den autonomen Handelstakt ein."""
 
     def trading_job():
+        from datetime import date
+        if date.today().isoweekday() >= 6:  # 6=Samstag, 7=Sonntag
+            return
+
         all_actions = []
 
         # Sim-Portfolios — immer aktiv
@@ -295,6 +299,11 @@ def _setup_scheduler(app):
 
     # Implements: PR-03 — Tagesvorschläge + Signal-Notification um 8:00 Uhr MEZ
     def proposal_generate_job():
+        from datetime import date
+        if date.today().isoweekday() >= 6:  # 6=Samstag, 7=Sonntag
+            log.info("Proposal-Job: Wochenende — übersprungen.")
+            return
+
         from services.proposal_generator import generate_daily_proposals
         try:
             count = generate_daily_proposals(app)
@@ -331,6 +340,100 @@ def _setup_scheduler(app):
         proposal_expire_job,
         trigger=CronTrigger(hour=22, minute=0, timezone='Europe/Vienna'),
         id='proposal_expire',
+        replace_existing=True,
+    )
+
+    # Tagesbericht Mo–Fr um 22:15 Uhr (nach Proposal-Expiry)
+    def report_daily_job():
+        from services.report_generator import generate_daily_report
+        from services.telegram_notifier import send_message
+        try:
+            filepath, tg = generate_daily_report(app)
+            send_message(tg)
+            log.info("Tagesbericht erstellt: %s", filepath)
+        except Exception as e:
+            log.error("Tagesbericht fehlgeschlagen: %s", e)
+
+    scheduler.add_job(
+        report_daily_job,
+        trigger=CronTrigger(day_of_week='mon-fri', hour=22, minute=15, timezone='Europe/Vienna'),
+        id='report_daily',
+        replace_existing=True,
+    )
+
+    # Wochenbericht jeden Samstag um 09:00 Uhr
+    def report_weekly_job():
+        from services.report_generator import generate_weekly_report
+        from services.telegram_notifier import send_message
+        try:
+            filepath, tg = generate_weekly_report(app)
+            send_message(tg)
+            log.info("Wochenbericht erstellt: %s", filepath)
+        except Exception as e:
+            log.error("Wochenbericht fehlgeschlagen: %s", e)
+
+    scheduler.add_job(
+        report_weekly_job,
+        trigger=CronTrigger(day_of_week='sat', hour=9, minute=0, timezone='Europe/Vienna'),
+        id='report_weekly',
+        replace_existing=True,
+    )
+
+    # Monatsbericht am 1. jeden Monats um 09:00 Uhr (deckt Vormonat ab)
+    def report_monthly_job():
+        from datetime import date, timedelta
+        from services.report_generator import generate_monthly_report
+        from services.telegram_notifier import send_message
+        last_month = date.today().replace(day=1) - timedelta(days=1)
+        try:
+            filepath, tg = generate_monthly_report(app, last_month)
+            send_message(tg)
+            log.info("Monatsbericht erstellt: %s", filepath)
+        except Exception as e:
+            log.error("Monatsbericht fehlgeschlagen: %s", e)
+
+    scheduler.add_job(
+        report_monthly_job,
+        trigger=CronTrigger(day=1, hour=9, minute=15, timezone='Europe/Vienna'),
+        id='report_monthly',
+        replace_existing=True,
+    )
+
+    # Quartalsbericht am 1. April / Juli / Oktober / Jänner um 09:30 Uhr
+    def report_quarterly_job():
+        from datetime import date, timedelta
+        from services.report_generator import generate_quarterly_report
+        from services.telegram_notifier import send_message
+        last_quarter_day = date.today().replace(day=1) - timedelta(days=1)
+        try:
+            filepath, tg = generate_quarterly_report(app, last_quarter_day)
+            send_message(tg)
+            log.info("Quartalsbericht erstellt: %s", filepath)
+        except Exception as e:
+            log.error("Quartalsbericht fehlgeschlagen: %s", e)
+
+    scheduler.add_job(
+        report_quarterly_job,
+        trigger=CronTrigger(month='1,4,7,10', day=1, hour=9, minute=30, timezone='Europe/Vienna'),
+        id='report_quarterly',
+        replace_existing=True,
+    )
+
+    # Jahresbericht am 1. Jänner um 10:00 Uhr (deckt Vorjahr ab)
+    def report_yearly_job():
+        from services.report_generator import generate_yearly_report
+        from services.telegram_notifier import send_message
+        try:
+            filepath, tg = generate_yearly_report(app)
+            send_message(tg)
+            log.info("Jahresbericht erstellt: %s", filepath)
+        except Exception as e:
+            log.error("Jahresbericht fehlgeschlagen: %s", e)
+
+    scheduler.add_job(
+        report_yearly_job,
+        trigger=CronTrigger(month=1, day=1, hour=10, minute=0, timezone='Europe/Vienna'),
+        id='report_yearly',
         replace_existing=True,
     )
 
