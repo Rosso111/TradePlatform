@@ -151,6 +151,12 @@ def _init_performance_indexes(app):
         'CREATE INDEX IF NOT EXISTS idx_simulation_trades_decision_log_id ON simulation_trades (decision_log_id)',
         'CREATE INDEX IF NOT EXISTS idx_simulation_positions_run_stock ON simulation_positions (run_id, stock_id)',
         'CREATE INDEX IF NOT EXISTS idx_simulation_daily_snapshots_run_date_desc ON simulation_daily_snapshots (run_id, sim_date DESC)',
+        # Live-Trading Indizes
+        'CREATE INDEX IF NOT EXISTS idx_positions_portfolio_stock ON positions (portfolio_id, stock_id)',
+        'CREATE INDEX IF NOT EXISTS idx_signals_portfolio_date_desc ON signals (portfolio_id, date DESC)',
+        'CREATE INDEX IF NOT EXISTS idx_signals_stock_date_desc ON signals (stock_id, date DESC)',
+        'CREATE INDEX IF NOT EXISTS idx_trades_portfolio_date ON trades (portfolio_id, created_at DESC)',
+        'CREATE INDEX IF NOT EXISTS idx_equity_history_portfolio_date ON equity_history (portfolio_id, date DESC)',
     ]
 
     try:
