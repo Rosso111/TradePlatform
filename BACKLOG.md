@@ -10,7 +10,7 @@ Status: `[ ]` offen · `[~]` in Arbeit · `[x]` erledigt
 - [x] **Atomare Trade-Ausführung** (`trading_engine.py`, `live_runner.py`) — try/except mit explizitem rollback um den gesamten Trade-Block. (PR #8)
 - [x] **Fallback-Wechselkurs für alle Währungen** (`data_fetcher.py`) — bei yfinance-Ausfall: DB-Fallback (letzter bekannter Kurs aus `exchange_rates`-Tabelle), dann hardcodierter Näherungswert. Fehlende Währungen SEK/NOK/DKK/CAD/CNY ergänzt. `to_eur()` loggt Warnung statt silent 1.0. (PR #11)
 - [ ] **Float-Rounding akkumuliert sich in Equity** (`data_fetcher.py`, `app.py:425`) — `close_eur` wird ohne Rounding gespeichert; über viele Zyklen entstehen Drift-Fehler. Fix: `round(..., 4)` konsequent bei allen Währungsumrechnungen.
-- [ ] **Partial Fill wird ignoriert** (`live_runner.py:199`) — `fill_price_usd, _ = conn.place_market_order(...)` verwirft `fill_qty`; bei Partial Fill weicht DB-Position vom echten IBKR-Bestand ab. Fix: `fill_qty` prüfen und bei Abweichung warnen.
+- [x] **Partial Fill wird ignoriert** (`live_runner.py`) — `fill_qty` wird jetzt erfasst; bei Partial Fill bleibt Restposition offen, Trade wird mit tatsächlicher Stückzahl gebucht, Telegram-Warnung. (PR #12)
 - [ ] **Fehlender Kurspreis → Stop-Loss nicht geprüft** (`trading_engine.py:287`) — wenn `Price.latest` nicht existiert, wird `continue` ausgeführt; SL/TP-Check wird übersprungen. Fix: Positions ohne aktuellen Kurs als stale markieren und separat loggen.
 
 ---

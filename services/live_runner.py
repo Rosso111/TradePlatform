@@ -206,26 +206,43 @@ def execute_live_sell(position: Position, fx_rates: dict, reason: str) -> tuple[
         conn = _get_connector(_portfolio) if _portfolio else IBKRConnectionPool.get(
             _config.IBKR_HOST, _config.IBKR_PAPER_PORT, _config.IBKR_CLIENT_ID
         )
-        fill_price_usd, _ = conn.place_market_order(symbol, qty, 'SELL', account=ibkr_account)
+        fill_price_usd, fill_qty = conn.place_market_order(symbol, qty, 'SELL', account=ibkr_account)
     except Exception as e:
         return False, f"{symbol}: IBKR Sell-Order fehlgeschlagen — {e}"
 
+    if fill_qty <= 0:
+        return False, f"{symbol}: IBKR Sell-Order — 0 Stück gefüllt"
+
+    partial = fill_qty < qty
+    if partial:
+        log.warning("%s: Partial Fill SELL — %d/%d Stück ausgeführt, %d Stück verbleiben",
+                    symbol, fill_qty, qty, qty - fill_qty)
+        try:
+            from services.telegram_notifier import send_message
+            send_message(
+                f"⚠️ <b>Partial Fill SELL {symbol}</b>\n"
+                f"{fill_qty}/{qty} Stück ausgeführt — {qty - fill_qty} Stück noch offen"
+            )
+        except Exception:
+            pass
+
     fill_price_eur = fill_price_usd / fx_rate if currency != 'EUR' else fill_price_usd
 
-    revenue    = qty * fill_price_eur
-    commission = calc_commission(revenue, params)
-    spread     = calc_spread_cost(revenue, params)
+    revenue     = fill_qty * fill_price_eur
+    commission  = calc_commission(revenue, params)
+    spread      = calc_spread_cost(revenue, params)
     net_revenue = revenue - commission - spread
 
-    cost_basis = position.shares * position.entry_price_eur
+    cost_basis = fill_qty * position.entry_price_eur
     pnl_eur    = net_revenue - cost_basis
     pnl_pct    = (pnl_eur / cost_basis * 100) if cost_basis > 0 else 0
 
+    fill_label = "Partial Fill" if partial else "Fill"
     trade = Trade(
         portfolio_id=position.portfolio_id,
         stock_id=position.stock_id,
         action='SELL',
-        shares=float(qty),
+        shares=float(fill_qty),
         price=fill_price_usd,
         price_eur=fill_price_eur,
         fx_rate=fx_rate,
@@ -233,7 +250,7 @@ def execute_live_sell(position: Position, fx_rates: dict, reason: str) -> tuple[
         total_eur=net_revenue,
         pnl_eur=pnl_eur,
         pnl_pct=pnl_pct,
-        reason=f"IBKR Fill @ {fill_price_usd:.4f} — {reason}",
+        reason=f"IBKR {fill_label} @ {fill_price_usd:.4f} — {reason}",
     )
     db.session.add(trade)
 
@@ -244,7 +261,14 @@ def execute_live_sell(position: Position, fx_rates: dict, reason: str) -> tuple[
     if pnl_eur > 0:
         account.winning_trades += 1
 
-    db.session.delete(position)
+    if partial:
+        remaining = qty - fill_qty
+        fill_ratio = remaining / qty
+        position.shares         = float(remaining)
+        position.cost_eur       = remaining * position.entry_price_eur + (position.commission_eur or 0) * fill_ratio
+        position.commission_eur = (position.commission_eur or 0) * fill_ratio
+    else:
+        db.session.delete(position)
 
     try:
         db.session.commit()
@@ -256,13 +280,14 @@ def execute_live_sell(position: Position, fx_rates: dict, reason: str) -> tuple[
         )
         return False, f"{symbol}: DB-Fehler nach IBKR-Verkauf — manuelle Prüfung erforderlich"
 
-    msg = (f"IBKR VERKAUF {symbol}: {qty} Stück @ {fill_price_usd:.4f} {currency}, "
+    partial_info = f" (Partial {fill_qty}/{qty})" if partial else ""
+    msg = (f"IBKR VERKAUF{partial_info} {symbol}: {fill_qty} Stück @ {fill_price_usd:.4f} {currency}, "
            f"P&L: {pnl_eur:+.2f} EUR ({pnl_pct:+.1f}%), Grund: {reason}")
     log.info(msg)
     try:
         from services.telegram_notifier import notify_trade
         port_name = _portfolio.name if _portfolio else ''
-        notify_trade('SELL', symbol, qty, fill_price_eur, pnl_eur=pnl_eur, portfolio_name=port_name)
+        notify_trade('SELL', symbol, fill_qty, fill_price_eur, pnl_eur=pnl_eur, portfolio_name=port_name)
     except Exception:
         pass
     return True, msg
