@@ -6,6 +6,7 @@ from flask_login import login_required, current_user
 from datetime import date, timedelta
 import logging
 
+from sqlalchemy import func, and_
 from models import (
     db, Account, Position, Trade, Stock, Price, Signal, EquityHistory, AlgoParams,
 )
@@ -176,29 +177,79 @@ def get_watchlist():
         return jsonify({'error': 'Kein aktives Portfolio gefunden'}), 404
 
     stocks = Stock.query.filter_by(active=True).all()
+    if not stocks:
+        return jsonify([])
+
+    stock_ids = [s.id for s in stocks]
+
+    # Latest date per stock
+    max_price_date = (
+        db.session.query(Price.stock_id, func.max(Price.date).label('max_date'))
+        .filter(Price.stock_id.in_(stock_ids))
+        .group_by(Price.stock_id)
+        .subquery()
+    )
+    latest_prices = {
+        p.stock_id: p
+        for p in db.session.query(Price).join(
+            max_price_date,
+            and_(Price.stock_id == max_price_date.c.stock_id,
+                 Price.date == max_price_date.c.max_date)
+        ).all()
+    }
+
+    # Second-to-last date per stock (for change_pct)
+    prev_price_date = (
+        db.session.query(Price.stock_id, func.max(Price.date).label('prev_date'))
+        .join(max_price_date, and_(
+            Price.stock_id == max_price_date.c.stock_id,
+            Price.date < max_price_date.c.max_date
+        ))
+        .group_by(Price.stock_id)
+        .subquery()
+    )
+    prev_prices = {
+        p.stock_id: p
+        for p in db.session.query(Price).join(
+            prev_price_date,
+            and_(Price.stock_id == prev_price_date.c.stock_id,
+                 Price.date == prev_price_date.c.prev_date)
+        ).all()
+    }
+
+    # Latest signal per stock
+    max_signal_date = (
+        db.session.query(Signal.stock_id, func.max(Signal.date).label('max_date'))
+        .filter(Signal.stock_id.in_(stock_ids))
+        .group_by(Signal.stock_id)
+        .subquery()
+    )
+    latest_signals = {
+        s.stock_id: s
+        for s in db.session.query(Signal).join(
+            max_signal_date,
+            and_(Signal.stock_id == max_signal_date.c.stock_id,
+                 Signal.date == max_signal_date.c.max_date)
+        ).all()
+    }
+
+    # Open positions for this portfolio
+    portfolio_stock_ids = {
+        p.stock_id
+        for p in Position.query.filter_by(portfolio_id=portfolio.id).all()
+    }
+
     result = []
-
     for stock in stocks:
-        latest_price = (Price.query
-                        .filter_by(stock_id=stock.id)
-                        .order_by(Price.date.desc())
-                        .first())
-        latest_signal = (Signal.query
-                         .filter_by(stock_id=stock.id)
-                         .order_by(Signal.date.desc())
-                         .first())
-
-        if not latest_price:
+        lp = latest_prices.get(stock.id)
+        if not lp:
             continue
-
-        prev_price = (Price.query
-                      .filter_by(stock_id=stock.id)
-                      .order_by(Price.date.desc())
-                      .offset(1).first())
+        pp = prev_prices.get(stock.id)
+        sig = latest_signals.get(stock.id)
 
         change_pct = 0.0
-        if prev_price and prev_price.close > 0:
-            change_pct = (latest_price.close - prev_price.close) / prev_price.close * 100
+        if pp and pp.close > 0:
+            change_pct = (lp.close - pp.close) / pp.close * 100
 
         result.append({
             'symbol': stock.symbol,
@@ -206,14 +257,12 @@ def get_watchlist():
             'sector': stock.sector,
             'region': stock.region,
             'currency': stock.currency,
-            'price': round(latest_price.close, 4),
-            'price_eur': round(latest_price.close_eur or latest_price.close, 4),
+            'price': round(lp.close, 4),
+            'price_eur': round(lp.close_eur or lp.close, 4),
             'change_pct': round(change_pct, 2),
-            'score': round(latest_signal.score, 1) if latest_signal else None,
-            'action': latest_signal.action if latest_signal else 'HOLD',
-            'in_portfolio': (Position.query
-                             .filter_by(stock_id=stock.id, portfolio_id=portfolio.id)
-                             .first() is not None),
+            'score': round(sig.score, 1) if sig else None,
+            'action': sig.action if sig else 'HOLD',
+            'in_portfolio': stock.id in portfolio_stock_ids,
         })
 
     result.sort(key=lambda x: x.get('score') or 0, reverse=True)
