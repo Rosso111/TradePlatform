@@ -13,33 +13,59 @@ log = logging.getLogger(__name__)
 
 # ─── Wechselkurse ────────────────────────────────────────────────────────────
 
+_HARDCODED_FALLBACK = {
+    'USD': 1.08, 'GBP': 0.85, 'JPY': 163.0, 'CHF': 0.96,
+    'HKD': 8.45, 'KRW': 1450.0, 'AUD': 1.65, 'SEK': 11.5,
+    'NOK': 11.8, 'DKK': 7.46, 'CAD': 1.55, 'CNY': 7.90,
+}
+
+_PAIRS = {
+    'USD': 'EURUSD=X', 'GBP': 'EURGBP=X', 'JPY': 'EURJPY=X',
+    'CHF': 'EURCHF=X', 'HKD': 'EURHKD=X', 'KRW': 'EURKRW=X',
+    'AUD': 'EURAUD=X', 'SEK': 'EURSEK=X', 'NOK': 'EURNOK=X',
+    'DKK': 'EURDKK=X', 'CAD': 'EURCAD=X', 'CNY': 'EURCNY=X',
+}
+
+
+def _db_fallback_rate(currency: str) -> float | None:
+    """Letzten bekannten Kurs aus der DB lesen. Gibt None zurück wenn nicht verfügbar."""
+    try:
+        from models import ExchangeRate
+        row = (ExchangeRate.query
+               .filter_by(pair=f'EUR{currency}')
+               .order_by(ExchangeRate.date.desc())
+               .first())
+        if row and row.rate and row.rate > 0:
+            return row.rate
+    except Exception:
+        pass
+    return None
+
+
 def fetch_exchange_rates() -> dict:
     """
     Liefert aktuelle Wechselkurse (Fremdwährung pro 1 EUR).
     z.B. {'USD': 1.08, 'GBP': 0.85, 'JPY': 163.5, ...}
+    Fallback-Reihenfolge bei yfinance-Ausfall: DB → hardcodierter Näherungswert.
     """
-    pairs = {
-        'USD': 'EURUSD=X',
-        'GBP': 'EURGBP=X',
-        'JPY': 'EURJPY=X',
-        'CHF': 'EURCHF=X',
-        'HKD': 'EURHKD=X',
-        'KRW': 'EURKRW=X',
-        'AUD': 'EURAUD=X',
-    }
     rates = {'EUR': 1.0}
-    for currency, pair in pairs.items():
+    for currency, pair in _PAIRS.items():
         try:
             ticker = yf.Ticker(pair)
             hist = ticker.history(period='2d')
             if not hist.empty:
                 rates[currency] = float(hist['Close'].iloc[-1])
+            else:
+                raise ValueError(f"Leere Historie für {pair}")
         except Exception as e:
-            log.warning(f"Wechselkurs {pair} nicht abrufbar: {e}")
-            # Fallback-Kurse
-            fallback = {'USD': 1.08, 'GBP': 0.85, 'JPY': 163.0,
-                        'CHF': 0.96, 'HKD': 8.45, 'KRW': 1450.0, 'AUD': 1.65}
-            rates[currency] = fallback.get(currency, 1.0)
+            db_rate = _db_fallback_rate(currency)
+            if db_rate is not None:
+                rates[currency] = db_rate
+                log.warning("Wechselkurs %s nicht abrufbar (%s) — DB-Fallback: %.4f", pair, e, db_rate)
+            else:
+                fallback = _HARDCODED_FALLBACK.get(currency, 1.0)
+                rates[currency] = fallback
+                log.error("Wechselkurs %s nicht abrufbar und kein DB-Eintrag — Näherungswert %.4f", pair, fallback)
     return rates
 
 
@@ -47,8 +73,9 @@ def to_eur(amount: float, currency: str, rates: dict) -> float:
     """Betrag in Fremdwährung → EUR"""
     if currency == 'EUR':
         return amount
-    rate = rates.get(currency, 1.0)
-    if rate == 0:
+    rate = rates.get(currency)
+    if not rate:
+        log.warning("Kein Wechselkurs für %s — EUR-Umrechnung nicht möglich, Betrag unverändert", currency)
         return amount
     return amount / rate
 
