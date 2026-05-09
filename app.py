@@ -212,8 +212,13 @@ def _init_admin_user():
     _init_account(portfolio)
 
     if not os.environ.get('ADMIN_DEFAULT_PASSWORD'):
-        print(f"[SETUP] Admin-Passwort (einmalig): {default_pw}", flush=True)
-    log.warning("Admin-User angelegt — Passwort sofort ändern! (PUT /api/users/1/password)")
+        log.warning(
+            "Admin-User angelegt mit zufälligem Passwort. "
+            "Passwort via ADMIN_DEFAULT_PASSWORD env-Variable setzen oder sofort ändern: "
+            "PUT /api/users/1/password"
+        )
+    else:
+        log.warning("Admin-User angelegt — Passwort sofort ändern! (PUT /api/users/1/password)")
 
 
 def _ensure_ibkr_gateway():
