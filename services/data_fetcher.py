@@ -261,10 +261,12 @@ def store_prices_to_db(app, stock_universe: list[dict], days: int = 400):
                 if not stock:
                     continue
 
-                currency = next(
+                currency = stock.currency or next(
                     (s['currency'] for s in stock_universe if s['symbol'] == symbol), 'EUR'
                 )
                 fx_rate = rates.get(currency, 1.0)
+                # LSE-Symbole (.L): yfinance liefert GBX (Pence), nicht GBP
+                gbx_divisor = 100.0 if symbol.endswith('.L') else 1.0
 
                 # Nur neue Tage einfügen
                 existing_dates = {
@@ -275,7 +277,7 @@ def store_prices_to_db(app, stock_universe: list[dict], days: int = 400):
                 for idx_date, row in df.iterrows():
                     if idx_date not in existing_dates:
                         close_val = float(row['Close'])
-                        close_eur = close_val / fx_rate if fx_rate > 0 else close_val
+                        close_eur = (close_val / gbx_divisor) / fx_rate if fx_rate > 0 else close_val / gbx_divisor
                         new_prices.append(Price(
                             stock_id=stock.id,
                             date=idx_date,
