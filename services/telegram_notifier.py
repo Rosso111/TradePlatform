@@ -103,11 +103,59 @@ def _handle_command(text: str, app):
 
     elif cmd in ('/top10', 'top10'):
         with app.app_context():
+            try:
+                from datetime import date, timedelta
+                import psycopg, os
+                conn = psycopg.connect(
+                    host=os.environ.get('POSTGRES_HOST', 'localhost'),
+                    port=int(os.environ.get('POSTGRES_PORT', 5432)),
+                    dbname=os.environ.get('POSTGRES_DB', 'Tradebot'),
+                    user=os.environ.get('POSTGRES_USER', 'openclaw'),
+                    password=os.environ.get('POSTGRES_PASSWORD', ''),
+                    sslmode=os.environ.get('POSTGRES_SSLMODE', 'prefer'),
+                )
+                cur = conn.cursor()
+                cur.execute(
+                    "SELECT MAX(date) FROM signals WHERE action='BUY' AND date >= %s",
+                    (date.today() - timedelta(days=5),)
+                )
+                sig_date = cur.fetchone()[0]
+                if not sig_date:
+                    send_message('📊 Keine aktuellen BUY-Signale.')
+                    conn.close()
+                    return
+                cur.execute("""
+                    SELECT st.symbol, st.name, sig.score, sig.rsi, p.close_eur, st.sector
+                    FROM signals sig
+                    JOIN stocks st ON st.id = sig.stock_id
+                    LEFT JOIN (
+                        SELECT DISTINCT ON (stock_id) stock_id, close_eur
+                        FROM prices ORDER BY stock_id, date DESC
+                    ) p ON p.stock_id = sig.stock_id
+                    WHERE sig.action='BUY' AND sig.date=%s
+                    ORDER BY sig.score DESC LIMIT 10
+                """, (sig_date,))
+                rows = cur.fetchall()
+                conn.close()
+                lines = [f'📊 <b>Top 10 Aktien — {sig_date}</b>']
+                for i, (sym, name, score, rsi, eur, sector) in enumerate(rows, 1):
+                    name_str = f' ({name[:20]})' if name else ''
+                    lines.append(
+                        f'{i}. <b>{sym}</b>{name_str}\n'
+                        f'   Score {score:.0f}  RSI {(rsi or 0):.0f}  @€{(eur or 0):.2f}'
+                        + (f'  <i>{sector[:14]}</i>' if sector else '')
+                    )
+                send_message('\n'.join(lines))
+            except Exception as e:
+                send_message(f'❌ Top10-Fehler: {e}')
+
+    elif cmd in ('/topruns', 'topruns'):
+        with app.app_context():
             from models import SimulationRun
             runs = SimulationRun.query.filter_by(status='completed').order_by(
                 SimulationRun.total_return_pct.desc()
             ).limit(10).all()
-            lines = ['🏆 <b>Top 10 Runs:</b>']
+            lines = ['🏆 <b>Top 10 Backtest-Runs:</b>']
             for i, r in enumerate(runs, 1):
                 lines.append(f"{i}. +{r.total_return_pct:.1f}% | Sharpe {r.sharpe_ratio:.3f} | {r.name[:28]}")
             send_message('\n'.join(lines))
@@ -233,7 +281,8 @@ def _handle_command(text: str, app):
             '📡 /status — System- &amp; IBKR-Status\n'
             '📂 /portfolio — offene Positionen\n'
             '📊 /signals — aktuelle BUY-Signale\n'
-            '🏆 /top10 — beste 10 Backtest-Runs\n\n'
+            '📈 /top10 — Top 10 Aktien heute (Score/RSI/Kurs)\n'
+            '🏆 /topruns — beste 10 Backtest-Runs\n\n'
             '💬 <b>Alles andere</b> → Claude verarbeitet (~60s)'
         )
 
