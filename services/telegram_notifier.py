@@ -273,6 +273,145 @@ def _handle_command(text: str, app):
             except Exception as e:
                 send_message(f'❌ Signal-Fehler: {e}')
 
+    elif cmd in ('/cash', 'cash'):
+        with app.app_context():
+            import psycopg, os
+            try:
+                conn = psycopg.connect(
+                    host=os.environ.get('POSTGRES_HOST', 'localhost'),
+                    port=int(os.environ.get('POSTGRES_PORT', 5432)),
+                    dbname=os.environ.get('POSTGRES_DB', 'Tradebot'),
+                    user=os.environ.get('POSTGRES_USER', 'openclaw'),
+                    password=os.environ.get('POSTGRES_PASSWORD', ''),
+                    sslmode=os.environ.get('POSTGRES_SSLMODE', 'prefer'),
+                )
+                cur = conn.cursor()
+                cur.execute("""
+                    SELECT port.name, acc.cash_eur
+                    FROM accounts acc
+                    JOIN portfolios port ON port.id = acc.portfolio_id
+                    ORDER BY port.id
+                """)
+                rows = cur.fetchall()
+                conn.close()
+                if not rows:
+                    send_message('💰 Keine Konten gefunden.')
+                    return
+                lines = ['💰 <b>Verfügbares Cash</b>']
+                for name, cash in rows:
+                    lines.append(f'• <b>{name}</b>: €{(cash or 0):,.0f}')
+                send_message('\n'.join(lines))
+            except Exception as e:
+                send_message(f'❌ Cash-Fehler: {e}')
+
+    elif cmd in ('/pnl', 'pnl'):
+        with app.app_context():
+            import psycopg, os
+            from datetime import date as _date
+            try:
+                conn = psycopg.connect(
+                    host=os.environ.get('POSTGRES_HOST', 'localhost'),
+                    port=int(os.environ.get('POSTGRES_PORT', 5432)),
+                    dbname=os.environ.get('POSTGRES_DB', 'Tradebot'),
+                    user=os.environ.get('POSTGRES_USER', 'openclaw'),
+                    password=os.environ.get('POSTGRES_PASSWORD', ''),
+                    sslmode=os.environ.get('POSTGRES_SSLMODE', 'prefer'),
+                )
+                cur = conn.cursor()
+                cur.execute("""
+                    SELECT port.name,
+                           SUM((COALESCE(pr.close_eur, pos.entry_price_eur) - pos.entry_price_eur) * pos.shares) AS unrealized,
+                           COUNT(pos.id) AS pos_count
+                    FROM positions pos
+                    JOIN portfolios port ON port.id = pos.portfolio_id
+                    LEFT JOIN (
+                        SELECT DISTINCT ON (stock_id) stock_id, close_eur
+                        FROM prices ORDER BY stock_id, date DESC
+                    ) pr ON pr.stock_id = pos.stock_id
+                    GROUP BY port.id, port.name
+                    ORDER BY port.id
+                """)
+                unrealized_rows = cur.fetchall()
+                cur.execute("""
+                    SELECT port.name, COALESCE(SUM(t.pnl_eur), 0)
+                    FROM trades t
+                    JOIN portfolios port ON port.id = t.portfolio_id
+                    WHERE t.action = 'SELL' AND DATE(t.executed_at) = %s
+                    GROUP BY port.id, port.name
+                """, (_date.today(),))
+                realized_map = {name: pnl for name, pnl in cur.fetchall()}
+                conn.close()
+                lines = [f'📊 <b>P&amp;L Übersicht ({_date.today()})</b>']
+                for name, unrealized, pos_count in unrealized_rows:
+                    unr = unrealized or 0
+                    real = realized_map.get(name, 0) or 0
+                    total = unr + real
+                    emoji = '🟢' if total >= 0 else '🔴'
+                    lines.append(
+                        f'\n{emoji} <b>{name}</b>\n'
+                        f'  Unrealisiert: €{unr:+,.0f} ({pos_count} Pos.)\n'
+                        f'  Heute realisiert: €{real:+,.0f}\n'
+                        f'  Gesamt: €{total:+,.0f}'
+                    )
+                send_message('\n'.join(lines))
+            except Exception as e:
+                send_message(f'❌ P&L-Fehler: {e}')
+
+    elif cmd in ('/sell',) and len(text.strip().split()) > 1:
+        symbol = text.strip().split()[1].upper()
+        with app.app_context():
+            import psycopg, os
+            try:
+                conn = psycopg.connect(
+                    host=os.environ.get('POSTGRES_HOST', 'localhost'),
+                    port=int(os.environ.get('POSTGRES_PORT', 5432)),
+                    dbname=os.environ.get('POSTGRES_DB', 'Tradebot'),
+                    user=os.environ.get('POSTGRES_USER', 'openclaw'),
+                    password=os.environ.get('POSTGRES_PASSWORD', ''),
+                    sslmode=os.environ.get('POSTGRES_SSLMODE', 'prefer'),
+                )
+                cur = conn.cursor()
+                cur.execute("""
+                    SELECT pos.id, port.name, pos.shares, pos.entry_price_eur,
+                           COALESCE(pr.close_eur, pos.entry_price_eur) AS curr_eur
+                    FROM positions pos
+                    JOIN stocks st ON st.id = pos.stock_id
+                    JOIN portfolios port ON port.id = pos.portfolio_id
+                    LEFT JOIN (
+                        SELECT DISTINCT ON (stock_id) stock_id, close_eur
+                        FROM prices ORDER BY stock_id, date DESC
+                    ) pr ON pr.stock_id = pos.stock_id
+                    WHERE st.symbol = %s
+                    ORDER BY port.id
+                """, (symbol,))
+                rows = cur.fetchall()
+                conn.close()
+                if not rows:
+                    send_message(f'❌ Keine offene Position: <b>{symbol}</b>')
+                    return
+                if len(rows) > 1:
+                    lines = [f'⚠️ <b>{symbol}</b> in mehreren Portfolios — welches?']
+                    for pos_id, port_name, shares, entry, curr in rows:
+                        pnl = (curr - entry) * shares
+                        lines.append(f'• {port_name}: {shares:.0f} Stk  P&amp;L {pnl:+.0f}€')
+                    send_message('\n'.join(lines))
+                    return
+                pos_id, port_name, shares, entry, curr = rows[0]
+                pnl_est = (curr - entry) * shares
+                send_message(f'⏳ Verkaufe <b>{symbol}</b> ({shares:.0f} Stk) aus {port_name}…\nErwartet: {pnl_est:+.0f}€')
+                from models import Position
+                from services.data_fetcher import fetch_exchange_rates
+                from services.live_runner import execute_live_sell
+                pos = Position.query.get(pos_id)
+                fx_rates = fetch_exchange_rates()
+                ok, msg = execute_live_sell(pos, fx_rates, reason='Telegram /sell')
+                if ok:
+                    send_message(f'✅ <b>{symbol}</b> verkauft\n{msg[:120]}')
+                else:
+                    send_message(f'❌ <b>{symbol}</b> fehlgeschlagen\n{msg[:120]}')
+            except Exception as e:
+                send_message(f'❌ Sell-Fehler: {e}')
+
     elif cmd in ('/help', 'help'):
         send_message(
             '📖 <b>Kommandos:</b>\n\n'
@@ -280,9 +419,12 @@ def _handle_command(text: str, app):
             '🟢 /weiter — Trading fortsetzen\n'
             '📡 /status — System- &amp; IBKR-Status\n'
             '📂 /portfolio — offene Positionen\n'
+            '💰 /cash — verfügbares Kapital\n'
+            '📊 /pnl — P&amp;L heute (unrealisiert + realisiert)\n'
             '📊 /signals — aktuelle BUY-Signale\n'
             '📈 /top10 — Top 10 Aktien heute (Score/RSI/Kurs)\n'
-            '🏆 /topruns — beste 10 Backtest-Runs\n\n'
+            '🏆 /topruns — beste 10 Backtest-Runs\n'
+            '💸 /sell SYMBOL — Position manuell verkaufen\n\n'
             '💬 <b>Alles andere</b> → Claude verarbeitet (~60s)'
         )
 
@@ -309,16 +451,16 @@ def _process_complex(text: str, app):
         _run_quick_sweep({'max_position_size': mps}, f'mps={int(mps*100)}%', app)
         return
 
-    # "bester run" / "top ergebnisse"
-    if re.search(r'best|top|ergebn|result', t, re.IGNORECASE):
+    # "bester run" / "top ergebnisse" — nur bei expliziter Backtest-Anfrage
+    if re.search(r'bester?\s+run|top\s+run|beste\s+backtest|top\s+ergebnis', t, re.IGNORECASE):
         with app.app_context():
             from models import SimulationRun
             runs = SimulationRun.query.filter_by(status='completed').order_by(
                 SimulationRun.total_return_pct.desc()
             ).limit(5).all()
-            lines = ['🏆 <b>Top 5:</b>']
+            lines = ['🏆 <b>Top 5 Runs:</b>']
             for i, r in enumerate(runs, 1):
-                lines.append(f"{i}. +{r.total_return_pct:.1f}% Sharpe {r.sharpe_ratio:.3f}")
+                lines.append(f"{i}. +{r.total_return_pct:.1f}% Sharpe {r.sharpe_ratio:.3f} | {r.name[:25]}")
             send_message('\n'.join(lines))
         return
 
