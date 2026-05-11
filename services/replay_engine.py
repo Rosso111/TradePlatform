@@ -75,7 +75,7 @@ def create_simulation_run(payload: dict) -> SimulationRun:
 DECISION_LOG_SAMPLE_INTERVAL_DAYS = 5
 REPLAY_COMMIT_INTERVAL_DAYS = 5
 REPLAY_PERSIST_INTERVAL_DAYS = 30
-REPLAY_PROGRESS_CHUNK_DAYS = 100
+REPLAY_PROGRESS_CHUNK_DAYS = 1000
 REPLAY_CANCEL_CHECK_INTERVAL_DAYS = 100
 DECISION_LOG_MODE_DEFAULT = 'normal'
 
@@ -501,7 +501,8 @@ def run_historical_replay(app, run_id: int) -> SimulationRun:
                             budget_eur = max(budget_eur, run.initial_capital_eur * min_position_size)
                             budget_eur = min(budget_eur, cash_eur)
 
-                        if budget_eur < 100:
+                        _min_trade_eur = run.initial_capital_eur * min_position_size
+                        if budget_eur < _min_trade_eur:
                             should_execute = False
                             skip_reason = 'Zu wenig Cash fuer neuen Trade'
 
@@ -645,14 +646,15 @@ def run_historical_replay(app, run_id: int) -> SimulationRun:
                                 ))
                             signal_counts['SKIP'] += 1
 
-                log.info(
-                    'Replay %s %s: signals=%s open_positions=%s cash=%.2f',
-                    run.id,
-                    sim_date.isoformat(),
-                    signal_counts,
-                    len(open_position_stock_ids),
-                    cash_eur,
-                )
+                if processed_days_since_flush == 0 or processed_days_since_flush >= progress_chunk_days - 1:
+                    log.info(
+                        'Replay %s %s: signals=%s open_positions=%s cash=%.2f',
+                        run.id,
+                        sim_date.isoformat(),
+                        signal_counts,
+                        len(open_position_stock_ids),
+                        cash_eur,
+                    )
 
                 positions_value = _get_positions_value_in_memory(sim_date, replay_data, open_positions)
                 equity = cash_eur + positions_value

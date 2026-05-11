@@ -26,6 +26,7 @@ _SUFFIX_MAP: dict[str, tuple[str, str]] = {
     '.BR': ('SMART', 'EUR'),   # Euronext Brüssel
     '.LS': ('SMART', 'EUR'),   # Euronext Lissabon
     '.HE': ('SMART', 'EUR'),   # Nasdaq Helsinki
+    '.VI': ('SMART', 'EUR'),   # Wiener Börse
     '.ST': ('SMART', 'SEK'),   # Nasdaq Stockholm
     '.OL': ('SMART', 'NOK'),   # Oslo Børs
     '.CO': ('SMART', 'DKK'),   # Nasdaq Kopenhagen
