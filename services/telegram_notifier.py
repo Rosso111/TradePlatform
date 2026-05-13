@@ -210,10 +210,12 @@ def _handle_command(text: str, app):
                            p.close_eur, pos.stop_loss
                     FROM positions pos
                     JOIN stocks st ON st.id = pos.stock_id
+                    JOIN portfolios port ON port.id = pos.portfolio_id
                     LEFT JOIN (
                         SELECT DISTINCT ON (stock_id) stock_id, close_eur
                         FROM prices ORDER BY stock_id, date DESC
                     ) p ON p.stock_id = pos.stock_id
+                    WHERE port.ibkr_account_id IS NOT NULL
                     ORDER BY pos.entry_price_eur * pos.shares DESC
                 """)
                 rows = cur.fetchall()
