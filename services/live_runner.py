@@ -230,7 +230,15 @@ def execute_live_sell(position: Position, fx_rates: dict, reason: str) -> tuple[
         conn = _get_connector(_portfolio) if _portfolio else IBKRConnectionPool.get(
             _config.IBKR_HOST, _config.IBKR_PAPER_PORT, _config.IBKR_CLIENT_ID
         )
-        fill_price_usd, fill_qty = conn.place_market_order(symbol, qty, 'SELL', account=ibkr_account)
+        # Short-Sell-Schutz: prüfen ob IBKR die Position wirklich hält
+        from services.ibkr_connector import clean_symbol
+        ibkr_sym = clean_symbol(symbol)
+        ibkr_positions = conn.get_positions(account=ibkr_account)
+        ibkr_qty = next((p['qty'] for p in ibkr_positions if p['symbol'] == ibkr_sym), 0)
+        if ibkr_qty <= 0:
+            return False, f"{symbol}: IBKR hält diese Position nicht — kein Verkauf (Leerverkauf verhindert)"
+        sell_qty = min(qty, int(ibkr_qty))
+        fill_price_usd, fill_qty = conn.place_market_order(symbol, sell_qty, 'SELL', account=ibkr_account)
     except Exception as e:
         return False, f"{symbol}: IBKR Sell-Order fehlgeschlagen — {e}"
 

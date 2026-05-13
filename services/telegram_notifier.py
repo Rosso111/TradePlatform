@@ -358,7 +358,9 @@ def _handle_command(text: str, app):
                 send_message(f'❌ P&L-Fehler: {e}')
 
     elif cmd in ('/sell',) and len(text.strip().split()) > 1:
-        symbol = text.strip().split()[1].upper()
+        parts = text.strip().split()
+        symbol = parts[1].upper()
+        portfolio_filter = parts[2].lower() if len(parts) > 2 else None
         with app.app_context():
             import psycopg, os
             try:
@@ -371,9 +373,11 @@ def _handle_command(text: str, app):
                     sslmode=os.environ.get('POSTGRES_SSLMODE', 'prefer'),
                 )
                 cur = conn.cursor()
+                # Nur IBKR-Portfolios — Default wird ignoriert
                 cur.execute("""
                     SELECT pos.id, port.name, pos.shares, pos.entry_price_eur,
-                           COALESCE(pr.close_eur, pos.entry_price_eur) AS curr_eur
+                           COALESCE(pr.close_eur, pos.entry_price_eur) AS curr_eur,
+                           port.ibkr_account_id
                     FROM positions pos
                     JOIN stocks st ON st.id = pos.stock_id
                     JOIN portfolios port ON port.id = pos.portfolio_id
@@ -381,22 +385,30 @@ def _handle_command(text: str, app):
                         SELECT DISTINCT ON (stock_id) stock_id, close_eur
                         FROM prices ORDER BY stock_id, date DESC
                     ) pr ON pr.stock_id = pos.stock_id
-                    WHERE st.symbol = %s
+                    WHERE (st.symbol = %s OR split_part(st.symbol, '.', 1) = %s)
+                      AND port.ibkr_account_id IS NOT NULL
                     ORDER BY port.id
-                """, (symbol,))
+                """, (symbol, symbol))
                 rows = cur.fetchall()
                 conn.close()
                 if not rows:
-                    send_message(f'❌ Keine offene Position: <b>{symbol}</b>')
+                    send_message(f'❌ Keine offene IBKR-Position: <b>{symbol}</b>')
                     return
+                # Filter by portfolio name if user specified one
+                if portfolio_filter:
+                    rows = [r for r in rows if portfolio_filter in r[1].lower()]
+                    if not rows:
+                        send_message(f'❌ <b>{symbol}</b> nicht in IBKR-Portfolio "{parts[2]}" gefunden')
+                        return
+                # Multiple IBKR portfolios → ask
                 if len(rows) > 1:
-                    lines = [f'⚠️ <b>{symbol}</b> in mehreren Portfolios — welches?']
-                    for pos_id, port_name, shares, entry, curr in rows:
+                    lines = [f'⚠️ <b>{symbol}</b> in mehreren IBKR-Portfolios — z.B. <code>/sell {symbol} Paper</code>:']
+                    for pos_id, port_name, shares, entry, curr, acct in rows:
                         pnl = (curr - entry) * shares
-                        lines.append(f'• {port_name}: {shares:.0f} Stk  P&amp;L {pnl:+.0f}€')
+                        lines.append(f'• {port_name} ({acct}): {shares:.0f} Stk  P&amp;L {pnl:+.0f}€')
                     send_message('\n'.join(lines))
                     return
-                pos_id, port_name, shares, entry, curr = rows[0]
+                pos_id, port_name, shares, entry, curr, acct = rows[0]
                 pnl_est = (curr - entry) * shares
                 send_message(f'⏳ Verkaufe <b>{symbol}</b> ({shares:.0f} Stk) aus {port_name}…\nErwartet: {pnl_est:+.0f}€')
                 from models import Position
@@ -412,6 +424,94 @@ def _handle_command(text: str, app):
             except Exception as e:
                 send_message(f'❌ Sell-Fehler: {e}')
 
+    elif cmd in ('/buy',) and len(text.strip().split()) > 2:
+        parts = text.strip().split()
+        symbol = parts[1].upper()
+        try:
+            shares = int(parts[2])
+        except ValueError:
+            send_message(f'❌ Ungültige Stückzahl: {parts[2]}\nFormat: /buy SYMBOL STÜCK')
+            return
+        with app.app_context():
+            import psycopg, os
+            try:
+                conn = psycopg.connect(
+                    host=os.environ.get('POSTGRES_HOST', 'localhost'),
+                    port=int(os.environ.get('POSTGRES_PORT', 5432)),
+                    dbname=os.environ.get('POSTGRES_DB', 'Tradebot'),
+                    user=os.environ.get('POSTGRES_USER', 'openclaw'),
+                    password=os.environ.get('POSTGRES_PASSWORD', ''),
+                    sslmode=os.environ.get('POSTGRES_SSLMODE', 'prefer'),
+                )
+                cur = conn.cursor()
+                cur.execute("""
+                    SELECT st.id, st.currency,
+                           COALESCE(pr.close_eur, 0) AS curr_eur,
+                           port.id, port.ibkr_account_id
+                    FROM stocks st
+                    JOIN portfolios port ON port.ibkr_account_id = 'DUP859792'
+                    LEFT JOIN (
+                        SELECT DISTINCT ON (stock_id) stock_id, close_eur
+                        FROM prices ORDER BY stock_id, date DESC
+                    ) pr ON pr.stock_id = st.id
+                    WHERE st.symbol = %s
+                    LIMIT 1
+                """, (symbol,))
+                row = cur.fetchone()
+                conn.close()
+                if not row:
+                    send_message(f'❌ Symbol nicht gefunden: <b>{symbol}</b>')
+                    return
+                stock_id, currency, curr_eur, portfolio_id, ibkr_account = row
+                est_cost = shares * curr_eur
+                send_message(
+                    f'⏳ Kaufe <b>{symbol}</b> {shares} Stk @ ~{curr_eur:.2f}€\n'
+                    f'Geschätzter Wert: ~{est_cost:,.0f}€ — Konto: {ibkr_account}'
+                )
+                from models import db, Stock, Portfolio, Account, Position, Price
+                from services.data_fetcher import fetch_exchange_rates
+                from services.ibkr_connector import IBKRConnector
+                import config
+                stock     = Stock.query.get(stock_id)
+                portfolio = Portfolio.query.get(portfolio_id)
+                account   = Account.query.filter_by(portfolio_id=portfolio_id).first()
+                price     = Price.query.filter_by(stock_id=stock_id).order_by(Price.date.desc()).first()
+                fx        = fetch_exchange_rates()
+                fx_rate   = fx.get(currency or 'EUR', 1.0)
+                ibkr_conn = IBKRConnector(config.IBKR_HOST, config.IBKR_PAPER_PORT, client_id=10)
+                fill_price, fill_qty = ibkr_conn.place_market_order(
+                    symbol, shares, 'BUY', account=ibkr_account, currency=currency
+                )
+                fill_price_eur = fill_price / fx_rate if currency != 'EUR' else fill_price
+                cost_eur = fill_qty * fill_price_eur
+                pos = Position(
+                    portfolio_id=portfolio_id,
+                    stock_id=stock_id,
+                    shares=float(fill_qty),
+                    entry_price=fill_price,
+                    entry_price_eur=fill_price_eur,
+                    entry_rate=fx_rate,
+                    current_price=fill_price,
+                    current_price_eur=fill_price_eur,
+                    stop_loss=fill_price * 0.90,
+                    take_profit=fill_price * 1.20,
+                    trailing_stop=fill_price * 0.90,
+                    highest_price=fill_price,
+                    cost_eur=cost_eur,
+                    commission_eur=0.0,
+                    reason='Telegram /buy [IBKR LIVE]',
+                )
+                db.session.add(pos)
+                account.cash_eur -= cost_eur
+                db.session.commit()
+                send_message(
+                    f'✅ <b>{symbol}</b> gekauft\n'
+                    f'{fill_qty:.0f} Stk @ {fill_price:.2f} {currency}\n'
+                    f'Kosten: {cost_eur:,.0f}€  Cash danach: {account.cash_eur:,.0f}€'
+                )
+            except Exception as e:
+                send_message(f'❌ Buy-Fehler: {e}')
+
     elif cmd in ('/help', 'help'):
         send_message(
             '📖 <b>Kommandos:</b>\n\n'
@@ -424,7 +524,8 @@ def _handle_command(text: str, app):
             '📊 /signals — aktuelle BUY-Signale\n'
             '📈 /top10 — Top 10 Aktien heute (Score/RSI/Kurs)\n'
             '🏆 /topruns — beste 10 Backtest-Runs\n'
-            '💸 /sell SYMBOL — Position manuell verkaufen\n\n'
+            '💸 /sell SYMBOL — Position manuell verkaufen (IBKR Paper)\n'
+            '🛒 /buy SYMBOL STÜCK — Position manuell kaufen (IBKR Paper)\n\n'
             '💬 <b>Alles andere</b> → Claude verarbeitet (~60s)'
         )
 
