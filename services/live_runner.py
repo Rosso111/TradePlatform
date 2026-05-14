@@ -425,6 +425,9 @@ def update_live_positions(fx_rates: dict, portfolio_id: int) -> tuple[list[str],
             continue
 
         current_price     = latest.close
+        # LSE prices (GBP currency) are stored in GBX (pence) — normalize to GBP
+        if currency == 'GBP':
+            current_price /= 100.0
         current_price_eur = latest.close_eur or (current_price / fx_rate)
 
         pos.current_price     = current_price
