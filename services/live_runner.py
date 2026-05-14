@@ -376,7 +376,6 @@ def reconcile_pending_positions(portfolio: Portfolio, fx_rates: dict) -> list[st
         if diff_pct < 0.001:
             # Preisdifferenz < 0.1% — Schätzkurs war nah genug, nur Marker entfernen
             pos.reason = pos.reason.replace('[IBKR PENDING]', '[IBKR LIVE]')
-            db.session.commit()
             log.info(f"Reconciliation {symbol}: Fill-Preis stimmt überein ({avg_cost_eur:.4f} EUR)")
             continue
 
@@ -401,12 +400,17 @@ def reconcile_pending_positions(portfolio: Portfolio, fx_rates: dict) -> list[st
             matching_trade.total_eur = shares * avg_cost_eur + (matching_trade.commission_eur or 0)
             matching_trade.reason    = matching_trade.reason.replace('IBKR Pending', 'IBKR Fill')
 
-        db.session.commit()
-
         msg = (f"Reconciliation {symbol}: Schätzkurs {old_price_eur:.4f} EUR → "
                f"echter Fill-Preis {avg_cost_eur:.4f} EUR (Δ {diff_pct*100:+.2f}%)")
         log.info(msg)
         actions.append(msg)
+
+    try:
+        db.session.commit()
+    except Exception as e:
+        db.session.rollback()
+        log.error("Reconciliation: Commit fehlgeschlagen — %s. Alle Änderungen zurückgerollt.", e)
+        return []
 
     return actions
 
