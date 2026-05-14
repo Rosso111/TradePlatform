@@ -8,6 +8,7 @@ from datetime import date, datetime, timezone
 import config
 from flask import Blueprint, jsonify, request
 from flask_login import login_required, current_user
+from app import limiter
 
 from models import db, Portfolio, DailyProposal, ProposedOrder, Position, Trade, Account
 
@@ -133,6 +134,7 @@ def patch_order_approval(proposal_id, order_id):
 
 @proposals_bp.route('/api/proposals/<int:proposal_id>/execute', methods=['POST'])
 @login_required
+@limiter.limit("5 per minute")
 def execute_proposal(proposal_id):
     """Implements: API-26, PR-07, PR-08, PR-11"""
     proposal, err, code = _get_proposal_or_403(proposal_id)

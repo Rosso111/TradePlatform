@@ -6,6 +6,7 @@ from flask_login import login_required, current_user
 import logging
 
 import config as _config
+from app import limiter
 from models import Portfolio
 from services.ibkr_connector import IBKRConnectionPool, OrderPendingError
 
@@ -274,6 +275,7 @@ def ibkr_signals():
 
 @ibkr_bp.route('/order', methods=['POST'])
 @login_required
+@limiter.limit("10 per minute")
 def ibkr_order():
     """Manuellen Kauf oder Verkauf über IBKR ausführen."""
     payload      = request.get_json(silent=True) or {}
