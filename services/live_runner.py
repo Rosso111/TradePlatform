@@ -287,6 +287,13 @@ def execute_live_sell(position: Position, fx_rates: dict, reason: str) -> tuple[
     db.session.add(trade)
 
     account = Account.query.filter_by(portfolio_id=position.portfolio_id).first()
+    if not account:
+        db.session.rollback()
+        log.critical(
+            "%s: Kein Account-Eintrag für portfolio_id=%s — IBKR-Order ausgeführt, DB inkonsistent!",
+            symbol, position.portfolio_id,
+        )
+        return False, f"{symbol}: Kein Account-Eintrag — IBKR-Verkauf ausgeführt, manuell prüfen!"
     account.cash_eur      += net_revenue
     account.total_trades  += 1
     account.total_commission += commission

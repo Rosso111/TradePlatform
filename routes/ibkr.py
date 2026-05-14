@@ -145,6 +145,8 @@ def ibkr_positions():
 @ibkr_bp.route('/gateway/start', methods=['POST'])
 @login_required
 def ibkr_gateway_start():
+    if current_user.role != 'admin':
+        return jsonify({'error': 'Administratorrechte erforderlich'}), 403
     """Startet den IB Gateway über den Systemd-Service."""
     import subprocess
     try:
@@ -168,6 +170,8 @@ def ibkr_gateway_start():
 @ibkr_bp.route('/gateway/stop', methods=['POST'])
 @login_required
 def ibkr_gateway_stop():
+    if current_user.role != 'admin':
+        return jsonify({'error': 'Administratorrechte erforderlich'}), 403
     """Stoppt den IB Gateway über den Systemd-Service."""
     import subprocess
     try:
