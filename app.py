@@ -658,7 +658,9 @@ def on_disconnect():
 def on_request_update():
     from flask_login import current_user
     from flask import session, current_app
-    portfolio_id = session.get('active_portfolio_id') if current_user.is_authenticated else None
+    if not current_user.is_authenticated:
+        return False
+    portfolio_id = session.get('active_portfolio_id')
     socketio.emit('portfolio_update', _get_portfolio_snapshot(
         current_app._get_current_object(), portfolio_id=portfolio_id
     ))
