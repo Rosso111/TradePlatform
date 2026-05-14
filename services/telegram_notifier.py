@@ -38,6 +38,12 @@ def _get_updates(offset=0):
         return None
 
 
+def _get_db_conn():
+    """DB-Verbindung aus SQLAlchemy-Pool — kein standalone psycopg.connect()."""
+    from models import db
+    return db.engine.raw_connection()
+
+
 def _enqueue_message(text: str):
     """Schreibt eingehende Nachricht in Queue-Datei für Claude Code."""
     import os
@@ -105,15 +111,7 @@ def _handle_command(text: str, app):
         with app.app_context():
             try:
                 from datetime import date, timedelta
-                import psycopg, os
-                conn = psycopg.connect(
-                    host=os.environ.get('POSTGRES_HOST', 'localhost'),
-                    port=int(os.environ.get('POSTGRES_PORT', 5432)),
-                    dbname=os.environ.get('POSTGRES_DB', 'Tradebot'),
-                    user=os.environ.get('POSTGRES_USER', 'openclaw'),
-                    password=os.environ.get('POSTGRES_PASSWORD', ''),
-                    sslmode=os.environ.get('POSTGRES_SSLMODE', 'prefer'),
-                )
+                conn = _get_db_conn()
                 cur = conn.cursor()
                 cur.execute(
                     "SELECT MAX(date) FROM signals WHERE action='BUY' AND date >= %s",
@@ -194,16 +192,8 @@ def _handle_command(text: str, app):
 
     elif cmd in ('/portfolio', 'portfolio'):
         with app.app_context():
-            import psycopg, os
             try:
-                conn = psycopg.connect(
-                    host=os.environ.get('POSTGRES_HOST', 'localhost'),
-                    port=int(os.environ.get('POSTGRES_PORT', 5432)),
-                    dbname=os.environ.get('POSTGRES_DB', 'Tradebot'),
-                    user=os.environ.get('POSTGRES_USER', 'openclaw'),
-                    password=os.environ.get('POSTGRES_PASSWORD', ''),
-                    sslmode=os.environ.get('POSTGRES_SSLMODE', 'prefer'),
-                )
+                conn = _get_db_conn()
                 cur = conn.cursor()
                 cur.execute("""
                     SELECT st.symbol, pos.shares, pos.entry_price_eur,
@@ -237,15 +227,7 @@ def _handle_command(text: str, app):
         with app.app_context():
             try:
                 from datetime import date, timedelta
-                import psycopg, os
-                conn = psycopg.connect(
-                    host=os.environ.get('POSTGRES_HOST', 'localhost'),
-                    port=int(os.environ.get('POSTGRES_PORT', 5432)),
-                    dbname=os.environ.get('POSTGRES_DB', 'Tradebot'),
-                    user=os.environ.get('POSTGRES_USER', 'openclaw'),
-                    password=os.environ.get('POSTGRES_PASSWORD', ''),
-                    sslmode=os.environ.get('POSTGRES_SSLMODE', 'prefer'),
-                )
+                conn = _get_db_conn()
                 cur = conn.cursor()
                 cur.execute(
                     "SELECT MAX(date) FROM signals WHERE action='BUY' AND date >= %s",
@@ -277,20 +259,12 @@ def _handle_command(text: str, app):
 
     elif cmd in ('/cash', 'cash'):
         with app.app_context():
-            import psycopg, os
             try:
-                conn = psycopg.connect(
-                    host=os.environ.get('POSTGRES_HOST', 'localhost'),
-                    port=int(os.environ.get('POSTGRES_PORT', 5432)),
-                    dbname=os.environ.get('POSTGRES_DB', 'Tradebot'),
-                    user=os.environ.get('POSTGRES_USER', 'openclaw'),
-                    password=os.environ.get('POSTGRES_PASSWORD', ''),
-                    sslmode=os.environ.get('POSTGRES_SSLMODE', 'prefer'),
-                )
+                conn = _get_db_conn()
                 cur = conn.cursor()
                 cur.execute("""
                     SELECT port.name, acc.cash_eur
-                    FROM accounts acc
+                    FROM account acc
                     JOIN portfolios port ON port.id = acc.portfolio_id
                     ORDER BY port.id
                 """)
@@ -308,17 +282,9 @@ def _handle_command(text: str, app):
 
     elif cmd in ('/pnl', 'pnl'):
         with app.app_context():
-            import psycopg, os
             from datetime import date as _date
             try:
-                conn = psycopg.connect(
-                    host=os.environ.get('POSTGRES_HOST', 'localhost'),
-                    port=int(os.environ.get('POSTGRES_PORT', 5432)),
-                    dbname=os.environ.get('POSTGRES_DB', 'Tradebot'),
-                    user=os.environ.get('POSTGRES_USER', 'openclaw'),
-                    password=os.environ.get('POSTGRES_PASSWORD', ''),
-                    sslmode=os.environ.get('POSTGRES_SSLMODE', 'prefer'),
-                )
+                conn = _get_db_conn()
                 cur = conn.cursor()
                 cur.execute("""
                     SELECT port.name,
@@ -364,16 +330,8 @@ def _handle_command(text: str, app):
         symbol = parts[1].upper()
         portfolio_filter = parts[2].lower() if len(parts) > 2 else None
         with app.app_context():
-            import psycopg, os
             try:
-                conn = psycopg.connect(
-                    host=os.environ.get('POSTGRES_HOST', 'localhost'),
-                    port=int(os.environ.get('POSTGRES_PORT', 5432)),
-                    dbname=os.environ.get('POSTGRES_DB', 'Tradebot'),
-                    user=os.environ.get('POSTGRES_USER', 'openclaw'),
-                    password=os.environ.get('POSTGRES_PASSWORD', ''),
-                    sslmode=os.environ.get('POSTGRES_SSLMODE', 'prefer'),
-                )
+                conn = _get_db_conn()
                 cur = conn.cursor()
                 # Nur IBKR-Portfolios — Default wird ignoriert
                 cur.execute("""
@@ -435,16 +393,8 @@ def _handle_command(text: str, app):
             send_message(f'❌ Ungültige Stückzahl: {parts[2]}\nFormat: /buy SYMBOL STÜCK')
             return
         with app.app_context():
-            import psycopg, os
             try:
-                conn = psycopg.connect(
-                    host=os.environ.get('POSTGRES_HOST', 'localhost'),
-                    port=int(os.environ.get('POSTGRES_PORT', 5432)),
-                    dbname=os.environ.get('POSTGRES_DB', 'Tradebot'),
-                    user=os.environ.get('POSTGRES_USER', 'openclaw'),
-                    password=os.environ.get('POSTGRES_PASSWORD', ''),
-                    sslmode=os.environ.get('POSTGRES_SSLMODE', 'prefer'),
-                )
+                conn = _get_db_conn()
                 cur = conn.cursor()
                 cur.execute("""
                     SELECT st.id, st.currency,
