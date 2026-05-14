@@ -6,6 +6,8 @@ from flask_login import login_required, current_user
 from datetime import date, timedelta
 import logging
 
+from app import limiter
+
 from sqlalchemy import func, and_
 from models import (
     db, Account, Position, Trade, Stock, Price, Signal, EquityHistory, AlgoParams,
@@ -328,6 +330,7 @@ def get_algo_params():
 
 @trading_bp.route('/trading/run', methods=['POST'])
 @login_required
+@limiter.limit("3 per minute; 10 per hour")
 def trigger_trading_cycle():
     # Implements: G-02, API-27
     portfolio = get_active_portfolio()
@@ -348,6 +351,7 @@ def trigger_trading_cycle():
 
 @trading_bp.route('/trading/optimize', methods=['POST'])
 @login_required
+@limiter.limit("1 per hour")
 def trigger_optimization():
     # Implements: API-27
     from flask import current_app
