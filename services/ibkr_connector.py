@@ -323,17 +323,18 @@ class IBKRConnector:
 
 class IBKRConnectionPool:
     """
-    Verwaltet je eine IBKRConnector-Instanz pro (host, port).
-    Typisch: eine für Paper-Trading (Port 4002), eine für Live (Port 4001).
+    Verwaltet je eine IBKRConnector-Instanz pro (host, port, client_id).
+    Verschiedene Portfolios auf demselben Port erhalten separate Connections
+    mit eindeutiger client_id — verhindert IB-Gateway-Ablehnung bei parallelen Zugriffen.
     Thread-sicher.
     """
-    _pool: dict[tuple[str, int], IBKRConnector] = {}
+    _pool: dict[tuple[str, int, int], IBKRConnector] = {}
     _lock = threading.Lock()
 
     @classmethod
     def get(cls, host: str, port: int, client_id: int = 1) -> IBKRConnector:
-        """Gibt den Connector für (host, port) zurück, legt ihn bei Bedarf an."""
-        key = (host, port)
+        """Gibt den Connector für (host, port, client_id) zurück, legt ihn bei Bedarf an."""
+        key = (host, port, client_id)
         with cls._lock:
             if key not in cls._pool:
                 cls._pool[key] = IBKRConnector(host, port, client_id)
@@ -360,10 +361,11 @@ class IBKRConnectionPool:
                 {
                     'host': host,
                     'port': port,
+                    'client_id': client_id,
                     'connected': conn.is_connected(),
                     'circuit_breaker_active': time.time() < conn._backoff_until,
                 }
-                for (host, port), conn in cls._pool.items()
+                for (host, port, client_id), conn in cls._pool.items()
             ]
 
 

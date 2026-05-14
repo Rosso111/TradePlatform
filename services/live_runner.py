@@ -12,9 +12,12 @@ from services.ibkr_connector import IBKRConnectionPool, OrderPendingError, clean
 
 
 def _get_connector(portfolio):
-    """Gibt den richtigen IBKR-Connector für ein Portfolio zurück."""
+    """Gibt den richtigen IBKR-Connector für ein Portfolio zurück.
+    client_id wird pro Portfolio variiert — verhindert IB-Gateway-Ablehnung
+    wenn Scheduler und manueller Trigger gleichzeitig laufen."""
     port = _config.IBKR_LIVE_PORT if portfolio.type == 'ibkr_live' else _config.IBKR_PAPER_PORT
-    return IBKRConnectionPool.get(_config.IBKR_HOST, port, _config.IBKR_CLIENT_ID)
+    client_id = _config.IBKR_CLIENT_ID + portfolio.id
+    return IBKRConnectionPool.get(_config.IBKR_HOST, port, client_id)
 from services.trading_engine import (
     calc_commission, calc_spread_cost, calc_stop_loss,
     calc_take_profit, get_open_positions_count,
@@ -229,7 +232,7 @@ def execute_live_sell(position: Position, fx_rates: dict, reason: str) -> tuple[
     try:
         conn = _get_connector(_portfolio) if _portfolio else IBKRConnectionPool.get(
             _config.IBKR_HOST, _config.IBKR_PAPER_PORT, _config.IBKR_CLIENT_ID
-        )
+        )  # Fallback: kein Portfolio bekannt, Default-Client-ID
         # Short-Sell-Schutz: prüfen ob IBKR die Position wirklich hält
         from services.ibkr_connector import clean_symbol
         ibkr_sym = clean_symbol(symbol)
