@@ -60,9 +60,9 @@ def create_app(test_config: dict | None = None):
     app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
     app.config['SEND_FILE_MAX_AGE_DEFAULT'] = 0
     app.config['SESSION_COOKIE_HTTPONLY'] = True
-    app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
+    app.config['SESSION_COOKIE_SAMESITE'] = 'Strict'
     app.config['REMEMBER_COOKIE_HTTPONLY'] = True
-    app.config['REMEMBER_COOKIE_SAMESITE'] = 'Lax'
+    app.config['REMEMBER_COOKIE_SAMESITE'] = 'Strict'
     app.config['SQLALCHEMY_ENGINE_OPTIONS'] = {
         'connect_args': {
             'connect_timeout': 10,
