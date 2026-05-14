@@ -1,6 +1,8 @@
 #!/usr/bin/env bash
 # PostgreSQL-Backup für TradePlatform
 # Legt täglich ein komprimiertes SQL-Dump an und bereinigt Dumps älter als 14 Tage.
+# Ausgeschlossen: decision_logs (19 GB), simulation_daily_snapshots (865 MB),
+#                 simulation_trades (496 MB) — alles reproduzierbare Sim-Outputs.
 # Voraussetzung: sudo apt-get install postgresql-client
 
 set -euo pipefail
@@ -28,8 +30,12 @@ OUTFILE="$BACKUP_DIR/tp_${TIMESTAMP}.sql.gz"
 
 mkdir -p "$BACKUP_DIR"
 
+EXCLUDE="--exclude-table=decision_logs \
+         --exclude-table=simulation_daily_snapshots \
+         --exclude-table=simulation_trades"
+
 echo "[$(date -Iseconds)] Starte Backup → $OUTFILE"
-pg_dump -h "$PGHOST" -p "$PGPORT" -U "$PGUSER" "$PGDATABASE" | gzip > "$OUTFILE"
+pg_dump -h "$PGHOST" -p "$PGPORT" -U "$PGUSER" $EXCLUDE "$PGDATABASE" | gzip > "$OUTFILE"
 echo "[$(date -Iseconds)] Backup fertig: $(du -sh "$OUTFILE" | cut -f1)"
 
 # Dumps älter als 14 Tage löschen
