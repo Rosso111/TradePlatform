@@ -9,27 +9,12 @@ clients:
   - url: http://loki:3100/loki/api/v1/push
 
 scrape_configs:
-
-  # ── systemd Journal (sofort aktiv, nur tradeplatform.service) ────────────────
-  - job_name: tradeplatform_journal
-    journal:
-      max_age: 168h        # letzte 7 Tage beim ersten Start nachladen
-      labels:
-        job: tradeplatform
-        source: journal
-      matches: _SYSTEMD_UNIT=tradeplatform.service
-    relabel_configs:
-      - source_labels: [__journal_priority_keyword]
-        target_label: level
-
-  # ── Log-File (aktiv nach PR #14 + Server-Neustart) ───────────────────────────
-  - job_name: tradeplatform_file
+  - job_name: tradeplatform
     static_configs:
       - targets:
           - localhost
         labels:
           job: tradeplatform
-          source: file
           __path__: /var/log/tradeplatform/tradeplatform*.log
     pipeline_stages:
       - regex:
@@ -40,4 +25,4 @@ scrape_configs:
       - timestamp:
           source: timestamp
           format: '2006-01-02 15:04:05'
-          location: Europe/Vienna
+          location: UTC
