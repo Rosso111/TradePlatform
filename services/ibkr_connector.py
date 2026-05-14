@@ -220,6 +220,9 @@ class IBKRConnector:
             if trade.orderStatus.status == 'Filled':
                 fill_price = trade.orderStatus.avgFillPrice
                 fill_qty   = int(trade.orderStatus.filled)
+                # LSE reports fill prices in GBX (pence) — normalize to GBP
+                if contract.currency == 'GBP':
+                    fill_price /= 100.0
                 log.info("IBKR %s %dx %s @ %.4f — Filled (account=%s)",
                          action, qty, symbol, fill_price, account or 'default')
                 return fill_price, fill_qty
@@ -269,10 +272,14 @@ class IBKRConnector:
         for pos in self._ib.positions():
             if account and pos.account != account:
                 continue
+            avg_cost = pos.avgCost
+            # LSE positions report avgCost in GBX (pence) — normalize to GBP
+            if pos.contract.currency == 'GBP':
+                avg_cost /= 100.0
             result.append({
                 'symbol':   pos.contract.symbol,
                 'qty':      pos.position,
-                'avg_cost': pos.avgCost,
+                'avg_cost': avg_cost,
                 'account':  pos.account,
             })
         return result
