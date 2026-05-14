@@ -49,8 +49,8 @@ def account_view():
         'open_positions': len(positions),
         'unrealized_pnl_eur': round(total_pnl, 2),
         'unrealized_pnl_pct': round(total_pnl_pct, 2),
-        'total_return_eur': round(account.equity_eur - 10000.0, 2),
-        'total_return_pct': round((account.equity_eur - 10000.0) / 10000.0 * 100, 2),
+        'total_return_eur': round(account.equity_eur - (account.portfolio.starting_capital if account.portfolio else 10000.0), 2),
+        'total_return_pct': round((account.equity_eur - (account.portfolio.starting_capital if account.portfolio else 10000.0)) / (account.portfolio.starting_capital if account.portfolio else 10000.0) * 100, 2),
     })
     return jsonify(data)
 
