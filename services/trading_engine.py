@@ -218,6 +218,11 @@ def execute_sell(position: Position, current_price: float,
     portfolio = Portfolio.query.get(position.portfolio_id)
     params    = resolve(portfolio, position.stock) if portfolio else None
 
+    # Vor dem Delete sichern: nach dem Commit ist die Instanz detached und
+    # Attribut-/Relationship-Zugriffe darauf sind nicht mehr zuverlässig.
+    symbol = position.stock.symbol
+    shares = position.shares
+
     revenue    = position.shares * current_price_eur
     commission = calc_commission(revenue, params)
     spread     = calc_spread_cost(revenue, params)
@@ -259,11 +264,10 @@ def execute_sell(position: Position, current_price: float,
         db.session.commit()
     except Exception as e:
         db.session.rollback()
-        log.error(f"{position.stock.symbol}: DB-Commit bei Verkauf fehlgeschlagen — {e}")
-        return False, f"{position.stock.symbol}: Datenbankfehler beim Verkauf-Eintrag — {e}"
+        log.error(f"{symbol}: DB-Commit bei Verkauf fehlgeschlagen — {e}")
+        return False, f"{symbol}: Datenbankfehler beim Verkauf-Eintrag — {e}"
 
-    symbol = position.stock.symbol
-    msg = (f"VERKAUF {symbol}: {position.shares:.2f} Aktien @ {current_price_eur:.4f} EUR, "
+    msg = (f"VERKAUF {symbol}: {shares:.2f} Aktien @ {current_price_eur:.4f} EUR, "
            f"P&L: {pnl_eur:+.2f} EUR ({pnl_pct:+.1f}%), Grund: {reason}")
     log.info(msg)
     return True, msg
