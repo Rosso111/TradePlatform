@@ -10,4 +10,7 @@ from app import create_app, socketio
 
 if __name__ == '__main__':
     app = create_app()
-    socketio.run(app, host='0.0.0.0', port=config.PORT, debug=False, use_reloader=False)
+    # allow_unsafe_werkzeug: im threading-Modus dient Werkzeug als Server;
+    # für das interne Dashboard ist das ausreichend.
+    socketio.run(app, host='0.0.0.0', port=config.PORT, debug=False,
+                 use_reloader=False, allow_unsafe_werkzeug=True)
