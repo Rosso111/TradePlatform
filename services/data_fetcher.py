@@ -4,12 +4,25 @@ Lädt historische Kursdaten und Wechselkurse via yfinance.
 """
 import bisect
 import logging
+import threading
 from datetime import date, datetime, timedelta, timezone
 
 import yfinance as yf
 import pandas as pd
 
 log = logging.getLogger(__name__)
+
+# Drossel für Preis-Updates: Paper- und IBKR-Zyklus rufen beide alle
+# TRADING_INTERVAL_MINUTES update_prices_incremental() auf, die Tages-
+# Kursdaten ändern sich aber höchstens einmal pro Handelstag.
+_price_update_lock = threading.Lock()
+_last_price_update: datetime | None = None
+
+# Kurzzeit-Cache für Spot-Wechselkurse (verhindert doppelte Abrufe
+# innerhalb desselben Handelszyklus)
+_fx_cache_lock = threading.Lock()
+_fx_cache: tuple[datetime, dict] | None = None
+_FX_CACHE_TTL = timedelta(minutes=5)
 
 
 # ─── Wechselkurse ────────────────────────────────────────────────────────────
@@ -48,7 +61,14 @@ def fetch_exchange_rates() -> dict:
     Liefert aktuelle Wechselkurse (Fremdwährung pro 1 EUR).
     z.B. {'USD': 1.08, 'GBP': 0.85, 'JPY': 163.5, ...}
     Fallback-Reihenfolge bei yfinance-Ausfall: DB → hardcodierter Näherungswert.
+    Ergebnisse werden kurz gecacht (_FX_CACHE_TTL), damit Paper- und
+    IBKR-Zyklus im selben Takt nicht doppelt alle Paare abrufen.
     """
+    global _fx_cache
+    with _fx_cache_lock:
+        if _fx_cache and datetime.now() - _fx_cache[0] < _FX_CACHE_TTL:
+            return dict(_fx_cache[1])
+
     rates = {'EUR': 1.0}
     for currency, pair in _PAIRS.items():
         try:
@@ -67,6 +87,9 @@ def fetch_exchange_rates() -> dict:
                 fallback = _HARDCODED_FALLBACK.get(currency, 1.0)
                 rates[currency] = fallback
                 log.error("Wechselkurs %s nicht abrufbar und kein DB-Eintrag — Näherungswert %.4f", pair, fallback)
+
+    with _fx_cache_lock:
+        _fx_cache = (datetime.now(), dict(rates))
     return rates
 
 
@@ -370,9 +393,14 @@ def store_prices_to_db(app, stock_universe: list[dict], days: int = 400):
                     (s['currency'] for s in stock_universe if s['symbol'] == symbol), 'EUR'
                 )
 
-                # Nur neue Tage einfügen
+                # Nur neue Tage einfügen — Abgleich nur im geladenen Zeitfenster,
+                # nicht über die gesamte Historie (bis zu ~7000 Zeilen pro Aktie)
+                min_fetched = min(df.index)
                 existing_dates = {
-                    p.date for p in Price.query.filter_by(stock_id=stock.id).all()
+                    row.date for row in
+                    Price.query.with_entities(Price.date)
+                    .filter(Price.stock_id == stock.id, Price.date >= min_fetched)
+                    .all()
                 }
 
                 new_prices = []
@@ -400,8 +428,29 @@ def store_prices_to_db(app, stock_universe: list[dict], days: int = 400):
         log.info("Kursdaten erfolgreich geladen und gespeichert.")
 
 
-def update_prices_incremental(app, stock_universe: list[dict]):
+def update_prices_incremental(app, stock_universe: list[dict], force: bool = False) -> bool:
     """
     Inkrementelle Aktualisierung: nur die letzten 5 Tage nachladen.
+
+    Läuft höchstens alle DATA_UPDATE_INTERVAL_HOURS (config) — der
+    Handelszyklus ruft alle TRADING_INTERVAL_MINUTES hier auf (Paper- und
+    IBKR-Pfad je einmal), soll aber nicht jedes Mal das komplette Universum
+    von yfinance laden. Gibt True zurück, wenn tatsächlich geladen wurde.
     """
-    store_prices_to_db(app, stock_universe, days=5)
+    global _last_price_update
+    import config
+
+    if not _price_update_lock.acquire(blocking=False):
+        log.info("Preis-Update läuft bereits in anderem Thread — übersprungen")
+        return False
+    try:
+        min_interval = timedelta(hours=config.DATA_UPDATE_INTERVAL_HOURS)
+        now = datetime.now()
+        if not force and _last_price_update and now - _last_price_update < min_interval:
+            log.debug("Preis-Update übersprungen — letztes Update %s", _last_price_update)
+            return False
+        store_prices_to_db(app, stock_universe, days=5)
+        _last_price_update = datetime.now()
+        return True
+    finally:
+        _price_update_lock.release()
