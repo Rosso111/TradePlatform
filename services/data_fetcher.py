@@ -2,6 +2,7 @@
 Data Fetcher Service
 Lädt historische Kursdaten und Wechselkurse via yfinance.
 """
+import bisect
 import logging
 from datetime import date, datetime, timedelta, timezone
 
@@ -67,6 +68,106 @@ def fetch_exchange_rates() -> dict:
                 rates[currency] = fallback
                 log.error("Wechselkurs %s nicht abrufbar und kein DB-Eintrag — Näherungswert %.4f", pair, fallback)
     return rates
+
+
+def fetch_fx_history(days: int = 400) -> dict[str, pd.Series]:
+    """
+    Historische EUR-Wechselkurse (Fremdwährung pro 1 EUR) je Währung.
+    Gibt {currency: Series(date -> rate)} zurück; nicht abrufbare Paare fehlen im Dict.
+    """
+    history: dict[str, pd.Series] = {}
+    end = datetime.now()
+    # Puffer, damit auch für den ersten Handelstag ein Kurs davor existiert
+    start = end - timedelta(days=days + 14)
+
+    raw = pd.DataFrame()
+    try:
+        raw = yf.download(
+            list(_PAIRS.values()), start=start, end=end,
+            auto_adjust=True, group_by='ticker',
+            progress=False, threads=True
+        )
+    except Exception as e:
+        log.warning(f"FX-Historie Batch-Download fehlgeschlagen ({e}), versuche Einzelabrufe")
+
+    for currency, pair in _PAIRS.items():
+        series = None
+        try:
+            if not raw.empty:
+                if isinstance(raw.columns, pd.MultiIndex):
+                    if pair in raw.columns.get_level_values(0):
+                        series = raw[pair]['Close'].dropna()
+                else:
+                    series = raw['Close'].dropna()
+            if series is None or series.empty:
+                series = yf.Ticker(pair).history(start=start, end=end)['Close'].dropna()
+        except Exception as e:
+            log.warning(f"FX-Historie für {pair} nicht abrufbar: {e}")
+            continue
+        if series.empty:
+            log.warning(f"FX-Historie für {pair} leer")
+            continue
+        series = series.copy()
+        series.index = pd.to_datetime(series.index).date
+        series = series[~series.index.duplicated(keep='last')].sort_index()
+        history[currency] = series
+    return history
+
+
+def store_fx_history(fx_history: dict[str, pd.Series]) -> int:
+    """Speichert historische Wechselkurse in die exchange_rates-Tabelle (nur fehlende Tage)."""
+    from models import db, ExchangeRate
+    created = 0
+    for currency, series in fx_history.items():
+        pair = f'EUR{currency}'
+        existing = {
+            row.date for row in
+            ExchangeRate.query.with_entities(ExchangeRate.date).filter_by(pair=pair).all()
+        }
+        for d, rate in series.items():
+            if d not in existing and rate and rate > 0:
+                db.session.add(ExchangeRate(pair=pair, date=d, rate=float(rate)))
+                created += 1
+    if created:
+        db.session.commit()
+        log.info(f"FX-Historie: {created} neue Kurs-Einträge gespeichert")
+    return created
+
+
+class FxLookup:
+    """
+    Datums-Lookup für historische Wechselkurse: liefert den letzten
+    verfügbaren Kurs <= Stichtag (Wochenenden/Feiertage), sonst den Fallback
+    aus den aktuellen Kursen.
+    """
+
+    def __init__(self, fx_history: dict[str, pd.Series], fallback_rates: dict):
+        self._data = {
+            currency: (list(series.index), list(series.values))
+            for currency, series in fx_history.items()
+        }
+        self._fallback = fallback_rates
+
+    def rate(self, currency: str, d: date) -> float:
+        if currency == 'EUR':
+            return 1.0
+        entry = self._data.get(currency)
+        if entry:
+            dates, values = entry
+            i = bisect.bisect_right(dates, d) - 1
+            if i >= 0:
+                return float(values[i])
+        return float(self._fallback.get(currency, 1.0))
+
+
+def close_to_eur(symbol: str, close_val: float, fx_rate: float) -> float:
+    """
+    Schlusskurs → EUR. LSE-Symbole (.L) liefert yfinance in GBX (Pence),
+    daher zusätzlich Division durch 100.
+    """
+    gbx_divisor = 100.0 if symbol.endswith('.L') else 1.0
+    value = close_val / gbx_divisor
+    return value / fx_rate if fx_rate > 0 else value
 
 
 def to_eur(amount: float, currency: str, rates: dict) -> float:
@@ -221,7 +322,7 @@ def store_prices_to_db(app, stock_universe: list[dict], days: int = 400):
     from models import db, Stock, Price, ExchangeRate
 
     with app.app_context():
-        # 1. Wechselkurse laden
+        # 1. Wechselkurse laden (aktuell + Historie für datumsgenaue EUR-Umrechnung)
         rates = fetch_exchange_rates()
         today = date.today()
         for currency, rate in rates.items():
@@ -233,6 +334,10 @@ def store_prices_to_db(app, stock_universe: list[dict], days: int = 400):
                 db.session.add(ExchangeRate(pair=pair, date=today, rate=rate))
         db.session.commit()
         log.info(f"Wechselkurse gespeichert: {rates}")
+
+        fx_history = fetch_fx_history(days)
+        store_fx_history(fx_history)
+        fx_lookup = FxLookup(fx_history, rates)
 
         # 2. Aktien im Universum sicherstellen
         for stock_info in stock_universe:
@@ -264,9 +369,6 @@ def store_prices_to_db(app, stock_universe: list[dict], days: int = 400):
                 currency = stock.currency or next(
                     (s['currency'] for s in stock_universe if s['symbol'] == symbol), 'EUR'
                 )
-                fx_rate = rates.get(currency, 1.0)
-                # LSE-Symbole (.L): yfinance liefert GBX (Pence), nicht GBP
-                gbx_divisor = 100.0 if symbol.endswith('.L') else 1.0
 
                 # Nur neue Tage einfügen
                 existing_dates = {
@@ -277,7 +379,7 @@ def store_prices_to_db(app, stock_universe: list[dict], days: int = 400):
                 for idx_date, row in df.iterrows():
                     if idx_date not in existing_dates:
                         close_val = float(row['Close'])
-                        close_eur = (close_val / gbx_divisor) / fx_rate if fx_rate > 0 else close_val / gbx_divisor
+                        close_eur = close_to_eur(symbol, close_val, fx_lookup.rate(currency, idx_date))
                         new_prices.append(Price(
                             stock_id=stock.id,
                             date=idx_date,
