@@ -77,7 +77,10 @@ def create_app(test_config: dict | None = None):
     db.init_app(app)
     migrate.init_app(app, db)
     CORS(app)
-    socketio.init_app(app, cors_allowed_origins='*', async_mode='eventlet')
+    # threading statt eventlet: eventlet ist deprecated und verträgt sich
+    # schlecht mit APScheduler-Threads und ib_insync (asyncio). WebSocket-
+    # Transport läuft über simple-websocket weiter.
+    socketio.init_app(app, cors_allowed_origins='*', async_mode='threading')
     login_manager.init_app(app)
     limiter.init_app(app)
     login_manager.login_view = 'auth.login'
