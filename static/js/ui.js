@@ -92,3 +92,39 @@ export function addLogEntry(msg) {
   log.prepend(entry);
   while (log.children.length > 50) log.removeChild(log.lastChild);
 }
+
+export function initSplitPanes() {
+  document.querySelectorAll('.split-handle').forEach(handle => {
+    handle.addEventListener('mousedown', e => {
+      e.preventDefault();
+      const isV = handle.classList.contains('split-v');
+      const prevId = handle.dataset.prev;
+      const prev = prevId ? document.getElementById(prevId) : handle.previousElementSibling;
+      if (!prev) return;
+
+      handle.classList.add('dragging');
+      const startPos = isV ? e.clientY : e.clientX;
+      const startSize = isV ? prev.offsetHeight : prev.offsetWidth;
+
+      const onMove = ev => {
+        const delta = (isV ? ev.clientY : ev.clientX) - startPos;
+        const minSize = isV ? parseInt(prev.style.minHeight || 150) : parseInt(prev.style.minWidth || 150);
+        const newSize = Math.max(minSize, startSize + delta);
+        prev.style.flex = `0 0 ${newSize}px`;
+      };
+
+      const onUp = () => {
+        handle.classList.remove('dragging');
+        document.body.style.cursor = '';
+        document.body.style.userSelect = '';
+        document.removeEventListener('mousemove', onMove);
+        document.removeEventListener('mouseup', onUp);
+      };
+
+      document.body.style.cursor = isV ? 'row-resize' : 'col-resize';
+      document.body.style.userSelect = 'none';
+      document.addEventListener('mousemove', onMove);
+      document.addEventListener('mouseup', onUp);
+    });
+  });
+}

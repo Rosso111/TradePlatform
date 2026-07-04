@@ -5,6 +5,7 @@ Liefert alle Daten für das Frontend.
 from flask import Blueprint, jsonify, request
 from datetime import date, timedelta
 import logging
+import threading
 
 from models import (
     db, Account, Position, Trade, Stock, Price, Signal, EquityHistory, AlgoParams,
@@ -297,7 +298,21 @@ def create_simulation():
         run_id = run.id
         auto_start = str(payload.get('auto_start', True)).lower() in ('1', 'true', 'yes', 'on')
         if auto_start:
-            run = run_historical_replay(current_app._get_current_object(), run_id)
+            app_obj = current_app._get_current_object()
+
+            def background_replay():
+                try:
+                    run_historical_replay(app_obj, run_id)
+                except Exception:
+                    log.exception("Hintergrund-Replay fehlgeschlagen fuer run_id=%s", run_id)
+
+            thread = threading.Thread(
+                target=background_replay,
+                name=f"replay-run-{run_id}",
+                daemon=True,
+            )
+            thread.start()
+            run = SimulationRun.query.get(run_id)
         else:
             run = SimulationRun.query.get(run_id)
         return jsonify({

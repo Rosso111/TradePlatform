@@ -2,10 +2,15 @@ import os
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 
-# Datenbank
-DATABASE_PATH = os.path.join(BASE_DIR, 'data', 'trading.db')
+# Datenbank / Staging
+APP_ENV = os.environ.get('APP_ENV', 'live').lower()
+DATABASE_FILENAME = 'trading-staging.db' if APP_ENV == 'staging' else 'trading.db'
+DATABASE_PATH = os.path.join(BASE_DIR, 'data', DATABASE_FILENAME)
 SQLALCHEMY_DATABASE_URI = f'sqlite:///{DATABASE_PATH}'
 SQLALCHEMY_TRACK_MODIFICATIONS = False
+
+# Runtime
+PORT = int(os.environ.get('PORT', '5001' if APP_ENV == 'staging' else '5000'))
 
 # Trading-Parameter
 STARTING_CAPITAL = 10000.0          # EUR
