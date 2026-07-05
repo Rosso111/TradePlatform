@@ -25,7 +25,10 @@ load_dotenv(ROOT / '.env')
 import config
 from app import create_app
 from models import db, Stock, Price, ExchangeRate
-from services.data_fetcher import fetch_exchange_rates, fetch_multiple_prices, fetch_historical_prices
+from services.data_fetcher import (
+    FxLookup, close_to_eur, fetch_exchange_rates, fetch_fx_history,
+    fetch_historical_prices, fetch_multiple_prices, store_fx_history,
+)
 from services.universe_store import get_universe
 
 
@@ -109,6 +112,11 @@ def main():
         rates = fetch_exchange_rates()
         fx_created = ensure_exchange_rates(rates)
         print(f'Wechselkurse geprüft/angelegt: {fx_created}')
+
+        fx_history = fetch_fx_history(days)
+        fx_hist_created = store_fx_history(fx_history)
+        fx_lookup = FxLookup(fx_history, rates)
+        print(f'FX-Historie geladen: {len(fx_history)} Währungen, {fx_hist_created} neue DB-Einträge')
         print(f'Symbole: {len(symbols)} | Jahre: {args.years} | Tage-Fenster: {days}')
 
         total_new_rows = 0
@@ -124,7 +132,6 @@ def main():
                 try:
                     stock = ensure_stock(symbol, stock_lookup)
                     currency = stock.currency or stock_lookup.get(symbol, {}).get('currency', 'EUR')
-                    fx_rate = rates.get(currency, 1.0)
                     df = price_data.get(symbol)
                     if df is None or df.empty:
                         df = fetch_historical_prices(symbol, days=days)
@@ -141,7 +148,7 @@ def main():
                         if idx_date in existing_dates:
                             continue
                         close_val = float(row['Close'])
-                        close_eur = close_val / fx_rate if fx_rate > 0 else close_val
+                        close_eur = close_to_eur(symbol, close_val, fx_lookup.rate(currency, idx_date))
                         new_prices.append(Price(
                             stock_id=stock.id,
                             date=idx_date,

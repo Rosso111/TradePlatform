@@ -2,13 +2,27 @@
 Data Fetcher Service
 Lädt historische Kursdaten und Wechselkurse via yfinance.
 """
+import bisect
 import logging
+import threading
 from datetime import date, datetime, timedelta, timezone
 
 import yfinance as yf
 import pandas as pd
 
 log = logging.getLogger(__name__)
+
+# Drossel für Preis-Updates: Paper- und IBKR-Zyklus rufen beide alle
+# TRADING_INTERVAL_MINUTES update_prices_incremental() auf, die Tages-
+# Kursdaten ändern sich aber höchstens einmal pro Handelstag.
+_price_update_lock = threading.Lock()
+_last_price_update: datetime | None = None
+
+# Kurzzeit-Cache für Spot-Wechselkurse (verhindert doppelte Abrufe
+# innerhalb desselben Handelszyklus)
+_fx_cache_lock = threading.Lock()
+_fx_cache: tuple[datetime, dict] | None = None
+_FX_CACHE_TTL = timedelta(minutes=5)
 
 
 # ─── Wechselkurse ────────────────────────────────────────────────────────────
@@ -47,7 +61,14 @@ def fetch_exchange_rates() -> dict:
     Liefert aktuelle Wechselkurse (Fremdwährung pro 1 EUR).
     z.B. {'USD': 1.08, 'GBP': 0.85, 'JPY': 163.5, ...}
     Fallback-Reihenfolge bei yfinance-Ausfall: DB → hardcodierter Näherungswert.
+    Ergebnisse werden kurz gecacht (_FX_CACHE_TTL), damit Paper- und
+    IBKR-Zyklus im selben Takt nicht doppelt alle Paare abrufen.
     """
+    global _fx_cache
+    with _fx_cache_lock:
+        if _fx_cache and datetime.now() - _fx_cache[0] < _FX_CACHE_TTL:
+            return dict(_fx_cache[1])
+
     rates = {'EUR': 1.0}
     for currency, pair in _PAIRS.items():
         try:
@@ -66,7 +87,110 @@ def fetch_exchange_rates() -> dict:
                 fallback = _HARDCODED_FALLBACK.get(currency, 1.0)
                 rates[currency] = fallback
                 log.error("Wechselkurs %s nicht abrufbar und kein DB-Eintrag — Näherungswert %.4f", pair, fallback)
+
+    with _fx_cache_lock:
+        _fx_cache = (datetime.now(), dict(rates))
     return rates
+
+
+def fetch_fx_history(days: int = 400) -> dict[str, pd.Series]:
+    """
+    Historische EUR-Wechselkurse (Fremdwährung pro 1 EUR) je Währung.
+    Gibt {currency: Series(date -> rate)} zurück; nicht abrufbare Paare fehlen im Dict.
+    """
+    history: dict[str, pd.Series] = {}
+    end = datetime.now()
+    # Puffer, damit auch für den ersten Handelstag ein Kurs davor existiert
+    start = end - timedelta(days=days + 14)
+
+    raw = pd.DataFrame()
+    try:
+        raw = yf.download(
+            list(_PAIRS.values()), start=start, end=end,
+            auto_adjust=True, group_by='ticker',
+            progress=False, threads=True
+        )
+    except Exception as e:
+        log.warning(f"FX-Historie Batch-Download fehlgeschlagen ({e}), versuche Einzelabrufe")
+
+    for currency, pair in _PAIRS.items():
+        series = None
+        try:
+            if not raw.empty:
+                if isinstance(raw.columns, pd.MultiIndex):
+                    if pair in raw.columns.get_level_values(0):
+                        series = raw[pair]['Close'].dropna()
+                else:
+                    series = raw['Close'].dropna()
+            if series is None or series.empty:
+                series = yf.Ticker(pair).history(start=start, end=end)['Close'].dropna()
+        except Exception as e:
+            log.warning(f"FX-Historie für {pair} nicht abrufbar: {e}")
+            continue
+        if series.empty:
+            log.warning(f"FX-Historie für {pair} leer")
+            continue
+        series = series.copy()
+        series.index = pd.to_datetime(series.index).date
+        series = series[~series.index.duplicated(keep='last')].sort_index()
+        history[currency] = series
+    return history
+
+
+def store_fx_history(fx_history: dict[str, pd.Series]) -> int:
+    """Speichert historische Wechselkurse in die exchange_rates-Tabelle (nur fehlende Tage)."""
+    from models import db, ExchangeRate
+    created = 0
+    for currency, series in fx_history.items():
+        pair = f'EUR{currency}'
+        existing = {
+            row.date for row in
+            ExchangeRate.query.with_entities(ExchangeRate.date).filter_by(pair=pair).all()
+        }
+        for d, rate in series.items():
+            if d not in existing and rate and rate > 0:
+                db.session.add(ExchangeRate(pair=pair, date=d, rate=float(rate)))
+                created += 1
+    if created:
+        db.session.commit()
+        log.info(f"FX-Historie: {created} neue Kurs-Einträge gespeichert")
+    return created
+
+
+class FxLookup:
+    """
+    Datums-Lookup für historische Wechselkurse: liefert den letzten
+    verfügbaren Kurs <= Stichtag (Wochenenden/Feiertage), sonst den Fallback
+    aus den aktuellen Kursen.
+    """
+
+    def __init__(self, fx_history: dict[str, pd.Series], fallback_rates: dict):
+        self._data = {
+            currency: (list(series.index), list(series.values))
+            for currency, series in fx_history.items()
+        }
+        self._fallback = fallback_rates
+
+    def rate(self, currency: str, d: date) -> float:
+        if currency == 'EUR':
+            return 1.0
+        entry = self._data.get(currency)
+        if entry:
+            dates, values = entry
+            i = bisect.bisect_right(dates, d) - 1
+            if i >= 0:
+                return float(values[i])
+        return float(self._fallback.get(currency, 1.0))
+
+
+def close_to_eur(symbol: str, close_val: float, fx_rate: float) -> float:
+    """
+    Schlusskurs → EUR. LSE-Symbole (.L) liefert yfinance in GBX (Pence),
+    daher zusätzlich Division durch 100.
+    """
+    gbx_divisor = 100.0 if symbol.endswith('.L') else 1.0
+    value = close_val / gbx_divisor
+    return value / fx_rate if fx_rate > 0 else value
 
 
 def to_eur(amount: float, currency: str, rates: dict) -> float:
@@ -221,7 +345,7 @@ def store_prices_to_db(app, stock_universe: list[dict], days: int = 400):
     from models import db, Stock, Price, ExchangeRate
 
     with app.app_context():
-        # 1. Wechselkurse laden
+        # 1. Wechselkurse laden (aktuell + Historie für datumsgenaue EUR-Umrechnung)
         rates = fetch_exchange_rates()
         today = date.today()
         for currency, rate in rates.items():
@@ -233,6 +357,10 @@ def store_prices_to_db(app, stock_universe: list[dict], days: int = 400):
                 db.session.add(ExchangeRate(pair=pair, date=today, rate=rate))
         db.session.commit()
         log.info(f"Wechselkurse gespeichert: {rates}")
+
+        fx_history = fetch_fx_history(days)
+        store_fx_history(fx_history)
+        fx_lookup = FxLookup(fx_history, rates)
 
         # 2. Aktien im Universum sicherstellen
         for stock_info in stock_universe:
@@ -264,20 +392,22 @@ def store_prices_to_db(app, stock_universe: list[dict], days: int = 400):
                 currency = stock.currency or next(
                     (s['currency'] for s in stock_universe if s['symbol'] == symbol), 'EUR'
                 )
-                fx_rate = rates.get(currency, 1.0)
-                # LSE-Symbole (.L): yfinance liefert GBX (Pence), nicht GBP
-                gbx_divisor = 100.0 if symbol.endswith('.L') else 1.0
 
-                # Nur neue Tage einfügen
+                # Nur neue Tage einfügen — Abgleich nur im geladenen Zeitfenster,
+                # nicht über die gesamte Historie (bis zu ~7000 Zeilen pro Aktie)
+                min_fetched = min(df.index)
                 existing_dates = {
-                    p.date for p in Price.query.filter_by(stock_id=stock.id).all()
+                    row.date for row in
+                    Price.query.with_entities(Price.date)
+                    .filter(Price.stock_id == stock.id, Price.date >= min_fetched)
+                    .all()
                 }
 
                 new_prices = []
                 for idx_date, row in df.iterrows():
                     if idx_date not in existing_dates:
                         close_val = float(row['Close'])
-                        close_eur = (close_val / gbx_divisor) / fx_rate if fx_rate > 0 else close_val / gbx_divisor
+                        close_eur = close_to_eur(symbol, close_val, fx_lookup.rate(currency, idx_date))
                         new_prices.append(Price(
                             stock_id=stock.id,
                             date=idx_date,
@@ -298,8 +428,29 @@ def store_prices_to_db(app, stock_universe: list[dict], days: int = 400):
         log.info("Kursdaten erfolgreich geladen und gespeichert.")
 
 
-def update_prices_incremental(app, stock_universe: list[dict]):
+def update_prices_incremental(app, stock_universe: list[dict], force: bool = False) -> bool:
     """
     Inkrementelle Aktualisierung: nur die letzten 5 Tage nachladen.
+
+    Läuft höchstens alle DATA_UPDATE_INTERVAL_HOURS (config) — der
+    Handelszyklus ruft alle TRADING_INTERVAL_MINUTES hier auf (Paper- und
+    IBKR-Pfad je einmal), soll aber nicht jedes Mal das komplette Universum
+    von yfinance laden. Gibt True zurück, wenn tatsächlich geladen wurde.
     """
-    store_prices_to_db(app, stock_universe, days=5)
+    global _last_price_update
+    import config
+
+    if not _price_update_lock.acquire(blocking=False):
+        log.info("Preis-Update läuft bereits in anderem Thread — übersprungen")
+        return False
+    try:
+        min_interval = timedelta(hours=config.DATA_UPDATE_INTERVAL_HOURS)
+        now = datetime.now()
+        if not force and _last_price_update and now - _last_price_update < min_interval:
+            log.debug("Preis-Update übersprungen — letztes Update %s", _last_price_update)
+            return False
+        store_prices_to_db(app, stock_universe, days=5)
+        _last_price_update = datetime.now()
+        return True
+    finally:
+        _price_update_lock.release()
