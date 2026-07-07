@@ -14,7 +14,7 @@ DEFAULT_DATA = {
             'name': 'Global Core',
             'description': 'Breites internationales Kernuniversum über Regionen und Sektoren.',
             'symbols': [
-                'SAP.DE', 'ALV.DE', 'SIE.DE', 'NESN.SW', 'NOVN.SW', 'ROG.SW',
+                'SAP.DE', 'ALV.DE', 'SIE.DE', 'NESN.SW', 'NOVN.SW', 'ROP.SW',
                 'ASML.AS', 'MC.PA', 'AIR.PA', 'HSBA.L', 'SHEL.L', 'AZN.L',
                 'AAPL', 'MSFT', 'GOOGL', 'AMZN', 'NVDA', 'JPM', 'JNJ', 'XOM',
                 '7203.T', '6758.T', '9988.HK', '0700.HK', '005930.KS', 'BHP.AX'
@@ -26,7 +26,7 @@ DEFAULT_DATA = {
             'description': 'Europa-Fokus mit etablierten Large Caps aus mehreren Sektoren.',
             'symbols': [
                 'SAP.DE', 'ALV.DE', 'SIE.DE', 'DTE.DE', 'BAS.DE', 'BMW.DE', 'ADS.DE',
-                'NESN.SW', 'NOVN.SW', 'ROG.SW', 'UBSG.SW', 'ABBN.SW',
+                'NESN.SW', 'NOVN.SW', 'ROP.SW', 'UBSG.SW', 'ABBN.SW',
                 'MC.PA', 'OR.PA', 'AIR.PA', 'TTE.PA', 'ASML.AS', 'PHIA.AS', 'INGA.AS',
                 'HSBA.L', 'SHEL.L', 'AZN.L', 'BP.L', 'ULVR.L', 'GSK.L'
             ]
@@ -44,7 +44,7 @@ DEFAULT_DATA = {
             'name': 'Defensive Quality',
             'description': 'Defensivere Qualitätsaktien aus Healthcare, Staples und stabilen Large Caps.',
             'symbols': [
-                'NESN.SW', 'NOVN.SW', 'ROG.SW', 'AZN.L', 'GSK.L', 'JNJ', 'ULVR.L', 'MRK.DE', 'DTE.DE'
+                'NESN.SW', 'NOVN.SW', 'ROP.SW', 'AZN.L', 'GSK.L', 'JNJ', 'ULVR.L', 'MRK.DE', 'DTE.DE'
             ]
         },
         {
