@@ -13,6 +13,7 @@ from models import (
     db, Account, Position, Trade, Stock, Price, Signal, EquityHistory, AlgoParams,
 )
 from repositories.portfolio_repo import get_active_portfolio
+from routes.common import query_int
 from repositories.trading_repo import (
     get_account, get_positions, count_positions, get_trades,
     get_equity_history, get_latest_signal, get_today_signals,
@@ -107,7 +108,7 @@ def trades_view():
     if portfolio is None:
         return jsonify({'error': 'Kein aktives Portfolio gefunden'}), 404
 
-    limit = int(request.args.get('limit', 50))
+    limit = query_int('limit', 50, min_value=1, max_value=1000)
     trades = get_trades(portfolio.id, limit=limit)
     return jsonify([t.to_dict() for t in trades])
 
@@ -147,7 +148,7 @@ def trade_stats():
 @login_required
 def get_prices(symbol):
     # Implements: API-27
-    days = int(request.args.get('days', 90))
+    days = query_int('days', 90, min_value=1)
     stock = Stock.query.filter_by(symbol=symbol).first()
     if not stock:
         return jsonify({'error': f'Symbol {symbol} nicht gefunden'}), 404
@@ -281,7 +282,7 @@ def get_equity():
     if portfolio is None:
         return jsonify({'error': 'Kein aktives Portfolio gefunden'}), 404
 
-    days = int(request.args.get('days', 30))
+    days = query_int('days', 30, min_value=1)
     since = date.today() - timedelta(days=days)
     history = get_equity_history(portfolio.id, since=since)
     return jsonify([h.to_dict() for h in history])
