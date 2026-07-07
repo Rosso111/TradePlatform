@@ -122,7 +122,7 @@ STOCK_UNIVERSE = [
     # === SCHWEIZ (SIX) ===
     {'symbol': 'NESN.SW', 'name': 'Nestlé SA',          'sector': 'ConsumerStap', 'region': 'CH', 'currency': 'CHF'},
     {'symbol': 'NOVN.SW', 'name': 'Novartis AG',        'sector': 'Healthcare',   'region': 'CH', 'currency': 'CHF'},
-    {'symbol': 'ROG.SW',  'name': 'Roche Holding AG',   'sector': 'Healthcare',   'region': 'CH', 'currency': 'CHF'},
+    {'symbol': 'ROP.SW',  'name': 'Roche Holding AG',   'sector': 'Healthcare',   'region': 'CH', 'currency': 'CHF'},
     {'symbol': 'UBSG.SW', 'name': 'UBS Group AG',       'sector': 'Financials',   'region': 'CH', 'currency': 'CHF'},
     {'symbol': 'ABBN.SW', 'name': 'ABB Ltd',            'sector': 'Industrials',  'region': 'CH', 'currency': 'CHF'},
 
