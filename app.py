@@ -374,6 +374,25 @@ def _setup_scheduler(app):
         replace_existing=True,
     )
 
+    # Positions-Abgleich DB ↔ IBKR Mo–Fr 07:45 (vor Proposals um 8:00)
+    def position_reconcile_job():
+        if not config.LIVE_TRADING:
+            return
+        from services.position_reconciler import reconcile_all_portfolios
+        try:
+            _ensure_ibkr_gateway()
+            diffs = reconcile_all_portfolios(app)
+            log.info("Positions-Reconciliation abgeschlossen: %d Differenzen.", len(diffs))
+        except Exception as e:
+            log.error("Positions-Reconciliation fehlgeschlagen: %s", e)
+
+    scheduler.add_job(
+        position_reconcile_job,
+        trigger=CronTrigger(day_of_week='mon-fri', hour=7, minute=45, timezone='Europe/Vienna'),
+        id='position_reconcile',
+        replace_existing=True,
+    )
+
     # Implements: PR-09 — Veraltete Proposals um 22:00 Uhr auf 'expired' setzen
     def proposal_expire_job():
         from services.proposal_generator import expire_stale_proposals
