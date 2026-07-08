@@ -3,7 +3,7 @@ Live Runner — führt den Handelszyklus mit echten IBKR-Orders aus.
 Ersetzt run_trading_cycle() für den Live/Paper-Trading-Modus.
 """
 import logging
-from datetime import date
+from datetime import date, datetime, timedelta, timezone
 
 from models import db, Account, Position, Trade, Stock, Price, EquityHistory, Portfolio
 import config
@@ -25,6 +25,58 @@ from services.trading_engine import (
 )
 
 log = logging.getLogger(__name__)
+
+# Ein Alarm pro Aktie und Tag, sonst spammt der 15-Minuten-Zyklus Telegram voll
+_data_alerts: dict[tuple[str, int], date] = {}
+
+
+def _alert_once_per_day(kind: str, stock_id: int, message: str):
+    key = (kind, stock_id)
+    if _data_alerts.get(key) == date.today():
+        return
+    _data_alerts[key] = date.today()
+    log.error(message)
+    try:
+        from services.telegram_notifier import send_message
+        send_message(f'⚠️ {message}')
+    except Exception:
+        pass
+
+
+def is_price_stale(latest_date, max_days: int = 5) -> bool:
+    """True, wenn der letzte Kurs älter als max_days Kalendertage ist (~3 Handelstage)."""
+    return (date.today() - latest_date).days > max_days
+
+
+def is_price_jump_suspicious(latest_close: float, prev_close: float,
+                             threshold: float = 0.40) -> bool:
+    """True bei Tagessprung > threshold — Verdacht auf unbehandelten Split/Datenfehler.
+    Echte Crashs dieser Größe sind selten; der Stop-Loss wird dann einen Zyklus
+    zurückgehalten und stattdessen alarmiert (KLAC-Fall: −87% durch Split)."""
+    if not prev_close or prev_close <= 0:
+        return False
+    return abs(latest_close / prev_close - 1) > threshold
+
+
+def blocked_by_rebuy_cooldown(portfolio_id: int, stock_id: int, score: float,
+                              buy_threshold: float, cooldown_days: int = 14,
+                              score_margin: float = 15.0) -> bool:
+    """Sperrt den Wiederkauf einer Aktie nach Stop-Loss-Exit (Anti-Whipsaw).
+
+    Innerhalb von cooldown_days nach einem Stop-Loss-Verkauf wird nur gekauft,
+    wenn der Score deutlich über der Kaufschwelle liegt (buy_threshold + margin).
+    """
+    cutoff = datetime.now(timezone.utc) - timedelta(days=cooldown_days)
+    recent_sl = (Trade.query
+                 .filter(Trade.portfolio_id == portfolio_id,
+                         Trade.stock_id == stock_id,
+                         Trade.action == 'SELL',
+                         Trade.reason.ilike('%Stop-Loss%'),
+                         Trade.executed_at >= cutoff)
+                 .first())
+    if recent_sl is None:
+        return False
+    return score < buy_threshold + score_margin
 
 
 def _is_market_bullish(benchmark_symbol: str = 'SPY', period: int = 200) -> bool | None:
@@ -438,6 +490,13 @@ def update_live_positions(fx_rates: dict, portfolio_id: int) -> tuple[list[str],
         if not latest:
             continue
 
+        if is_price_stale(latest.date, params.get('stale_price_max_days', 5)):
+            _alert_once_per_day(
+                'stale', stock.id,
+                f'Kursdaten eingefroren: {stock.symbol} — letzter Kurs vom {latest.date}, '
+                f'Position ({pos.shares:.0f} Stk) läuft ohne SL/TP-Überwachung! Symbol prüfen.'
+            )
+
         current_price     = latest.close
         # LSE prices (GBP currency) are stored in GBX (pence) — normalize to GBP
         if currency == 'GBP':
@@ -457,6 +516,19 @@ def update_live_positions(fx_rates: dict, portfolio_id: int) -> tuple[list[str],
         effective_stop = max(pos.stop_loss or 0, pos.trailing_stop or 0)
 
         if effective_stop > 0 and current_price <= effective_stop:
+            prev = (Price.query
+                    .filter(Price.stock_id == stock.id, Price.date < latest.date)
+                    .order_by(Price.date.desc())
+                    .first())
+            if prev and is_price_jump_suspicious(
+                    latest.close, prev.close, params.get('split_guard_pct', 0.40)):
+                _alert_once_per_day(
+                    'split', stock.id,
+                    f'Split-/Datenfehler-Verdacht: {stock.symbol} Tagessprung '
+                    f'{(latest.close / prev.close - 1) * 100:+.0f}% ({prev.close:.2f} → {latest.close:.2f}). '
+                    f'Stop-Loss zurückgehalten — Position und IBKR-Bestand manuell prüfen!'
+                )
+                continue
             ok, msg = execute_live_sell(pos, fx_rates, reason='Stop-Loss ausgelöst')
             if ok:
                 sold_stock_ids.add(pos.stock_id)
@@ -575,6 +647,14 @@ def run_live_trading_cycle(app, portfolio_id: int | None = None) -> list[str]:
             for signal in buy_signals:
                 if signal['stock_id'] in sold_stock_ids:
                     log.info(f"{signal['symbol']}: Kauf übersprungen — im selben Zyklus per SL/TP verkauft")
+                    continue
+                if blocked_by_rebuy_cooldown(
+                        portfolio.id, signal['stock_id'], signal['score'],
+                        port_params['buy_threshold'],
+                        cooldown_days=port_params.get('rebuy_cooldown_days', 14),
+                        score_margin=port_params.get('rebuy_score_margin', 15.0)):
+                    log.info(f"{signal['symbol']}: Kauf übersprungen — Re-Buy-Cooldown nach Stop-Loss "
+                             f"(Score {signal['score']:.0f} unter Schwelle+Marge)")
                     continue
                 if get_open_positions_count(portfolio.id) >= port_params['max_positions']:
                     break
