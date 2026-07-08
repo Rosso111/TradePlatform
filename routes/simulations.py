@@ -1,7 +1,7 @@
 """
 Simulation Routes — Historische Replay-Simulationen
 """
-from flask import Blueprint, jsonify, request
+from flask import Blueprint, abort, jsonify, make_response, request
 from flask_login import login_required, current_user
 from datetime import datetime, timezone
 import logging
@@ -15,16 +15,28 @@ from repositories.simulation_repo import (
     delete_simulation_runs, get_simulations_for_user, get_all_simulations,
 )
 from services.replay_engine import _calculate_benchmark_return_until_date
+from routes.common import query_int
 
 log = logging.getLogger(__name__)
 simulations_bp = Blueprint('simulations', __name__, url_prefix='/api')
 
 
+def _load_run_or_403(run_id):
+    """Lädt einen SimulationRun und erzwingt Owner-oder-Admin (PROBE-9)."""
+    run = SimulationRun.query.get_or_404(run_id)
+    if run.user_id != current_user.id and current_user.role != 'admin':
+        abort(make_response(jsonify({'error': 'Keine Berechtigung'}), 403))
+    return run
+
+
 @simulations_bp.route('/simulations', methods=['GET'])
 @login_required
 def get_simulations():
-    # Simulations are shared analytical results — all users see all runs.
-    runs = get_all_simulations()
+    # Implements: G-02 — Nicht-Admins sehen nur eigene Runs (PROBE-9)
+    if current_user.role != 'admin':
+        runs = get_simulations_for_user(current_user.id)
+    else:
+        runs = get_all_simulations()
     return jsonify([run.to_dict() for run in runs])
 
 
@@ -107,7 +119,7 @@ def create_simulation():
 @login_required
 def get_simulation(run_id):
     # Implements: G-02, API-27
-    run = SimulationRun.query.get_or_404(run_id)
+    run = _load_run_or_403(run_id)
     latest_snapshot = (SimulationDailySnapshot.query
                        .filter_by(run_id=run_id)
                        .order_by(SimulationDailySnapshot.sim_date.desc())
@@ -147,10 +159,7 @@ def get_simulation(run_id):
 @login_required
 def delete_simulation(run_id):
     # Implements: G-02, API-27
-    run = SimulationRun.query.get_or_404(run_id)
-    if run.user_id != current_user.id and current_user.role != 'admin':
-        return jsonify({'error': 'Keine Berechtigung'}), 403
-
+    run = _load_run_or_403(run_id)
     if str(run.status).upper() in ('RUNNING', 'CANCEL_REQUESTED'):
         return jsonify({
             'success': False,
@@ -171,10 +180,7 @@ def delete_simulation(run_id):
 @login_required
 def cancel_simulation(run_id):
     # Implements: G-02, API-27
-    run = SimulationRun.query.get_or_404(run_id)
-    if run.user_id != current_user.id and current_user.role != 'admin':
-        return jsonify({'error': 'Keine Berechtigung'}), 403
-
+    run = _load_run_or_403(run_id)
     if str(run.status).upper() != 'RUNNING':
         return jsonify({
             'success': False,
@@ -196,7 +202,7 @@ def cancel_simulation(run_id):
 @login_required
 def get_simulation_equity(run_id):
     # Implements: G-02, API-27
-    run = SimulationRun.query.get_or_404(run_id)
+    run = _load_run_or_403(run_id)
     rows = (SimulationDailySnapshot.query
             .filter_by(run_id=run_id)
             .order_by(SimulationDailySnapshot.sim_date.asc())
@@ -208,8 +214,8 @@ def get_simulation_equity(run_id):
 @login_required
 def get_simulation_trades(run_id):
     # Implements: G-02, API-27
-    run = SimulationRun.query.get_or_404(run_id)
-    limit = min(int(request.args.get('limit', 300)), 1000)
+    run = _load_run_or_403(run_id)
+    limit = query_int('limit', 300, min_value=1, max_value=1000)
     rows = (SimulationTrade.query
             .filter_by(run_id=run_id)
             .order_by(SimulationTrade.sim_date.desc(), SimulationTrade.id.desc())
@@ -222,7 +228,7 @@ def get_simulation_trades(run_id):
 @login_required
 def get_simulation_positions(run_id):
     # Implements: G-02, API-27
-    run = SimulationRun.query.get_or_404(run_id)
+    run = _load_run_or_403(run_id)
     rows = (SimulationPosition.query
             .filter_by(run_id=run_id)
             .order_by(SimulationPosition.opened_at_sim_date.desc(), SimulationPosition.id.desc())
@@ -234,9 +240,9 @@ def get_simulation_positions(run_id):
 @login_required
 def get_simulation_decisions(run_id):
     # Implements: G-02, API-27
-    run = SimulationRun.query.get_or_404(run_id)
+    run = _load_run_or_403(run_id)
     query = DecisionLog.query.filter_by(run_id=run_id)
-    limit = min(int(request.args.get('limit', 400)), 1000)
+    limit = query_int('limit', 400, min_value=1, max_value=1000)
 
     action = request.args.get('action')
     symbol = request.args.get('symbol')
@@ -259,7 +265,7 @@ def get_simulation_decisions(run_id):
 @login_required
 def get_simulation_metrics(run_id):
     # Implements: G-02, API-27
-    run = SimulationRun.query.get_or_404(run_id)
+    run = _load_run_or_403(run_id)
     snapshots = (SimulationDailySnapshot.query
                  .filter_by(run_id=run_id)
                  .order_by(SimulationDailySnapshot.sim_date.asc())
@@ -367,7 +373,7 @@ def get_simulation_metrics(run_id):
 @login_required
 def get_simulation_benchmark(run_id):
     # Implements: G-02, API-27
-    run = SimulationRun.query.get_or_404(run_id)
+    run = _load_run_or_403(run_id)
     rows = (SimulationDailySnapshot.query
             .filter_by(run_id=run_id)
             .order_by(SimulationDailySnapshot.sim_date.asc())
