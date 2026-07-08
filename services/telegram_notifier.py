@@ -1,3 +1,4 @@
+import html
 import logging
 import os
 import threading
@@ -7,6 +8,11 @@ import json
 import time
 
 log = logging.getLogger(__name__)
+
+
+def esc(value) -> str:
+    """HTML-escapet dynamische Werte für parse_mode='HTML' (PROBE-13)."""
+    return html.escape(str(value), quote=False)
 
 TELEGRAM_TOKEN = os.environ.get('TELEGRAM_TOKEN', '')
 TELEGRAM_CHAT_ID = os.environ.get('TELEGRAM_CHAT_ID', '')
@@ -94,7 +100,7 @@ def _handle_command(text: str, app):
             scheduler.pause_job('trading_cycle')
             send_message('⏸ <b>Trading pausiert.</b>\nKeine neuen Orders bis /weiter.')
         except Exception as e:
-            send_message(f'❌ Fehler: {e}')
+            send_message(f'❌ Fehler: {esc(e)}')
 
     elif cmd in ('/weiter', 'weiter', '/resume', 'resume'):
         try:
@@ -102,7 +108,7 @@ def _handle_command(text: str, app):
             scheduler.resume_job('trading_cycle')
             send_message('▶️ <b>Trading fortgesetzt.</b>\nNächster Zyklus in max. 15 Min.')
         except Exception as e:
-            send_message(f'❌ Fehler: {e}')
+            send_message(f'❌ Fehler: {esc(e)}')
 
     elif cmd in ('/status', 'status'):
         _handle_command('/status_bot', app)
@@ -137,15 +143,15 @@ def _handle_command(text: str, app):
                 conn.close()
                 lines = [f'📊 <b>Top 10 Aktien — {sig_date}</b>']
                 for i, (sym, name, score, rsi, eur, sector) in enumerate(rows, 1):
-                    name_str = f' ({name[:20]})' if name else ''
+                    name_str = f' ({esc(name[:20])})' if name else ''
                     lines.append(
-                        f'{i}. <b>{sym}</b>{name_str}\n'
+                        f'{i}. <b>{esc(sym)}</b>{name_str}\n'
                         f'   Score {score:.0f}  RSI {(rsi or 0):.0f}  @€{(eur or 0):.2f}'
-                        + (f'  <i>{sector[:14]}</i>' if sector else '')
+                        + (f'  <i>{esc(sector[:14])}</i>' if sector else '')
                     )
                 send_message('\n'.join(lines))
             except Exception as e:
-                send_message(f'❌ Top10-Fehler: {e}')
+                send_message(f'❌ Top10-Fehler: {esc(e)}')
 
     elif cmd in ('/topruns', 'topruns'):
         with app.app_context():
@@ -171,24 +177,14 @@ def _handle_command(text: str, app):
 
     elif cmd in ('/start',) and len(text.strip().split()) > 1:
         batch_id = text.strip().split()[1]
-        with app.app_context():
-            from services.scenario_store import get_scenario_batch
-            batch = get_scenario_batch(batch_id)
-            if not batch:
-                send_message(f'❌ Batch <code>{batch_id}</code> nicht gefunden.')
-                return
-            if batch.get('status') == 'running':
-                send_message('⏳ Batch läuft bereits.')
-                return
-        req = urllib.request.Request(
-            f'http://localhost:5000/api/scenario-batches/{batch_id}/run',
-            data=b'{}', headers={'Content-Type': 'application/json'}
-        )
-        try:
-            urllib.request.urlopen(req, timeout=10)
-            send_message(f'🚀 Batch <code>{batch_id}</code> gestartet!')
-        except Exception as e:
-            send_message(f'❌ Fehler: {e}')
+        # VANCE-M3: direkter Service-Aufruf statt HTTP auf localhost —
+        # der scheiterte an @login_required und Fehler blieben unsichtbar.
+        from services.scenario_runner import start_batch
+        ok, error = start_batch(app, batch_id)
+        if ok:
+            send_message(f'🚀 Batch <code>{esc(batch_id)}</code> gestartet!')
+        else:
+            send_message(f'❌ Batch <code>{esc(batch_id)}</code>: {esc(error)}')
 
     elif cmd in ('/portfolio', 'portfolio'):
         with app.app_context():
@@ -218,10 +214,10 @@ def _handle_command(text: str, app):
                     curr = curr or entry
                     pnl = (curr - entry) * shares
                     pnl_str = f'{pnl:+.0f}€'
-                    lines.append(f'• <b>{sym}</b> {shares:.1f}Stk @{entry:.2f}→{curr:.2f} {pnl_str}')
+                    lines.append(f'• <b>{esc(sym)}</b> {shares:.1f}Stk @{entry:.2f}→{curr:.2f} {pnl_str}')
                 send_message('\n'.join(lines))
             except Exception as e:
-                send_message(f'❌ Portfolio-Fehler: {e}')
+                send_message(f'❌ Portfolio-Fehler: {esc(e)}')
 
     elif cmd in ('/signals', 'signals'):
         with app.app_context():
@@ -252,10 +248,10 @@ def _handle_command(text: str, app):
                 conn.close()
                 lines = [f'📊 <b>BUY-Signale {sig_date}</b>']
                 for sym, score, rsi, eur in rows:
-                    lines.append(f'• <b>{sym}</b> Score {score:.0f} RSI {(rsi or 0):.0f} @€{(eur or 0):.2f}')
+                    lines.append(f'• <b>{esc(sym)}</b> Score {score:.0f} RSI {(rsi or 0):.0f} @€{(eur or 0):.2f}')
                 send_message('\n'.join(lines))
             except Exception as e:
-                send_message(f'❌ Signal-Fehler: {e}')
+                send_message(f'❌ Signal-Fehler: {esc(e)}')
 
     elif cmd in ('/cash', 'cash'):
         with app.app_context():
@@ -278,7 +274,7 @@ def _handle_command(text: str, app):
                     lines.append(f'• <b>{name}</b>: €{(cash or 0):,.0f}')
                 send_message('\n'.join(lines))
             except Exception as e:
-                send_message(f'❌ Cash-Fehler: {e}')
+                send_message(f'❌ Cash-Fehler: {esc(e)}')
 
     elif cmd in ('/pnl', 'pnl'):
         with app.app_context():
@@ -323,7 +319,7 @@ def _handle_command(text: str, app):
                     )
                 send_message('\n'.join(lines))
             except Exception as e:
-                send_message(f'❌ P&L-Fehler: {e}')
+                send_message(f'❌ P&L-Fehler: {esc(e)}')
 
     elif cmd in ('/sell',) and len(text.strip().split()) > 1:
         parts = text.strip().split()
@@ -352,25 +348,25 @@ def _handle_command(text: str, app):
                 rows = cur.fetchall()
                 conn.close()
                 if not rows:
-                    send_message(f'❌ Keine offene IBKR-Position: <b>{symbol}</b>')
+                    send_message(f'❌ Keine offene IBKR-Position: <b>{esc(symbol)}</b>')
                     return
                 # Filter by portfolio name if user specified one
                 if portfolio_filter:
                     rows = [r for r in rows if portfolio_filter in r[1].lower()]
                     if not rows:
-                        send_message(f'❌ <b>{symbol}</b> nicht in IBKR-Portfolio "{parts[2]}" gefunden')
+                        send_message(f'❌ <b>{esc(symbol)}</b> nicht in IBKR-Portfolio "{esc(parts[2])}" gefunden')
                         return
                 # Multiple IBKR portfolios → ask
                 if len(rows) > 1:
-                    lines = [f'⚠️ <b>{symbol}</b> in mehreren IBKR-Portfolios — z.B. <code>/sell {symbol} Paper</code>:']
+                    lines = [f'⚠️ <b>{esc(symbol)}</b> in mehreren IBKR-Portfolios — z.B. <code>/sell {esc(symbol)} Paper</code>:']
                     for pos_id, port_name, shares, entry, curr, acct in rows:
                         pnl = (curr - entry) * shares
-                        lines.append(f'• {port_name} ({acct}): {shares:.0f} Stk  P&amp;L {pnl:+.0f}€')
+                        lines.append(f'• {esc(port_name)} ({esc(acct)}): {shares:.0f} Stk  P&amp;L {pnl:+.0f}€')
                     send_message('\n'.join(lines))
                     return
                 pos_id, port_name, shares, entry, curr, acct = rows[0]
                 pnl_est = (curr - entry) * shares
-                send_message(f'⏳ Verkaufe <b>{symbol}</b> ({shares:.0f} Stk) aus {port_name}…\nErwartet: {pnl_est:+.0f}€')
+                send_message(f'⏳ Verkaufe <b>{esc(symbol)}</b> ({shares:.0f} Stk) aus {esc(port_name)}…\nErwartet: {pnl_est:+.0f}€')
                 from models import Position
                 from services.data_fetcher import fetch_exchange_rates
                 from services.live_runner import execute_live_sell
@@ -378,11 +374,11 @@ def _handle_command(text: str, app):
                 fx_rates = fetch_exchange_rates()
                 ok, msg = execute_live_sell(pos, fx_rates, reason='Telegram /sell')
                 if ok:
-                    send_message(f'✅ <b>{symbol}</b> verkauft\n{msg[:120]}')
+                    send_message(f'✅ <b>{esc(symbol)}</b> verkauft\n{esc(msg[:120])}')
                 else:
-                    send_message(f'❌ <b>{symbol}</b> fehlgeschlagen\n{msg[:120]}')
+                    send_message(f'❌ <b>{esc(symbol)}</b> fehlgeschlagen\n{esc(msg[:120])}')
             except Exception as e:
-                send_message(f'❌ Sell-Fehler: {e}')
+                send_message(f'❌ Sell-Fehler: {esc(e)}')
 
     elif cmd in ('/buy',) and len(text.strip().split()) > 2:
         parts = text.strip().split()
@@ -390,7 +386,7 @@ def _handle_command(text: str, app):
         try:
             shares = int(parts[2])
         except ValueError:
-            send_message(f'❌ Ungültige Stückzahl: {parts[2]}\nFormat: /buy SYMBOL STÜCK')
+            send_message(f'❌ Ungültige Stückzahl: {esc(parts[2])}\nFormat: /buy SYMBOL STÜCK')
             return
         with app.app_context():
             try:
@@ -412,12 +408,12 @@ def _handle_command(text: str, app):
                 row = cur.fetchone()
                 conn.close()
                 if not row:
-                    send_message(f'❌ Symbol nicht gefunden: <b>{symbol}</b>')
+                    send_message(f'❌ Symbol nicht gefunden: <b>{esc(symbol)}</b>')
                     return
                 stock_id, currency, curr_eur, portfolio_id, ibkr_account = row
                 est_cost = shares * curr_eur
                 send_message(
-                    f'⏳ Kaufe <b>{symbol}</b> {shares} Stk @ ~{curr_eur:.2f}€\n'
+                    f'⏳ Kaufe <b>{esc(symbol)}</b> {shares} Stk @ ~{curr_eur:.2f}€\n'
                     f'Geschätzter Wert: ~{est_cost:,.0f}€ — Konto: {ibkr_account}'
                 )
                 from models import db, Stock, Portfolio, Account, Position, Price
@@ -457,12 +453,12 @@ def _handle_command(text: str, app):
                 account.cash_eur -= cost_eur
                 db.session.commit()
                 send_message(
-                    f'✅ <b>{symbol}</b> gekauft\n'
+                    f'✅ <b>{esc(symbol)}</b> gekauft\n'
                     f'{fill_qty:.0f} Stk @ {fill_price:.2f} {currency}\n'
                     f'Kosten: {cost_eur:,.0f}€  Cash danach: {account.cash_eur:,.0f}€'
                 )
             except Exception as e:
-                send_message(f'❌ Buy-Fehler: {e}')
+                send_message(f'❌ Buy-Fehler: {esc(e)}')
 
     elif cmd in ('/help', 'help'):
         send_message(
@@ -519,7 +515,7 @@ def _process_complex(text: str, app):
 
     # Fallback → Queue für Claude
     _enqueue_message(text)
-    send_message(f'📨 An Claude weitergeleitet:\n<code>{text[:80]}</code>\n⏱ ~60s')
+    send_message(f'📨 An Claude weitergeleitet:\n<code>{esc(text[:80])}</code>\n⏱ ~60s')
 
 
 def _run_quick_sweep(param_override: dict, label: str, app):
@@ -570,15 +566,13 @@ def _run_quick_sweep(param_override: dict, label: str, app):
     with open(data_file, 'w') as f:
         _json.dump(d, f, indent=2, ensure_ascii=False)
 
-    req = urllib.request.Request(
-        f'http://localhost:5000/api/scenario-batches/{batch_id}/run',
-        data=b'{}', headers={'Content-Type': 'application/json'}
-    )
-    try:
-        urllib.request.urlopen(req, timeout=10)
-        send_message(f'🚀 Quick Sweep gestartet: <b>{label}</b>\nNotification wenn fertig.')
-    except Exception as e:
-        send_message(f'❌ Fehler beim Start: {e}')
+    # VANCE-M3: direkter Service-Aufruf statt HTTP auf localhost
+    from services.scenario_runner import start_batch
+    ok, error = start_batch(app, batch_id)
+    if ok:
+        send_message(f'🚀 Quick Sweep gestartet: <b>{esc(label)}</b>\nNotification wenn fertig.')
+    else:
+        send_message(f'❌ Fehler beim Start: {esc(error)}')
 
 
 def _polling_loop(app):
@@ -603,7 +597,7 @@ def _polling_loop(app):
                             _handle_command(text, app)
                         except Exception as e:
                             log.exception('Telegram command error: %s', e)
-                            send_message(f'❌ Fehler: {e}')
+                            send_message(f'❌ Fehler: {esc(e)}')
         except Exception as e:
             log.debug('Polling error: %s', e)
             time.sleep(5)
@@ -625,13 +619,13 @@ def start_polling(app):
 
 def notify_batch_complete(batch_name: str, results: list):
     if not results:
-        send_message(f'✅ <b>{batch_name}</b>\nKeine Ergebnisse.')
+        send_message(f'✅ <b>{esc(batch_name)}</b>\nKeine Ergebnisse.')
         return
     best = max(results, key=lambda r: r.get('total_return_pct') or 0)
     worst = min(results, key=lambda r: r.get('total_return_pct') or 0)
     avg = sum(r.get('total_return_pct') or 0 for r in results) / len(results)
     msg = (
-        f'✅ <b>{batch_name}</b> fertig ({len(results)} Runs)\n'
+        f'✅ <b>{esc(batch_name)}</b> fertig ({len(results)} Runs)\n'
         f'🏆 Bester: +{best.get("total_return_pct", 0):.1f}% '
         f'(Sharpe {best.get("sharpe_ratio", 0):.3f})\n'
         f'📊 Durchschnitt: +{avg:.1f}%\n'
@@ -643,7 +637,7 @@ def notify_batch_complete(batch_name: str, results: list):
 def notify_run_complete(run_name: str, total_return_pct: float, sharpe: float, max_dd: float):
     emoji = '🟢' if total_return_pct > 0 else '🔴'
     msg = (
-        f'{emoji} <b>{run_name}</b>\n'
+        f'{emoji} <b>{esc(run_name)}</b>\n'
         f'Return: {total_return_pct:+.2f}%\n'
         f'Sharpe: {sharpe:.3f} | MaxDD: {max_dd:.1f}%'
     )
@@ -661,7 +655,7 @@ def notify_signals(signals: list):
         rsi = s.get('rsi') or 0
         eur = s.get('current_price_eur') or 0
         lines.append(
-            f'• <b>{s["symbol"]}</b>  Score {s["score"]:.0f}  RSI {rsi:.0f}  @€{eur:.2f}  {(s.get("sector") or "")[:15]}'
+            f'• <b>{esc(s["symbol"])}</b>  Score {s["score"]:.0f}  RSI {rsi:.0f}  @€{eur:.2f}  {esc((s.get("sector") or "")[:15])}'
         )
     send_message('\n'.join(lines))
 
@@ -669,17 +663,17 @@ def notify_signals(signals: list):
 def notify_trade(action: str, symbol: str, qty: int, price_eur: float,
                  pnl_eur: float | None = None, portfolio_name: str = ''):
     """Bestätigung eines ausgeführten IBKR-Trades via Telegram."""
-    port_str = f' [{portfolio_name}]' if portfolio_name else ''
+    port_str = f' [{esc(portfolio_name)}]' if portfolio_name else ''
     if action == 'BUY':
         total = qty * price_eur
         msg = (f'🟢 <b>KAUF{port_str}</b>\n'
-               f'{symbol}: {qty} Stk @ €{price_eur:.2f}\n'
+               f'{esc(symbol)}: {qty} Stk @ €{price_eur:.2f}\n'
                f'Investiert: €{total:,.0f}')
     else:
         pnl_str = f'\nP&amp;L: {pnl_eur:+.0f} EUR' if pnl_eur is not None else ''
         emoji = '🟡' if (pnl_eur or 0) >= 0 else '🔴'
         msg = (f'{emoji} <b>VERKAUF{port_str}</b>\n'
-               f'{symbol}: {qty} Stk @ €{price_eur:.2f}{pnl_str}')
+               f'{esc(symbol)}: {qty} Stk @ €{price_eur:.2f}{pnl_str}')
     send_message(msg)
 
 
@@ -690,11 +684,11 @@ def notify_buy_batch(buys: list, account_cash_eur: float, portfolio_name: str = 
     """
     if not buys:
         return
-    port_str = f' [{portfolio_name}]' if portfolio_name else ''
+    port_str = f' [{esc(portfolio_name)}]' if portfolio_name else ''
     total_invested = sum(b[3] for b in buys)
     lines = [f'🟢 <b>{len(buys)} Käufe{port_str}</b> | Investiert: €{total_invested:,.0f} | Cash noch: €{account_cash_eur:,.0f}']
     for symbol, qty, price_eur, total_eur in buys[:15]:
-        lines.append(f'• {symbol}: {qty} Stk @ €{price_eur:.2f} (€{total_eur:,.0f})')
+        lines.append(f'• {esc(symbol)}: {qty} Stk @ €{price_eur:.2f} (€{total_eur:,.0f})')
     if len(buys) > 15:
         lines.append(f'… und {len(buys) - 15} weitere Käufe')
     send_message('\n'.join(lines))
@@ -706,7 +700,7 @@ def notify_live_cycle(actions: list, portfolio_names: list):
         return
     lines = [f'⚡ <b>Live-Zyklus abgeschlossen</b> ({len(actions)} Aktionen)']
     for a in actions[:6]:
-        lines.append(f'• {a[:80]}')
+        lines.append(f'• {esc(a[:80])}')
     if len(actions) > 6:
         lines.append(f'… und {len(actions) - 6} weitere')
     send_message('\n'.join(lines))
