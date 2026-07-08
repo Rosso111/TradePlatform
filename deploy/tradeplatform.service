@@ -4,11 +4,16 @@ After=network-online.target postgresql.service ibgateway.service
 Wants=network-online.target
 
 [Service]
-Type=simple
+Type=notify
+NotifyAccess=main
+# run.py meldet READY=1 und pingt WATCHDOG=1 nur bei gesundem /health;
+# bleibt der Ping 90s aus, startet systemd den Dienst neu (Felix-8).
+WatchdogSec=90
+TimeoutStartSec=300
 User=martin
 WorkingDirectory=/home/martin/.openclaw/workspace/TradePlatform_multiuser
 EnvironmentFile=/home/martin/.openclaw/workspace/TradePlatform_multiuser/.env
-ExecStart=/home/martin/TradePlatform/.venv/bin/python run.py
+ExecStart=/home/martin/.openclaw/workspace/TradePlatform_multiuser/.venv/bin/python run.py
 Restart=always
 RestartSec=15
 StandardOutput=journal

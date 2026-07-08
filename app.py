@@ -122,6 +122,26 @@ def create_app(test_config: dict | None = None):
     def index():
         return render_template('index.html')
 
+    # Health-Check für systemd-Watchdog und Monitoring (Felix-8) — ohne Login,
+    # damit systemd/Grafana ohne Session prüfen können. Gibt keine Interna preis.
+    @app.route('/health')
+    def health():
+        from flask import jsonify as _jsonify
+        checks = {}
+        healthy = True
+        try:
+            db.session.execute(db.text('SELECT 1'))
+            checks['db'] = 'ok'
+        except Exception as e:
+            checks['db'] = 'error'
+            healthy = False
+            log.error("Health-Check DB fehlgeschlagen: %s", e)
+        checks['scheduler'] = 'running' if scheduler.running else 'stopped'
+        if not app.config.get('TESTING') and not scheduler.running:
+            healthy = False
+        status = 200 if healthy else 503
+        return _jsonify({'status': 'ok' if healthy else 'degraded', 'checks': checks}), status
+
     # Datenbank & Startdaten initialisieren
     with app.app_context():
         db.create_all()
