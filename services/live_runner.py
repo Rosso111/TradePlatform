@@ -479,6 +479,8 @@ def run_live_trading_cycle(app, portfolio_id: int | None = None) -> list[str]:
     Gleiche Schnittstelle wie run_trading_cycle() in trading_engine.py.
     """
     from services.data_fetcher import fetch_exchange_rates, update_prices_incremental
+    # REED-5: kein globaler generate_signals()-Aufruf mehr — Signale werden
+    # ausschließlich pro Portfolio erzeugt (Thresholds/portfolio_id korrekt).
     from services.algorithm import generate_signals
 
     log.info("=== IBKR Live-Zyklus gestartet ===")
@@ -499,14 +501,7 @@ def run_live_trading_cycle(app, portfolio_id: int | None = None) -> list[str]:
         except Exception as e:
             log.error(f"Preis-Update: {e}")
 
-        # 3. Signale generieren (einmalig, geteilt)
-        try:
-            signals = generate_signals(app)
-        except Exception as e:
-            log.error(f"Signal-Generierung: {e}")
-            signals = []
-
-        # 4. Portfolios bestimmen — nur IBKR-Portfolios (nicht sim)
+        # 3. Portfolios bestimmen — nur IBKR-Portfolios (nicht sim)
         _ibkr_types = ('ibkr_paper', 'ibkr_live')
         if portfolio_id is not None:
             portfolios = Portfolio.query.filter(
