@@ -151,7 +151,7 @@ class Position(db.Model):
             'unrealized_pnl_eur': round(pnl, 2),
             'unrealized_pnl_pct': round(pnl_pct, 2),
             'commission_eur': round(self.commission_eur, 2),
-            'opened_at': self.opened_at.isoformat(),
+            'opened_at': self.opened_at.isoformat() if self.opened_at else None,
             'reason': self.reason,
         }
 
