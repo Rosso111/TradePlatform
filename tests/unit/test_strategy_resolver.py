@@ -46,11 +46,13 @@ def test_strategy_params_override_defaults():
     assert params['sell_threshold'] == config.SIGNAL_THRESHOLD_SELL  # unchanged
 
 
-def test_unknown_strategy_param_ignored():
-    strategy = _make_strategy(params={'nonexistent_param': 999})
+def test_custom_strategy_param_passed_through():
+    # Strategie-Params ohne Global-Default (momentum_lookback_days, min_hold_days,
+    # position_sizing, …) müssen den Live-Pfad erreichen
+    strategy = _make_strategy(params={'momentum_lookback_days': 126})
     portfolio = _make_portfolio(strategy=strategy)
     params = resolve(portfolio)
-    assert 'nonexistent_param' not in params
+    assert params['momentum_lookback_days'] == 126
 
 
 def test_market_rule_applied():

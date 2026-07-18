@@ -40,9 +40,10 @@ def resolve(portfolio: Portfolio, stock=None) -> dict:
         strategy = Strategy.query.get(portfolio.strategy_id)
 
     if strategy and strategy.params:
+        # Alle Strategie-Params durchreichen — auch solche ohne Global-Default
+        # (z. B. momentum_lookback_days, min_hold_days, position_sizing)
         for k, v in strategy.params.items():
-            if k in params:
-                params[k] = v
+            params[k] = v
 
     if strategy and stock:
         rules = list(strategy.rules.all())

@@ -13837,6 +13837,23 @@
         "tax_loss_harvest_threshold": -1.0
       },
       "notes": "Robustheitscheck der Duell-Sieger: anderes Zeitfenster (SPY 2015–21: +163%) + live handelbares Universum. Achtung Survivorship-Bias: Universum wurde 2026 zusammengestellt."
+    },
+    {
+      "id": "rob_cm4_2022_ibkr",
+      "name": "ROBUST: cm_v4 — ibkr_tradeable 2022–2026",
+      "strategy_id": "concentrated_momentum_v4",
+      "universe_name": "ibkr_tradeable",
+      "start_date": "2022-01-03",
+      "end_date": "2026-07-17",
+      "initial_capital_eur": 1000000,
+      "params_override": {
+        "decision_log_mode": "minimal",
+        "persist_chunk_days": 2000,
+        "cancel_check_interval_days": 100,
+        "capital_gains_tax_rate": 0,
+        "tax_loss_harvest_threshold": -1.0
+      },
+      "notes": "Validierung ohne KR/JP/CN — die vorherigen live_universe-Läufe enthielten SK Hynix, das IBKR nie füllt."
     }
   ],
   "scenario_batches": [
@@ -22785,7 +22802,7 @@
     {
       "id": "batch_robustness",
       "name": "Robustheit: cm_v4 + dm_rf auf 2015–2021 und Live-Universum",
-      "status": "draft",
+      "status": "completed",
       "scenario_ids": [
         "rob_cm4_2015_all",
         "rob_cm4_2015_live",
@@ -22794,7 +22811,93 @@
         "rob_dmrf_2015_live",
         "rob_dmrf_2022_live"
       ],
-      "notes": "Duell-Ergebnis 2022–2026/all_stocks: cm_v4 +542%, dm_rf +214%, SPY +65%. Benchmark 2015–2021: SPY +163%."
+      "notes": "Duell-Ergebnis 2022–2026/all_stocks: cm_v4 +542%, dm_rf +214%, SPY +65%. Benchmark 2015–2021: SPY +163%.",
+      "started_at": "2026-07-18T11:43:46.349944+00:00",
+      "error": null,
+      "current_index": 6,
+      "run_ids": [
+        1253,
+        1254,
+        1255,
+        1256,
+        1257,
+        1258
+      ],
+      "results": [
+        {
+          "scenario_id": "rob_cm4_2015_all",
+          "run_id": 1253,
+          "status": "completed",
+          "final_equity_eur": 12756401.21,
+          "total_return_pct": 1175.64,
+          "max_drawdown_pct": 37.6,
+          "sharpe_ratio": 1.067,
+          "kest_total": 0,
+          "commission_total": 66031.5,
+          "total_trades": 164
+        },
+        {
+          "scenario_id": "rob_cm4_2015_live",
+          "run_id": 1254,
+          "status": "completed",
+          "final_equity_eur": 11525976.17,
+          "total_return_pct": 1052.6,
+          "max_drawdown_pct": 33.69,
+          "sharpe_ratio": 1.1063,
+          "kest_total": 0,
+          "commission_total": 65514.33,
+          "total_trades": 166
+        },
+        {
+          "scenario_id": "rob_cm4_2022_live",
+          "run_id": 1255,
+          "status": "completed",
+          "final_equity_eur": 4078418.79,
+          "total_return_pct": 307.84,
+          "max_drawdown_pct": 32.13,
+          "sharpe_ratio": 0.9084,
+          "kest_total": 0,
+          "commission_total": 18674.75,
+          "total_trades": 94
+        },
+        {
+          "scenario_id": "rob_dmrf_2015_all",
+          "run_id": 1256,
+          "status": "completed",
+          "final_equity_eur": 5051267.95,
+          "total_return_pct": 405.13,
+          "max_drawdown_pct": 24.05,
+          "sharpe_ratio": 1.1438,
+          "kest_total": 0,
+          "commission_total": 99518.39,
+          "total_trades": 1291
+        },
+        {
+          "scenario_id": "rob_dmrf_2015_live",
+          "run_id": 1257,
+          "status": "completed",
+          "final_equity_eur": 4401240.3,
+          "total_return_pct": 340.12,
+          "max_drawdown_pct": 22.28,
+          "sharpe_ratio": 1.0667,
+          "kest_total": 0,
+          "commission_total": 85385.66,
+          "total_trades": 1210
+        },
+        {
+          "scenario_id": "rob_dmrf_2022_live",
+          "run_id": 1258,
+          "status": "completed",
+          "final_equity_eur": 2406274.27,
+          "total_return_pct": 140.63,
+          "max_drawdown_pct": 22.23,
+          "sharpe_ratio": 0.9085,
+          "kest_total": 0,
+          "commission_total": 34617.71,
+          "total_trades": 818
+        }
+      ],
+      "finished_at": "2026-07-18T12:23:58.315220+00:00"
     }
   ]
 }
