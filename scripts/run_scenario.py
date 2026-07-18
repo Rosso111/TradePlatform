@@ -212,13 +212,15 @@ def build_payload(args: argparse.Namespace) -> dict:
 
 def main():
     args = parse_args()
-    payload = build_payload(args)
+    # build_payload braucht App-Context: strategy_store liest Strategien aus der DB
+    app = create_cli_app()
+    with app.app_context():
+        payload = build_payload(args)
 
     if args.dry_run:
         print(json.dumps(payload, indent=2, ensure_ascii=False))
         return
 
-    app = create_cli_app()
     with app.app_context():
         run = create_simulation_run(payload)
         print(f'Run angelegt: id={run.id} scenario={args.scenario} strategy={run.strategy_name} universe={run.universe_name}')

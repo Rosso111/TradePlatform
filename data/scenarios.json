@@ -13326,6 +13326,118 @@
         "tax_loss_harvest_threshold": -1.0,
         "market_regime_filter": true
       }
+    },
+    {
+      "strategy_id": "adaptive_trend_v1",
+      "universe_name": "all_stocks",
+      "start_date": "2022-01-03",
+      "end_date": "2026-07-17",
+      "initial_capital_eur": 1000000,
+      "batch_id": "batch_at_v1_tuning",
+      "id": "at_v1_base",
+      "name": "AT v1 Basis (Referenz — Live-Params)",
+      "params_override": {
+        "decision_log_mode": "minimal",
+        "persist_chunk_days": 2000,
+        "cancel_check_interval_days": 100
+      },
+      "notes": "Tuning-Batch 2026-07-18 aus 2-Monats-Live-Analyse Strategie 21"
+    },
+    {
+      "strategy_id": "adaptive_trend_v1",
+      "universe_name": "all_stocks",
+      "start_date": "2022-01-03",
+      "end_date": "2026-07-17",
+      "initial_capital_eur": 1000000,
+      "batch_id": "batch_at_v1_tuning",
+      "id": "at_v1_tp_off_ts10",
+      "name": "AT v1 — TP aus, Trailing 10%",
+      "params_override": {
+        "decision_log_mode": "minimal",
+        "persist_chunk_days": 2000,
+        "cancel_check_interval_days": 100,
+        "take_profit_enabled": false,
+        "trailing_stop_pct": 0.1
+      },
+      "notes": "Tuning-Batch 2026-07-18 aus 2-Monats-Live-Analyse Strategie 21"
+    },
+    {
+      "strategy_id": "adaptive_trend_v1",
+      "universe_name": "all_stocks",
+      "start_date": "2022-01-03",
+      "end_date": "2026-07-17",
+      "initial_capital_eur": 1000000,
+      "batch_id": "batch_at_v1_tuning",
+      "id": "at_v1_konzentriert",
+      "name": "AT v1 — Top-25 / max 40 Positionen",
+      "params_override": {
+        "decision_log_mode": "minimal",
+        "persist_chunk_days": 2000,
+        "cancel_check_interval_days": 100,
+        "top_n_signals": 25,
+        "max_positions": 40
+      },
+      "notes": "Tuning-Batch 2026-07-18 aus 2-Monats-Live-Analyse Strategie 21"
+    },
+    {
+      "strategy_id": "adaptive_trend_v1",
+      "universe_name": "all_stocks",
+      "start_date": "2022-01-03",
+      "end_date": "2026-07-17",
+      "initial_capital_eur": 1000000,
+      "batch_id": "batch_at_v1_tuning",
+      "id": "at_v1_einstiegsfilter",
+      "name": "AT v1 — Einstiegsfilter RSI<75, <15% über EMA-fast",
+      "params_override": {
+        "decision_log_mode": "minimal",
+        "persist_chunk_days": 2000,
+        "cancel_check_interval_days": 100,
+        "entry_rsi_max": 75,
+        "entry_ema_fast_max_dist_pct": 0.15
+      },
+      "notes": "Tuning-Batch 2026-07-18 aus 2-Monats-Live-Analyse Strategie 21"
+    },
+    {
+      "strategy_id": "adaptive_trend_v1",
+      "universe_name": "all_stocks",
+      "start_date": "2022-01-03",
+      "end_date": "2026-07-17",
+      "initial_capital_eur": 1000000,
+      "batch_id": "batch_at_v1_tuning",
+      "id": "at_v1_kombi_ohne_filter",
+      "name": "AT v1 — Kombi: TP-aus/TS10 + Konzentration",
+      "params_override": {
+        "decision_log_mode": "minimal",
+        "persist_chunk_days": 2000,
+        "cancel_check_interval_days": 100,
+        "take_profit_enabled": false,
+        "trailing_stop_pct": 0.1,
+        "top_n_signals": 25,
+        "max_positions": 40
+      },
+      "notes": "Tuning-Batch 2026-07-18 aus 2-Monats-Live-Analyse Strategie 21"
+    },
+    {
+      "strategy_id": "adaptive_trend_v1",
+      "universe_name": "all_stocks",
+      "start_date": "2022-01-03",
+      "end_date": "2026-07-17",
+      "initial_capital_eur": 1000000,
+      "batch_id": "batch_at_v1_tuning",
+      "id": "at_v1_kombi_alle",
+      "name": "AT v1 — Kombi: alle drei Varianten",
+      "params_override": {
+        "decision_log_mode": "minimal",
+        "persist_chunk_days": 2000,
+        "cancel_check_interval_days": 100,
+        "take_profit_enabled": false,
+        "trailing_stop_pct": 0.1,
+        "top_n_signals": 25,
+        "max_positions": 40,
+        "entry_rsi_max": 75,
+        "entry_ema_fast_max_dist_pct": 0.15
+      },
+      "notes": "Tuning-Batch 2026-07-18 aus 2-Monats-Live-Analyse Strategie 21"
     }
   ],
   "scenario_batches": [
@@ -21942,6 +22054,22 @@
       "error": null,
       "current_index": 5,
       "finished_at": "2026-04-27T06:03:54.220156+00:00"
+    },
+    {
+      "id": "batch_at_v1_tuning",
+      "name": "Adaptive Trend v1 Tuning: TP/Trailing, Konzentration, Einstiegsfilter",
+      "status": "running",
+      "scenario_ids": [
+        "at_v1_base",
+        "at_v1_tp_off_ts10",
+        "at_v1_konzentriert",
+        "at_v1_einstiegsfilter",
+        "at_v1_kombi_ohne_filter",
+        "at_v1_kombi_alle"
+      ],
+      "notes": "Basierend auf Live-Analyse 08.05.–08.07.: Trefferquote 27%, Whipsaw 48%, TP schnitt Gewinner ab. Zeitraum 2022–2026 (Bär 2022 + Bulle 23/24). Kapital 1M wie Paper-Konto.",
+      "started_at": "2026-07-18T08:07:53.653127+00:00",
+      "error": null
     }
   ]
 }
