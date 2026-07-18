@@ -10,6 +10,8 @@ import services.data_fetcher as df_mod
 def reset_state(monkeypatch):
     monkeypatch.setattr(df_mod, '_last_price_update', None)
     monkeypatch.setattr(df_mod, '_fx_cache', None)
+    # braucht app/DB — hier geht es nur um die Drossel
+    monkeypatch.setattr(df_mod, '_with_position_stocks', lambda app, universe: universe)
 
 
 def _stub_store(calls):

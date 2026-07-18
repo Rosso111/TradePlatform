@@ -428,6 +428,30 @@ def store_prices_to_db(app, stock_universe: list[dict], days: int = 400):
         log.info("Kursdaten erfolgreich geladen und gespeichert.")
 
 
+def _with_position_stocks(app, stock_universe: list[dict]) -> list[dict]:
+    """Ergänzt Aktien mit offener Position, die nicht (mehr) im Universum stehen.
+
+    Positionen aus IBKR-Importen können außerhalb von STOCK_UNIVERSE liegen —
+    ohne Kurs-Updates liefe ihre SL/TP-Überwachung auf eingefrorenen Daten.
+    """
+    from models import Position, Stock
+
+    known = {s['symbol'] for s in stock_universe}
+    with app.app_context():
+        rows = (Stock.query
+                .join(Position, Position.stock_id == Stock.id)
+                .filter(Stock.symbol.notin_(known))
+                .distinct()
+                .all())
+        extra = [{'symbol': s.symbol, 'name': s.name or s.symbol,
+                  'sector': s.sector or 'Unbekannt', 'region': s.region or 'US',
+                  'currency': s.currency or 'USD'} for s in rows]
+    if extra:
+        log.info("Preis-Update: %d Positions-Aktien außerhalb des Universums ergänzt: %s",
+                 len(extra), ', '.join(sorted(e['symbol'] for e in extra)))
+    return stock_universe + extra
+
+
 def update_prices_incremental(app, stock_universe: list[dict], force: bool = False) -> bool:
     """
     Inkrementelle Aktualisierung: nur die letzten 5 Tage nachladen.
@@ -449,7 +473,7 @@ def update_prices_incremental(app, stock_universe: list[dict], force: bool = Fal
         if not force and _last_price_update and now - _last_price_update < min_interval:
             log.debug("Preis-Update übersprungen — letztes Update %s", _last_price_update)
             return False
-        store_prices_to_db(app, stock_universe, days=5)
+        store_prices_to_db(app, _with_position_stocks(app, stock_universe), days=5)
         _last_price_update = datetime.now()
         return True
     finally:

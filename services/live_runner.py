@@ -673,6 +673,8 @@ def run_live_trading_cycle(app, portfolio_id: int | None = None) -> list[str]:
                             batch_buys.append((sym, qty, price_eur, total_eur))
                         except Exception:
                             batch_buys.append((signal['symbol'], 0, 0, 0))
+                    else:
+                        log.info(f"Kauf abgelehnt: {msg}")
                 except Exception as e:
                     log.error(f"Live-Kauf {signal['symbol']} Portfolio {portfolio.id}: {e}")
 
