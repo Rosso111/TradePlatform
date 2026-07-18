@@ -421,7 +421,9 @@ def run_historical_replay(app, run_id: int) -> SimulationRun:
                 regime_blocks_buys = regime_bullish is False  # None = kein Filter aktiv
 
                 # adaptive: alle Positionen sofort schließen wenn Regime bearish
-                if strategy_mode_day == 'adaptive' and regime_bullish is False and open_positions:
+                # (regime_liquidate=False: nur Kaufstopp, Trailing-Stops arbeiten weiter)
+                if (strategy_mode_day == 'adaptive' and regime_bullish is False and open_positions
+                        and strategy_params_day.get('regime_liquidate', True)):
                     for _sid in list(open_positions.keys()):
                         cash_eur += _close_position_state(
                             run.id, open_positions[_sid], sim_date,
@@ -1451,8 +1453,25 @@ def _build_regime_filter_data(run: SimulationRun, strategy_params: dict, strateg
         regime_dates.append(dates[i])
         regime_values[dates[i]] = (closes[i], sma)
 
-    log.info('Regime-Filter: %s SMA%d — %d Datenpunkte geladen.', benchmark_symbol, period, len(regime_dates))
-    return {'dates': regime_dates, 'values': regime_values, 'symbol': benchmark_symbol, 'period': period}
+    # Hysterese gegen Pendeln um die SMA: bearish erst unter SMA*(1-h),
+    # bullish erst wieder über SMA*(1+h). h=0 entspricht dem alten Verhalten.
+    hysteresis = float(strategy_params.get('regime_hysteresis_pct', 0.0) or 0.0)
+    regime_states = {}
+    state = None
+    for d in regime_dates:
+        price, sma = regime_values[d]
+        if state is None:
+            state = price >= sma
+        elif state and price < sma * (1 - hysteresis):
+            state = False
+        elif not state and price >= sma * (1 + hysteresis):
+            state = True
+        regime_states[d] = state
+
+    log.info('Regime-Filter: %s SMA%d (Hysterese %.1f%%) — %d Datenpunkte geladen.',
+             benchmark_symbol, period, hysteresis * 100, len(regime_dates))
+    return {'dates': regime_dates, 'values': regime_values, 'states': regime_states,
+            'symbol': benchmark_symbol, 'period': period}
 
 
 def _is_regime_bullish(sim_date, regime_data: dict) -> bool | None:
@@ -1467,6 +1486,9 @@ def _is_regime_bullish(sim_date, regime_data: dict) -> bool | None:
     if idx < 0:
         return None
     d = dates[idx]
+    states = regime_data.get('states')
+    if states is not None:
+        return states[d]
     price, sma = regime_data['values'][d]
     return price >= sma
 
