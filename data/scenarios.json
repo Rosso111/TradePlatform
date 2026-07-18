@@ -13438,6 +13438,146 @@
         "entry_ema_fast_max_dist_pct": 0.15
       },
       "notes": "Tuning-Batch 2026-07-18 aus 2-Monats-Live-Analyse Strategie 21"
+    },
+    {
+      "strategy_id": "adaptive_trend_v1",
+      "universe_name": "all_stocks",
+      "start_date": "2022-01-03",
+      "end_date": "2026-07-17",
+      "initial_capital_eur": 1000000,
+      "batch_id": "batch_at_v1_regime",
+      "id": "at_v1_r_ref",
+      "name": "Regime-Batch Referenz (= Kombi alle drei)",
+      "params_override": {
+        "decision_log_mode": "minimal",
+        "persist_chunk_days": 2000,
+        "cancel_check_interval_days": 100,
+        "take_profit_enabled": false,
+        "trailing_stop_pct": 0.1,
+        "top_n_signals": 25,
+        "max_positions": 40,
+        "entry_rsi_max": 75,
+        "entry_ema_fast_max_dist_pct": 0.15
+      },
+      "notes": "Regime-Filter-Batch 2026-07-18: 2022 verlor Kombi -19% trotz Filter (Pendeln um SMA200 = Komplett-Liquidation/-Wiedereinstieg)"
+    },
+    {
+      "strategy_id": "adaptive_trend_v1",
+      "universe_name": "all_stocks",
+      "start_date": "2022-01-03",
+      "end_date": "2026-07-17",
+      "initial_capital_eur": 1000000,
+      "batch_id": "batch_at_v1_regime",
+      "id": "at_v1_r_sma150",
+      "name": "Regime: SMA150 statt 200",
+      "params_override": {
+        "decision_log_mode": "minimal",
+        "persist_chunk_days": 2000,
+        "cancel_check_interval_days": 100,
+        "take_profit_enabled": false,
+        "trailing_stop_pct": 0.1,
+        "top_n_signals": 25,
+        "max_positions": 40,
+        "entry_rsi_max": 75,
+        "entry_ema_fast_max_dist_pct": 0.15,
+        "regime_filter_period": 150
+      },
+      "notes": "Regime-Filter-Batch 2026-07-18: 2022 verlor Kombi -19% trotz Filter (Pendeln um SMA200 = Komplett-Liquidation/-Wiedereinstieg)"
+    },
+    {
+      "strategy_id": "adaptive_trend_v1",
+      "universe_name": "all_stocks",
+      "start_date": "2022-01-03",
+      "end_date": "2026-07-17",
+      "initial_capital_eur": 1000000,
+      "batch_id": "batch_at_v1_regime",
+      "id": "at_v1_r_hyst3",
+      "name": "Regime: Hysterese 3%",
+      "params_override": {
+        "decision_log_mode": "minimal",
+        "persist_chunk_days": 2000,
+        "cancel_check_interval_days": 100,
+        "take_profit_enabled": false,
+        "trailing_stop_pct": 0.1,
+        "top_n_signals": 25,
+        "max_positions": 40,
+        "entry_rsi_max": 75,
+        "entry_ema_fast_max_dist_pct": 0.15,
+        "regime_hysteresis_pct": 0.03
+      },
+      "notes": "Regime-Filter-Batch 2026-07-18: 2022 verlor Kombi -19% trotz Filter (Pendeln um SMA200 = Komplett-Liquidation/-Wiedereinstieg)"
+    },
+    {
+      "strategy_id": "adaptive_trend_v1",
+      "universe_name": "all_stocks",
+      "start_date": "2022-01-03",
+      "end_date": "2026-07-17",
+      "initial_capital_eur": 1000000,
+      "batch_id": "batch_at_v1_regime",
+      "id": "at_v1_r_noliq",
+      "name": "Regime: kein Zwangsverkauf (nur Kaufstopp)",
+      "params_override": {
+        "decision_log_mode": "minimal",
+        "persist_chunk_days": 2000,
+        "cancel_check_interval_days": 100,
+        "take_profit_enabled": false,
+        "trailing_stop_pct": 0.1,
+        "top_n_signals": 25,
+        "max_positions": 40,
+        "entry_rsi_max": 75,
+        "entry_ema_fast_max_dist_pct": 0.15,
+        "regime_liquidate": false
+      },
+      "notes": "Regime-Filter-Batch 2026-07-18: 2022 verlor Kombi -19% trotz Filter (Pendeln um SMA200 = Komplett-Liquidation/-Wiedereinstieg)"
+    },
+    {
+      "strategy_id": "adaptive_trend_v1",
+      "universe_name": "all_stocks",
+      "start_date": "2022-01-03",
+      "end_date": "2026-07-17",
+      "initial_capital_eur": 1000000,
+      "batch_id": "batch_at_v1_regime",
+      "id": "at_v1_r_hyst3_noliq",
+      "name": "Regime: Hysterese 3% + kein Zwangsverkauf",
+      "params_override": {
+        "decision_log_mode": "minimal",
+        "persist_chunk_days": 2000,
+        "cancel_check_interval_days": 100,
+        "take_profit_enabled": false,
+        "trailing_stop_pct": 0.1,
+        "top_n_signals": 25,
+        "max_positions": 40,
+        "entry_rsi_max": 75,
+        "entry_ema_fast_max_dist_pct": 0.15,
+        "regime_hysteresis_pct": 0.03,
+        "regime_liquidate": false
+      },
+      "notes": "Regime-Filter-Batch 2026-07-18: 2022 verlor Kombi -19% trotz Filter (Pendeln um SMA200 = Komplett-Liquidation/-Wiedereinstieg)"
+    },
+    {
+      "strategy_id": "adaptive_trend_v1",
+      "universe_name": "all_stocks",
+      "start_date": "2022-01-03",
+      "end_date": "2026-07-17",
+      "initial_capital_eur": 1000000,
+      "batch_id": "batch_at_v1_regime",
+      "id": "at_v1_r_sma150_hyst3_noliq",
+      "name": "Regime: SMA150 + Hysterese 3% + kein Zwangsverkauf",
+      "params_override": {
+        "decision_log_mode": "minimal",
+        "persist_chunk_days": 2000,
+        "cancel_check_interval_days": 100,
+        "take_profit_enabled": false,
+        "trailing_stop_pct": 0.1,
+        "top_n_signals": 25,
+        "max_positions": 40,
+        "entry_rsi_max": 75,
+        "entry_ema_fast_max_dist_pct": 0.15,
+        "regime_filter_period": 150,
+        "regime_hysteresis_pct": 0.03,
+        "regime_liquidate": false
+      },
+      "notes": "Regime-Filter-Batch 2026-07-18: 2022 verlor Kombi -19% trotz Filter (Pendeln um SMA200 = Komplett-Liquidation/-Wiedereinstieg)"
     }
   ],
   "scenario_batches": [
@@ -22058,7 +22198,7 @@
     {
       "id": "batch_at_v1_tuning",
       "name": "Adaptive Trend v1 Tuning: TP/Trailing, Konzentration, Einstiegsfilter",
-      "status": "running",
+      "status": "completed",
       "scenario_ids": [
         "at_v1_base",
         "at_v1_tp_off_ts10",
@@ -22069,6 +22209,106 @@
       ],
       "notes": "Basierend auf Live-Analyse 08.05.–08.07.: Trefferquote 27%, Whipsaw 48%, TP schnitt Gewinner ab. Zeitraum 2022–2026 (Bär 2022 + Bulle 23/24). Kapital 1M wie Paper-Konto.",
       "started_at": "2026-07-18T08:07:53.653127+00:00",
+      "error": null,
+      "current_index": 6,
+      "run_ids": [
+        1232,
+        1233,
+        1234,
+        1235,
+        1236,
+        1237
+      ],
+      "results": [
+        {
+          "scenario_id": "at_v1_base",
+          "run_id": 1232,
+          "status": "completed",
+          "final_equity_eur": 1020133.23,
+          "total_return_pct": 2.01,
+          "max_drawdown_pct": 24.02,
+          "sharpe_ratio": 0.0822,
+          "kest_total": 0,
+          "commission_total": 47220.17,
+          "total_trades": 3063
+        },
+        {
+          "scenario_id": "at_v1_tp_off_ts10",
+          "run_id": 1233,
+          "status": "completed",
+          "final_equity_eur": 1229236.72,
+          "total_return_pct": 22.92,
+          "max_drawdown_pct": 20.54,
+          "sharpe_ratio": 0.3198,
+          "kest_total": 0,
+          "commission_total": 43579.5,
+          "total_trades": 2088
+        },
+        {
+          "scenario_id": "at_v1_konzentriert",
+          "run_id": 1234,
+          "status": "completed",
+          "final_equity_eur": 1284625.0,
+          "total_return_pct": 28.46,
+          "max_drawdown_pct": 22.02,
+          "sharpe_ratio": 0.4027,
+          "kest_total": 0,
+          "commission_total": 51008.94,
+          "total_trades": 2364
+        },
+        {
+          "scenario_id": "at_v1_einstiegsfilter",
+          "run_id": 1235,
+          "status": "completed",
+          "final_equity_eur": 1134078.47,
+          "total_return_pct": 13.41,
+          "max_drawdown_pct": 23.04,
+          "sharpe_ratio": 0.2298,
+          "kest_total": 0,
+          "commission_total": 49149.46,
+          "total_trades": 3195
+        },
+        {
+          "scenario_id": "at_v1_kombi_ohne_filter",
+          "run_id": 1236,
+          "status": "completed",
+          "final_equity_eur": 1264524.25,
+          "total_return_pct": 26.45,
+          "max_drawdown_pct": 20.75,
+          "sharpe_ratio": 0.357,
+          "kest_total": 0,
+          "commission_total": 42983.8,
+          "total_trades": 1696
+        },
+        {
+          "scenario_id": "at_v1_kombi_alle",
+          "run_id": 1237,
+          "status": "completed",
+          "final_equity_eur": 1301834.33,
+          "total_return_pct": 30.18,
+          "max_drawdown_pct": 20.32,
+          "sharpe_ratio": 0.3932,
+          "kest_total": 0,
+          "commission_total": 42897.16,
+          "total_trades": 1696
+        }
+      ],
+      "finished_at": "2026-07-18T08:53:39.091324+00:00"
+    },
+    {
+      "id": "batch_at_v1_regime",
+      "name": "Adaptive Trend v1: Regime-Filter-Reparatur (auf Kombi-Basis)",
+      "status": "running",
+      "scenario_ids": [
+        "at_v1_r_ref",
+        "at_v1_r_sma150",
+        "at_v1_r_hyst3",
+        "at_v1_r_noliq",
+        "at_v1_r_hyst3_noliq",
+        "at_v1_r_sma150_hyst3_noliq"
+      ],
+      "notes": "Referenz muss ~+30.2% reproduzieren (Regressionscheck gegen Run 1237).",
+      "started_at": "2026-07-18T09:04:10.109108+00:00",
       "error": null
     }
   ]
