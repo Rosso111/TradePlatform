@@ -317,7 +317,8 @@ def run_historical_replay(app, run_id: int) -> SimulationRun:
                             'current_price': _t1_native,
                             'current_price_eur': _t1_eur,
                             'stop_loss': _stop,
-                            'take_profit': calc_take_profit(_t1_native, _stop),
+                            'take_profit': (calc_take_profit(_t1_native, _stop)
+                                            if strategy_params_day.get('take_profit_enabled', True) else None),
                             'trailing_stop': _stop,
                             'highest_price': _t1_native,
                             'cost_eur': _total,
@@ -401,12 +402,16 @@ def run_historical_replay(app, run_id: int) -> SimulationRun:
                 atr_position_sizing = strategy_params.get('atr_position_sizing', False)
                 risk_pct_per_trade = float(strategy_params.get('risk_pct_per_trade', 0.01))
                 atr_stop_multiplier = float(strategy_params.get('atr_stop_multiplier', 2.0))
+                take_profit_enabled = strategy_params.get('take_profit_enabled', True)
+                entry_rsi_max = strategy_params.get('entry_rsi_max')
+                entry_ema_dist_max = strategy_params.get('entry_ema_fast_max_dist_pct')
 
                 # Top-N: nur die N stärksten BUY-Signale des Tages zulassen
+                # (signals ist score-sortiert — Reihenfolge vor dem Schneiden erhalten!)
                 top_n = strategy_params.get('top_n_signals')
                 if top_n:
-                    top_buy_ids = {s['stock_id'] for s in signals if s.get('action') == 'BUY'}
-                    top_buy_ids = set(list(top_buy_ids)[:int(top_n)])
+                    ordered_buy_ids = [s['stock_id'] for s in signals if s.get('action') == 'BUY']
+                    top_buy_ids = set(ordered_buy_ids[:int(top_n)])
                 else:
                     top_buy_ids = None
 
@@ -468,6 +473,20 @@ def run_historical_replay(app, run_id: int) -> SimulationRun:
                         if top_buy_ids is not None and signal['stock_id'] not in top_buy_ids:
                             should_execute = False
                             skip_reason = 'Außerhalb Top-N Signale'
+
+                        # Einstiegsfilter gegen Überdehnung (Anti-Whipsaw):
+                        # überhitzte Einstiege sind die häufigsten schnellen Stop-Outs
+                        if (entry_rsi_max is not None and signal.get('rsi') is not None
+                                and signal['rsi'] > float(entry_rsi_max)):
+                            should_execute = False
+                            skip_reason = f"Einstiegsfilter: RSI {signal['rsi']:.0f} > {entry_rsi_max}"
+                        if (entry_ema_dist_max is not None and signal.get('ema_fast')
+                                and signal.get('current_price', 0) > 0):
+                            _ema_dist = signal['current_price'] / signal['ema_fast'] - 1
+                            if _ema_dist > float(entry_ema_dist_max):
+                                should_execute = False
+                                skip_reason = (f"Einstiegsfilter: {_ema_dist * 100:.0f}% über EMA-fast "
+                                               f"(max {float(entry_ema_dist_max) * 100:.0f}%)")
 
                         latest_price_eur = signal['current_price_eur']
                         if latest_price_eur <= 0:
@@ -550,12 +569,13 @@ def run_historical_replay(app, run_id: int) -> SimulationRun:
                             continue
 
                         stop_loss = calc_stop_loss(signal['current_price'], signal.get('atr'))
-                        take_profit = calc_take_profit(signal['current_price'], stop_loss)
+                        take_profit = (calc_take_profit(signal['current_price'], stop_loss)
+                                       if take_profit_enabled else None)
                         risk_distance = max(signal['current_price'] - stop_loss, 0)
                         signal['risk_json'] = {
                             'budget_eur': round(budget_eur, 2),
                             'stop_loss': round(stop_loss, 4),
-                            'take_profit': round(take_profit, 4),
+                            'take_profit': round(take_profit, 4) if take_profit else None,
                             'risk_distance': round(risk_distance, 4),
                         }
 
