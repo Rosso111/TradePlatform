@@ -128,7 +128,22 @@ def execute_buy(signal: dict, fx_rates: dict, portfolio: Portfolio) -> tuple[boo
     if signal['score'] < params['buy_threshold']:
         return False, f"{symbol}: Score {signal['score']:.0f} unter Schwelle {params['buy_threshold']}"
 
-    position_eur = calc_position_size(account, signal, params)
+    if params.get('position_sizing') == 'fixed_fraction':
+        # Replay-Parität (dual_momentum): fester Cash-Anteil statt Risiko-Sizing,
+        # ohne MAX_POSITION_EUR-Cap — Konzentration ist hier gewollt.
+        # Kleine Budgets werden auf den Mindestanteil angehoben (Cash-Limit gilt);
+        # reicht der Cash nicht für die Mindestposition, kein Kauf.
+        min_eur = ((getattr(portfolio, 'starting_capital', None) or config.STARTING_CAPITAL)
+                   * float(params.get('min_position_size', 0)))
+        position_eur = min(
+            max(account.cash_eur * float(params.get('max_position_size', config.MAX_POSITION_SIZE)),
+                min_eur),
+            account.cash_eur * 0.98,
+        )
+        if min_eur and position_eur < min_eur:
+            return False, f"{symbol}: Zu wenig Cash für Mindestposition ({position_eur:.0f} < {min_eur:.0f} EUR)"
+    else:
+        position_eur = calc_position_size(account, signal, params)
     if position_eur < 50:
         return False, f"{symbol}: Positionsgröße zu klein ({position_eur:.2f} EUR)"
 
@@ -319,6 +334,12 @@ def update_positions(fx_rates: dict, portfolio_id: int) -> tuple[list[str], set[
             pos.trailing_stop or 0
         )
 
+        # Mindesthaltedauer (dual_momentum): Stops/TP erst nach min_hold_days
+        # scharf — der Trailing-Stop wird oben trotzdem weiter nachgezogen
+        min_hold = int(params.get('min_hold_days', 0) or 0)
+        if min_hold and pos.opened_at and (date.today() - pos.opened_at.date()).days < min_hold:
+            continue
+
         # Stop-Loss getroffen?
         if effective_stop > 0 and current_price <= effective_stop:
             ok, msg = execute_sell(pos, current_price, current_price_eur, fx_rate,
@@ -342,6 +363,15 @@ def update_positions(fx_rates: dict, portfolio_id: int) -> tuple[list[str], set[
 
 
 # ─── Pro-Portfolio Zyklus ────────────────────────────────────────────────────
+
+def _strategy_mode(portfolio: Portfolio) -> str:
+    """Engine-Modus der Portfolio-Strategie ('score', 'dual_momentum', …)."""
+    strategy = getattr(portfolio, 'strategy', None)
+    if strategy is None and portfolio.strategy_id:
+        from models import Strategy
+        strategy = Strategy.query.get(portfolio.strategy_id)
+    return (strategy.mode if strategy else None) or 'score'
+
 
 def _execute_cycle_for_portfolio(portfolio: Portfolio, signals: list, fx_rates: dict) -> list[str]:
     """Führt Kauf-/Verkaufsentscheidungen für ein einzelnes Portfolio aus."""
@@ -488,7 +518,11 @@ def run_trading_cycle(app, portfolio_id: int | None = None) -> list[str]:
 
         for portfolio in portfolios:
             try:
-                actions = _execute_cycle_for_portfolio(portfolio, signals, fx_rates)
+                portfolio_signals = signals
+                if _strategy_mode(portfolio) == 'dual_momentum':
+                    from services.momentum_signals import generate_momentum_signals
+                    portfolio_signals = generate_momentum_signals(portfolio)
+                actions = _execute_cycle_for_portfolio(portfolio, portfolio_signals, fx_rates)
                 all_actions.extend(actions)
             except Exception as e:
                 log.error(f"Zyklus Portfolio {portfolio.id}: {e}")
