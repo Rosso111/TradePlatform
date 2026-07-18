@@ -13729,6 +13729,114 @@
         "tax_loss_harvest_threshold": -1.0
       },
       "notes": "Champions-Duell 2026-07-18: identische Bedingungen (2022–2026, all_stocks, 1M, keine KeSt/TLH). Erste Neubewertung nach Top-N-Bugfix."
+    },
+    {
+      "id": "rob_cm4_2015_all",
+      "name": "ROBUST: concentrated_momentum_v4 — all_stocks 2015–2021",
+      "strategy_id": "concentrated_momentum_v4",
+      "universe_name": "all_stocks",
+      "start_date": "2015-01-02",
+      "end_date": "2021-12-31",
+      "initial_capital_eur": 1000000,
+      "batch_id": "batch_robustness",
+      "params_override": {
+        "decision_log_mode": "minimal",
+        "persist_chunk_days": 2000,
+        "cancel_check_interval_days": 100,
+        "capital_gains_tax_rate": 0,
+        "tax_loss_harvest_threshold": -1.0
+      },
+      "notes": "Robustheitscheck der Duell-Sieger: anderes Zeitfenster (SPY 2015–21: +163%) + live handelbares Universum. Achtung Survivorship-Bias: Universum wurde 2026 zusammengestellt."
+    },
+    {
+      "id": "rob_cm4_2015_live",
+      "name": "ROBUST: concentrated_momentum_v4 — live_universe 2015–2021",
+      "strategy_id": "concentrated_momentum_v4",
+      "universe_name": "live_universe",
+      "start_date": "2015-01-02",
+      "end_date": "2021-12-31",
+      "initial_capital_eur": 1000000,
+      "batch_id": "batch_robustness",
+      "params_override": {
+        "decision_log_mode": "minimal",
+        "persist_chunk_days": 2000,
+        "cancel_check_interval_days": 100,
+        "capital_gains_tax_rate": 0,
+        "tax_loss_harvest_threshold": -1.0
+      },
+      "notes": "Robustheitscheck der Duell-Sieger: anderes Zeitfenster (SPY 2015–21: +163%) + live handelbares Universum. Achtung Survivorship-Bias: Universum wurde 2026 zusammengestellt."
+    },
+    {
+      "id": "rob_cm4_2022_live",
+      "name": "ROBUST: concentrated_momentum_v4 — live_universe 2022–2026",
+      "strategy_id": "concentrated_momentum_v4",
+      "universe_name": "live_universe",
+      "start_date": "2022-01-03",
+      "end_date": "2026-07-17",
+      "initial_capital_eur": 1000000,
+      "batch_id": "batch_robustness",
+      "params_override": {
+        "decision_log_mode": "minimal",
+        "persist_chunk_days": 2000,
+        "cancel_check_interval_days": 100,
+        "capital_gains_tax_rate": 0,
+        "tax_loss_harvest_threshold": -1.0
+      },
+      "notes": "Robustheitscheck der Duell-Sieger: anderes Zeitfenster (SPY 2015–21: +163%) + live handelbares Universum. Achtung Survivorship-Bias: Universum wurde 2026 zusammengestellt."
+    },
+    {
+      "id": "rob_dmrf_2015_all",
+      "name": "ROBUST: dual_momentum_rf_v1 — all_stocks 2015–2021",
+      "strategy_id": "dual_momentum_rf_v1",
+      "universe_name": "all_stocks",
+      "start_date": "2015-01-02",
+      "end_date": "2021-12-31",
+      "initial_capital_eur": 1000000,
+      "batch_id": "batch_robustness",
+      "params_override": {
+        "decision_log_mode": "minimal",
+        "persist_chunk_days": 2000,
+        "cancel_check_interval_days": 100,
+        "capital_gains_tax_rate": 0,
+        "tax_loss_harvest_threshold": -1.0
+      },
+      "notes": "Robustheitscheck der Duell-Sieger: anderes Zeitfenster (SPY 2015–21: +163%) + live handelbares Universum. Achtung Survivorship-Bias: Universum wurde 2026 zusammengestellt."
+    },
+    {
+      "id": "rob_dmrf_2015_live",
+      "name": "ROBUST: dual_momentum_rf_v1 — live_universe 2015–2021",
+      "strategy_id": "dual_momentum_rf_v1",
+      "universe_name": "live_universe",
+      "start_date": "2015-01-02",
+      "end_date": "2021-12-31",
+      "initial_capital_eur": 1000000,
+      "batch_id": "batch_robustness",
+      "params_override": {
+        "decision_log_mode": "minimal",
+        "persist_chunk_days": 2000,
+        "cancel_check_interval_days": 100,
+        "capital_gains_tax_rate": 0,
+        "tax_loss_harvest_threshold": -1.0
+      },
+      "notes": "Robustheitscheck der Duell-Sieger: anderes Zeitfenster (SPY 2015–21: +163%) + live handelbares Universum. Achtung Survivorship-Bias: Universum wurde 2026 zusammengestellt."
+    },
+    {
+      "id": "rob_dmrf_2022_live",
+      "name": "ROBUST: dual_momentum_rf_v1 — live_universe 2022–2026",
+      "strategy_id": "dual_momentum_rf_v1",
+      "universe_name": "live_universe",
+      "start_date": "2022-01-03",
+      "end_date": "2026-07-17",
+      "initial_capital_eur": 1000000,
+      "batch_id": "batch_robustness",
+      "params_override": {
+        "decision_log_mode": "minimal",
+        "persist_chunk_days": 2000,
+        "cancel_check_interval_days": 100,
+        "capital_gains_tax_rate": 0,
+        "tax_loss_harvest_threshold": -1.0
+      },
+      "notes": "Robustheitscheck der Duell-Sieger: anderes Zeitfenster (SPY 2015–21: +163%) + live handelbares Universum. Achtung Survivorship-Bias: Universum wurde 2026 zusammengestellt."
     }
   ],
   "scenario_batches": [
@@ -22549,7 +22657,7 @@
     {
       "id": "batch_champions_duel",
       "name": "Champions-Duell: Adaptive Kombi vs. 7 Strategie-Stile (nach Top-N-Fix)",
-      "status": "running",
+      "status": "completed",
       "scenario_ids": [
         "duel_adaptive_kombi",
         "duel_conc_momentum_v4",
@@ -22562,7 +22670,131 @@
       ],
       "notes": "Alte Top-N-Ergebnisse (u. a. 3000%-Batches) sind durch den Set-Ordering-Bug entwertet. SPY-Benchmark im Fenster: +65%.",
       "started_at": "2026-07-18T10:03:46.512117+00:00",
-      "error": null
+      "error": null,
+      "current_index": 8,
+      "run_ids": [
+        1245,
+        1246,
+        1247,
+        1248,
+        1249,
+        1250,
+        1251,
+        1252
+      ],
+      "results": [
+        {
+          "scenario_id": "duel_adaptive_kombi",
+          "run_id": 1245,
+          "status": "completed",
+          "final_equity_eur": 1340712.22,
+          "total_return_pct": 34.07,
+          "max_drawdown_pct": 22.9,
+          "sharpe_ratio": 0.441,
+          "kest_total": 0,
+          "commission_total": 24872.06,
+          "total_trades": 1622
+        },
+        {
+          "scenario_id": "duel_conc_momentum_v4",
+          "run_id": 1246,
+          "status": "completed",
+          "final_equity_eur": 6421109.16,
+          "total_return_pct": 542.11,
+          "max_drawdown_pct": 26.78,
+          "sharpe_ratio": 1.1354,
+          "kest_total": 0,
+          "commission_total": 25586.99,
+          "total_trades": 100
+        },
+        {
+          "scenario_id": "duel_dual_momentum_rf",
+          "run_id": 1247,
+          "status": "completed",
+          "final_equity_eur": 3136428.89,
+          "total_return_pct": 213.64,
+          "max_drawdown_pct": 22.07,
+          "sharpe_ratio": 1.1172,
+          "kest_total": 0,
+          "commission_total": 42305.69,
+          "total_trades": 833
+        },
+        {
+          "scenario_id": "duel_monthly_rotation",
+          "run_id": 1248,
+          "status": "completed",
+          "final_equity_eur": 1185038.64,
+          "total_return_pct": 18.5,
+          "max_drawdown_pct": 15.7,
+          "sharpe_ratio": 0.366,
+          "kest_total": 0,
+          "commission_total": 44861.61,
+          "total_trades": 1571
+        },
+        {
+          "scenario_id": "duel_cross_sectional",
+          "run_id": 1249,
+          "status": "completed",
+          "final_equity_eur": 1754656.47,
+          "total_return_pct": 75.47,
+          "max_drawdown_pct": 17.76,
+          "sharpe_ratio": 0.7114,
+          "kest_total": 0,
+          "commission_total": 41570.04,
+          "total_trades": 947
+        },
+        {
+          "scenario_id": "duel_sharpe_momentum",
+          "run_id": 1250,
+          "status": "completed",
+          "final_equity_eur": 1752284.55,
+          "total_return_pct": 75.23,
+          "max_drawdown_pct": 25.05,
+          "sharpe_ratio": 0.6852,
+          "kest_total": 0,
+          "commission_total": 30406.29,
+          "total_trades": 891
+        },
+        {
+          "scenario_id": "duel_trend_quality_aggr",
+          "run_id": 1251,
+          "status": "completed",
+          "final_equity_eur": 971440.18,
+          "total_return_pct": -2.86,
+          "max_drawdown_pct": 25.66,
+          "sharpe_ratio": 0.0121,
+          "kest_total": 0,
+          "commission_total": 42867.55,
+          "total_trades": 1266
+        },
+        {
+          "scenario_id": "duel_breakout",
+          "run_id": 1252,
+          "status": "completed",
+          "final_equity_eur": 1247944.91,
+          "total_return_pct": 24.79,
+          "max_drawdown_pct": 19.82,
+          "sharpe_ratio": 0.4087,
+          "kest_total": 0,
+          "commission_total": 36698.0,
+          "total_trades": 1257
+        }
+      ],
+      "finished_at": "2026-07-18T11:13:33.253014+00:00"
+    },
+    {
+      "id": "batch_robustness",
+      "name": "Robustheit: cm_v4 + dm_rf auf 2015–2021 und Live-Universum",
+      "status": "draft",
+      "scenario_ids": [
+        "rob_cm4_2015_all",
+        "rob_cm4_2015_live",
+        "rob_cm4_2022_live",
+        "rob_dmrf_2015_all",
+        "rob_dmrf_2015_live",
+        "rob_dmrf_2022_live"
+      ],
+      "notes": "Duell-Ergebnis 2022–2026/all_stocks: cm_v4 +542%, dm_rf +214%, SPY +65%. Benchmark 2015–2021: SPY +163%."
     }
   ]
 }
