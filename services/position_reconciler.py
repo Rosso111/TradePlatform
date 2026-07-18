@@ -53,10 +53,13 @@ def compare_positions(db_rows: list[tuple[str, float]],
 
 def reconcile_all_portfolios(app) -> list[str]:
     """Gleicht alle IBKR-Portfolios ab und alarmiert per Telegram bei Differenzen."""
+    import time
+
     import config
     from services.ibkr_connector import IBKRConnectionPool
 
     all_diffs = []
+    skipped = 0
     with app.app_context():
         portfolios = Portfolio.query.filter(
             Portfolio.status == 'active',
@@ -67,13 +70,22 @@ def reconcile_all_portfolios(app) -> list[str]:
             if not portfolio.ibkr_account_id:
                 continue
             port = config.IBKR_LIVE_PORT if portfolio.type == 'ibkr_live' else config.IBKR_PAPER_PORT
-            # eigene client_id-Range, kollidiert nicht mit Handelszyklus (CLIENT_ID+id)
-            conn = IBKRConnectionPool.get(config.IBKR_HOST, port,
-                                          config.IBKR_CLIENT_ID + 40 + portfolio.id)
-            ibkr_rows = conn.get_positions(portfolio.ibkr_account_id)
+            # Das Gateway macht um ~07:00–07:45 seinen täglichen Auto-Restart,
+            # daher mehrere Versuche statt sofort aufgeben.
+            ibkr_rows = []
+            for attempt in range(1, 4):
+                # eigene client_id-Range, kollidiert nicht mit Handelszyklus (CLIENT_ID+id)
+                conn = IBKRConnectionPool.get(config.IBKR_HOST, port,
+                                              config.IBKR_CLIENT_ID + 40 + portfolio.id)
+                ibkr_rows = conn.get_positions(portfolio.ibkr_account_id)
+                if ibkr_rows:
+                    break
+                log.warning("Reconciliation %s: keine IBKR-Daten (Versuch %d/3)",
+                            portfolio.name, attempt)
+                if attempt < 3:
+                    time.sleep(90)
             if not ibkr_rows:
-                log.warning("Reconciliation %s: keine IBKR-Daten (Gateway down?) — übersprungen",
-                            portfolio.name)
+                skipped += 1
                 continue
 
             db_rows = [(pos.stock.symbol, pos.shares)
@@ -93,6 +105,9 @@ def reconcile_all_portfolios(app) -> list[str]:
             send_message('\n'.join(lines))
         except Exception:
             pass
+    elif skipped:
+        log.warning("Positions-Reconciliation unvollständig: %d Portfolio(s) ohne IBKR-Daten übersprungen.",
+                    skipped)
     else:
         log.info("Positions-Reconciliation: DB und IBKR deckungsgleich.")
     return all_diffs
