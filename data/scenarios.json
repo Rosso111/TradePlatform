@@ -13578,6 +13578,157 @@
         "regime_liquidate": false
       },
       "notes": "Regime-Filter-Batch 2026-07-18: 2022 verlor Kombi -19% trotz Filter (Pendeln um SMA200 = Komplett-Liquidation/-Wiedereinstieg)"
+    },
+    {
+      "universe_name": "all_stocks",
+      "start_date": "2022-01-03",
+      "end_date": "2026-07-17",
+      "initial_capital_eur": 1000000,
+      "batch_id": "batch_champions_duel",
+      "id": "duel_adaptive_kombi",
+      "name": "DUELL: Adaptive Kombi+NoLiq (unser Kandidat)",
+      "strategy_id": "adaptive_trend_v1",
+      "params_override": {
+        "decision_log_mode": "minimal",
+        "persist_chunk_days": 2000,
+        "cancel_check_interval_days": 100,
+        "capital_gains_tax_rate": 0,
+        "tax_loss_harvest_threshold": -1.0,
+        "take_profit_enabled": false,
+        "trailing_stop_pct": 0.1,
+        "top_n_signals": 25,
+        "max_positions": 40,
+        "entry_rsi_max": 75,
+        "entry_ema_fast_max_dist_pct": 0.15,
+        "regime_liquidate": false
+      },
+      "notes": "Champions-Duell 2026-07-18: identische Bedingungen (2022–2026, all_stocks, 1M, keine KeSt/TLH). Erste Neubewertung nach Top-N-Bugfix."
+    },
+    {
+      "universe_name": "all_stocks",
+      "start_date": "2022-01-03",
+      "end_date": "2026-07-17",
+      "initial_capital_eur": 1000000,
+      "batch_id": "batch_champions_duel",
+      "id": "duel_conc_momentum_v4",
+      "name": "DUELL: Concentrated Momentum v4 (Ex-Champion, Top-3)",
+      "strategy_id": "concentrated_momentum_v4",
+      "params_override": {
+        "decision_log_mode": "minimal",
+        "persist_chunk_days": 2000,
+        "cancel_check_interval_days": 100,
+        "capital_gains_tax_rate": 0,
+        "tax_loss_harvest_threshold": -1.0
+      },
+      "notes": "Champions-Duell 2026-07-18: identische Bedingungen (2022–2026, all_stocks, 1M, keine KeSt/TLH). Erste Neubewertung nach Top-N-Bugfix."
+    },
+    {
+      "universe_name": "all_stocks",
+      "start_date": "2022-01-03",
+      "end_date": "2026-07-17",
+      "initial_capital_eur": 1000000,
+      "batch_id": "batch_champions_duel",
+      "id": "duel_dual_momentum_rf",
+      "name": "DUELL: Dual Momentum + Regime-Filter",
+      "strategy_id": "dual_momentum_rf_v1",
+      "params_override": {
+        "decision_log_mode": "minimal",
+        "persist_chunk_days": 2000,
+        "cancel_check_interval_days": 100,
+        "capital_gains_tax_rate": 0,
+        "tax_loss_harvest_threshold": -1.0
+      },
+      "notes": "Champions-Duell 2026-07-18: identische Bedingungen (2022–2026, all_stocks, 1M, keine KeSt/TLH). Erste Neubewertung nach Top-N-Bugfix."
+    },
+    {
+      "universe_name": "all_stocks",
+      "start_date": "2022-01-03",
+      "end_date": "2026-07-17",
+      "initial_capital_eur": 1000000,
+      "batch_id": "batch_champions_duel",
+      "id": "duel_monthly_rotation",
+      "name": "DUELL: Monthly Rotation AT",
+      "strategy_id": "monthly_rotation_at_v1",
+      "params_override": {
+        "decision_log_mode": "minimal",
+        "persist_chunk_days": 2000,
+        "cancel_check_interval_days": 100,
+        "capital_gains_tax_rate": 0,
+        "tax_loss_harvest_threshold": -1.0
+      },
+      "notes": "Champions-Duell 2026-07-18: identische Bedingungen (2022–2026, all_stocks, 1M, keine KeSt/TLH). Erste Neubewertung nach Top-N-Bugfix."
+    },
+    {
+      "universe_name": "all_stocks",
+      "start_date": "2022-01-03",
+      "end_date": "2026-07-17",
+      "initial_capital_eur": 1000000,
+      "batch_id": "batch_champions_duel",
+      "id": "duel_cross_sectional",
+      "name": "DUELL: Cross-Sectional Momentum",
+      "strategy_id": "cross_sectional_momentum_v1",
+      "params_override": {
+        "decision_log_mode": "minimal",
+        "persist_chunk_days": 2000,
+        "cancel_check_interval_days": 100,
+        "capital_gains_tax_rate": 0,
+        "tax_loss_harvest_threshold": -1.0
+      },
+      "notes": "Champions-Duell 2026-07-18: identische Bedingungen (2022–2026, all_stocks, 1M, keine KeSt/TLH). Erste Neubewertung nach Top-N-Bugfix."
+    },
+    {
+      "universe_name": "all_stocks",
+      "start_date": "2022-01-03",
+      "end_date": "2026-07-17",
+      "initial_capital_eur": 1000000,
+      "batch_id": "batch_champions_duel",
+      "id": "duel_sharpe_momentum",
+      "name": "DUELL: Sharpe Momentum",
+      "strategy_id": "sharpe_momentum_v1",
+      "params_override": {
+        "decision_log_mode": "minimal",
+        "persist_chunk_days": 2000,
+        "cancel_check_interval_days": 100,
+        "capital_gains_tax_rate": 0,
+        "tax_loss_harvest_threshold": -1.0
+      },
+      "notes": "Champions-Duell 2026-07-18: identische Bedingungen (2022–2026, all_stocks, 1M, keine KeSt/TLH). Erste Neubewertung nach Top-N-Bugfix."
+    },
+    {
+      "universe_name": "all_stocks",
+      "start_date": "2022-01-03",
+      "end_date": "2026-07-17",
+      "initial_capital_eur": 1000000,
+      "batch_id": "batch_champions_duel",
+      "id": "duel_trend_quality_aggr",
+      "name": "DUELL: Trend Quality Aggressive",
+      "strategy_id": "trend_quality_aggressive_v1",
+      "params_override": {
+        "decision_log_mode": "minimal",
+        "persist_chunk_days": 2000,
+        "cancel_check_interval_days": 100,
+        "capital_gains_tax_rate": 0,
+        "tax_loss_harvest_threshold": -1.0
+      },
+      "notes": "Champions-Duell 2026-07-18: identische Bedingungen (2022–2026, all_stocks, 1M, keine KeSt/TLH). Erste Neubewertung nach Top-N-Bugfix."
+    },
+    {
+      "universe_name": "all_stocks",
+      "start_date": "2022-01-03",
+      "end_date": "2026-07-17",
+      "initial_capital_eur": 1000000,
+      "batch_id": "batch_champions_duel",
+      "id": "duel_breakout",
+      "name": "DUELL: Donchian Breakout",
+      "strategy_id": "breakout_v1",
+      "params_override": {
+        "decision_log_mode": "minimal",
+        "persist_chunk_days": 2000,
+        "cancel_check_interval_days": 100,
+        "capital_gains_tax_rate": 0,
+        "tax_loss_harvest_threshold": -1.0
+      },
+      "notes": "Champions-Duell 2026-07-18: identische Bedingungen (2022–2026, all_stocks, 1M, keine KeSt/TLH). Erste Neubewertung nach Top-N-Bugfix."
     }
   ],
   "scenario_batches": [
@@ -22298,7 +22449,7 @@
     {
       "id": "batch_at_v1_regime",
       "name": "Adaptive Trend v1: Regime-Filter-Reparatur (auf Kombi-Basis)",
-      "status": "running",
+      "status": "completed",
       "scenario_ids": [
         "at_v1_r_ref",
         "at_v1_r_sma150",
@@ -22309,6 +22460,108 @@
       ],
       "notes": "Referenz muss ~+30.2% reproduzieren (Regressionscheck gegen Run 1237).",
       "started_at": "2026-07-18T09:04:10.109108+00:00",
+      "error": null,
+      "current_index": 6,
+      "run_ids": [
+        1239,
+        1240,
+        1241,
+        1242,
+        1243,
+        1244
+      ],
+      "results": [
+        {
+          "scenario_id": "at_v1_r_ref",
+          "run_id": 1239,
+          "status": "completed",
+          "final_equity_eur": 1301834.33,
+          "total_return_pct": 30.18,
+          "max_drawdown_pct": 20.32,
+          "sharpe_ratio": 0.3932,
+          "kest_total": 0,
+          "commission_total": 42897.16,
+          "total_trades": 1696
+        },
+        {
+          "scenario_id": "at_v1_r_sma150",
+          "run_id": 1240,
+          "status": "completed",
+          "final_equity_eur": 1300753.86,
+          "total_return_pct": 30.08,
+          "max_drawdown_pct": 28.56,
+          "sharpe_ratio": 0.408,
+          "kest_total": 0,
+          "commission_total": 40561.73,
+          "total_trades": 1668
+        },
+        {
+          "scenario_id": "at_v1_r_hyst3",
+          "run_id": 1241,
+          "status": "completed",
+          "final_equity_eur": 1158873.57,
+          "total_return_pct": 15.89,
+          "max_drawdown_pct": 23.22,
+          "sharpe_ratio": 0.2632,
+          "kest_total": 0,
+          "commission_total": 20551.1,
+          "total_trades": 1532
+        },
+        {
+          "scenario_id": "at_v1_r_noliq",
+          "run_id": 1242,
+          "status": "completed",
+          "final_equity_eur": 1340712.22,
+          "total_return_pct": 34.07,
+          "max_drawdown_pct": 22.9,
+          "sharpe_ratio": 0.441,
+          "kest_total": 0,
+          "commission_total": 24872.06,
+          "total_trades": 1622
+        },
+        {
+          "scenario_id": "at_v1_r_hyst3_noliq",
+          "run_id": 1243,
+          "status": "completed",
+          "final_equity_eur": 1096665.53,
+          "total_return_pct": 9.67,
+          "max_drawdown_pct": 26.8,
+          "sharpe_ratio": 0.1843,
+          "kest_total": 0,
+          "commission_total": 19297.75,
+          "total_trades": 1563
+        },
+        {
+          "scenario_id": "at_v1_r_sma150_hyst3_noliq",
+          "run_id": 1244,
+          "status": "completed",
+          "final_equity_eur": 918188.14,
+          "total_return_pct": -8.18,
+          "max_drawdown_pct": 30.79,
+          "sharpe_ratio": -0.0727,
+          "kest_total": 0,
+          "commission_total": 18809.71,
+          "total_trades": 1560
+        }
+      ],
+      "finished_at": "2026-07-18T09:56:09.175199+00:00"
+    },
+    {
+      "id": "batch_champions_duel",
+      "name": "Champions-Duell: Adaptive Kombi vs. 7 Strategie-Stile (nach Top-N-Fix)",
+      "status": "running",
+      "scenario_ids": [
+        "duel_adaptive_kombi",
+        "duel_conc_momentum_v4",
+        "duel_dual_momentum_rf",
+        "duel_monthly_rotation",
+        "duel_cross_sectional",
+        "duel_sharpe_momentum",
+        "duel_trend_quality_aggr",
+        "duel_breakout"
+      ],
+      "notes": "Alte Top-N-Ergebnisse (u. a. 3000%-Batches) sind durch den Set-Ordering-Bug entwertet. SPY-Benchmark im Fenster: +65%.",
+      "started_at": "2026-07-18T10:03:46.512117+00:00",
       "error": null
     }
   ]
